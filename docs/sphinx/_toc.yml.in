@@ -6,15 +6,24 @@ defaults:
 root: index
 subtrees:
 
-- caption: Performance optimization
+- caption: Getting started
   entries:
-  - file: how-to/performance_optimization
-  - file: tutorial/hip-performance-optimization
+  - file: conceptual/introduction
+  - file: conceptual/introduction/understand
+  - file: conceptual/introduction/guidelines
+  - file: how-to/multi-gpu_programming
+
+- caption: Performance optimization patterns
+  entries:
+  - file: patterns/introduction
     subtrees:
     - entries:
-      - file: tutorial/hip-performance-optimization/highly-parallel-image-gamma-correction
-      - file: tutorial/hip-performance-optimization/fixed-size-kernels-image-gamma-correction
-      - file: tutorial/hip-performance-optimization/reduction
-      - file: tutorial/hip-performance-optimization/tiling-matrix-multiply
-      - file: tutorial/hip-performance-optimization/tiling-matrix-transpose
-  - file: how-to/multi-gpu_programming
+      - file: patterns/examples/highly-parallel-image-gamma-correction
+      - file: patterns/examples/fixed-size-kernels-image-gamma-correction
+      - file: patterns/examples/reduction
+      - file: patterns/examples/tiling-matrix-multiply
+      - file: patterns/examples/tiling-matrix-transpose
+
+- caption: Hardware intrinsics
+  entries:
+  - file: hardware-intrinsics/introduction

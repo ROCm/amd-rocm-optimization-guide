@@ -7,12 +7,11 @@
 Multi-GPU programming
 ********************************************************************************
 
-The multi-GPU Programming section explains how to leverage multiple GPUs within
-a single system or across nodes to accelerate compute workloads. It covers
-techniques for multi-device management, including device selection,
-synchronization, and memory handling. These topics help developers scale HIP
-applications to fully utilize the computational power of multi-GPU and distributed
-environments.
+Multi-GPU programming leverages the available GPUs within a single system or across
+nodes to accelerate compute workloads. It covers techniques for multi-device management,
+including device selection, synchronization, and memory handling. These topics help
+developers scale HIP applications to fully utilize the computational power of multi-GPU
+and distributed environments.
 
 .. note::
   The ROCm Communication Collectives Library (RCCL) is a stand-alone library that also provides

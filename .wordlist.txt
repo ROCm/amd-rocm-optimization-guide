@@ -1014,6 +1014,7 @@ RST
 RTC
 RTTI
 Runfile
+runnable
 runtime
 runtimes
 rvalue
@@ -1288,6 +1289,7 @@ Wojna
 workgroup
 Workgroups
 workgroups
+WMMA
 WR
 writeback
 writebacks
