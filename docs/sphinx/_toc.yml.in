@@ -1,0 +1,20 @@
+# Anywhere {branch} is used, the branch name will be substituted.
+# These comments will also be removed.
+defaults:
+  numbered: False
+  maxdepth: 6
+root: index
+subtrees:
+
+- caption: Performance optimization
+  entries:
+  - file: how-to/performance_optimization
+  - file: tutorial/hip-performance-optimization
+    subtrees:
+    - entries:
+      - file: tutorial/hip-performance-optimization/highly-parallel-image-gamma-correction
+      - file: tutorial/hip-performance-optimization/fixed-size-kernels-image-gamma-correction
+      - file: tutorial/hip-performance-optimization/reduction
+      - file: tutorial/hip-performance-optimization/tiling-matrix-multiply
+      - file: tutorial/hip-performance-optimization/tiling-matrix-transpose
+  - file: how-to/multi-gpu_programming
