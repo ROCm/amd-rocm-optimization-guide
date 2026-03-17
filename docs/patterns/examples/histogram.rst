@@ -50,9 +50,9 @@ steps simultaneously, and many may land on the same bin at the same time.
 Race conditions
 ===============
 
-A **race condition** occurs when two or more threads attempt to
-read-modify-write the same memory location concurrently. Consider two threads
-that both want to increment ``histogram[bin]``:
+A race condition occurs when two or more threads attempt to read-modify-write
+the same memory location concurrently. Consider two threads that both want to
+increment ``histogram[bin]``:
 
 .. code-block:: cpp
 
@@ -71,12 +71,12 @@ increment atomic.
 Atomic operations
 =================
 
-An **atomic operation** executes a read-modify-write sequence as an
-indivisible unit. No other thread can observe a partially completed operation
-or interleave its own update between the read and write. From the hardware's
-perspective, the memory arbitration unit locks the relevant cache line,
-performs the update, and releases the lock. All competing threads observe
-results as if the operations occurred in a single sequential order.
+An atomic operation executes a read-modify-write sequence as an indivisible
+unit. No other thread can observe a partially completed operation or interleave
+its own update between the read and write. From the hardware's perspective,
+the memory arbitration unit locks the relevant cache line, performs the update,
+and releases the lock. All competing threads observe results as if the
+operations occurred in a single sequential order.
 
 HIP provides a set of atomic primitives for both global and shared memory:
 
@@ -118,11 +118,10 @@ The naive kernel issues one global ``atomicAdd`` per thread:
    :start-after: [Sphinx histogram naive kernel start]
    :end-before: [Sphinx histogram naive kernel end]
 
-This is correct — the atomic eliminates the race condition — but slow. Global
-memory atomics must travel through the full memory hierarchy. When many threads
-target the same bin, the hardware serializes their updates: only one proceeds
-at a time while the others stall. This is called **atomic contention**, and it
-limits throughput proportionally to how many threads compete for the same
+Global memory atomics must travel through the full memory hierarchy. When many
+threads target the same bin, the hardware serializes their updates: only one
+proceeds at a time while the others stall. This is called **atomic contention**,
+and it limits throughput proportionally to how many threads compete for the same
 address.
 
 Two factors make contention worse in practice:
@@ -205,47 +204,3 @@ fewer than four elements per thread remain.
 
    The ``uint4`` reinterpret cast requires the input pointer to be 16-byte
    aligned. Allocations from ``hipMalloc`` satisfy this requirement.
-
-Best practices
-==============
-
-Use atomic operations only where necessary
-------------------------------------------
-
-Atomic instructions serialize access to a memory location and reduce SIMT
-efficiency. Restrict atomic usage to code paths where data races cannot be
-eliminated through algorithmic restructuring, such as the bin merge step.
-
-Minimize contention
--------------------
-
-High contention on a single address or small set of addresses leads to
-serialization. The local memory approach reduces global atomic contention
-significantly, but LDS atomics for hot bins can still serialize within a
-block. If the input distribution is highly skewed, consider splitting each
-block's LDS into per-warp sub-histograms and reducing them before the global
-merge.
-
-Validate correctness against a CPU reference
---------------------------------------------
-
-Confirm GPU kernel results against a single-threaded CPU baseline. Atomic
-operations prevent race conditions but do not protect against logic errors in
-bin assignment. Testing with a known reference catches both categories of bug.
-
-Profile atomic throughput
--------------------------
-
-GPU performance is sensitive to atomic contention, memory access patterns, and
-occupancy. Use
-`rocprofv3 <https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/>`_
-or
-`ROCm Compute Profiler <https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/>`_
-to examine warp stalls, memory-coalescing behavior, and atomic throughput
-bottlenecks before tuning.
-
-For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
-provides highly optimized histogram primitives that handle edge cases and apply
-architecture-specific tuning automatically. The kernels in this tutorial are
-intended to build intuition for the optimization principles those primitives
-apply internally.
