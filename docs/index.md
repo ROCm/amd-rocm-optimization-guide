@@ -27,6 +27,7 @@ and multi-GPU programming.
 * {doc}`./patterns/introduction`
 
   * {doc}`./patterns/examples/reduction`
+  * {doc}`./patterns/examples/histogram`
   * {doc}`./patterns/examples/tiling-matrix-multiply`
 
 **Hardware intrinsics**
