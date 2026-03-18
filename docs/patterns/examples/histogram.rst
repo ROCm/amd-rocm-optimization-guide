@@ -1,5 +1,5 @@
 .. meta::
-  :description: HIP histogram optimization tutorial
+  :description:  Learn how to optimize GPU histogram computation in HIP using shared memory atomics, LDS accumulation, and vectorized loads on AMD CDNA and RDNA GPUs.
   :keywords: AMD, ROCm, HIP, histogram, atomics, shared memory, local memory, LDS, vectorized loads, tutorial
 
 .. _histogram:
@@ -12,7 +12,7 @@ Histogram is a fundamental operation that counts how often each value (or range
 of values) appears in an input dataset. It appears throughout GPU workloads
 including image processing, radix sort, database operations, and machine
 learning. The challenge on GPUs is that the output location of each write is
-determined by the input value at runtime, meaning multiple threads may attempt
+determined by the input value at runtime, meaning multiple threads can attempt
 to update the same output bin simultaneously. Managing this concurrent access
 efficiently is the central optimization problem.
 
