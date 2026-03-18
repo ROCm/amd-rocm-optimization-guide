@@ -59,30 +59,44 @@ __global__ void histogram_naive(const unsigned int *input, unsigned int *histogr
 }
 // [Sphinx histogram naive kernel end]
 
+#ifndef ITEMS_PER_THREAD
+#define ITEMS_PER_THREAD 16
+#endif
+
+
 // [Sphinx histogram local kernel start]
-__global__ void histogram_local(const unsigned int *input, unsigned int *histogram, int n)
+__global__ void histogram_local(const unsigned int *input,
+                                unsigned int *histogram,
+                                int n)
 {
     __shared__ unsigned int local_hist[num_bins];
 
     int tid = threadIdx.x;
-    int gid = blockIdx.x * blockDim.x + tid;
+    int base = (blockIdx.x * blockDim.x * ITEMS_PER_THREAD) + tid;
 
-    // Initialize the per-block histogram to zero.
+    // 1. Initialize shared histogram
     for (int i = tid; i < num_bins; i += blockDim.x)
     {
         local_hist[i] = 0;
     }
     __syncthreads();
 
-    // Accumulate this block's elements into the local histogram.
-    if (gid < n)
+    // 2. Process multiple items per thread (grid-stride style)
+    #pragma unroll
+    for (int i = 0; i < ITEMS_PER_THREAD; i++)
     {
-        unsigned int bin = input[gid] % num_bins;
-        atomicAdd(&local_hist[bin], 1u);
+        int idx = base + i * blockDim.x;
+
+        if (idx < n)
+        {
+            unsigned int bin = input[idx] % num_bins;
+            atomicAdd(&local_hist[bin], 1u);
+        }
     }
+
     __syncthreads();
 
-    // Merge the local histogram into the global histogram.
+    // 3. Merge into global histogram
     for (int i = tid; i < num_bins; i += blockDim.x)
     {
         atomicAdd(&histogram[i], local_hist[i]);
@@ -164,17 +178,15 @@ void time_kernel(const std::string &label, const std::function<void()> &launch)
     HIP_CHECK(hipEventCreate(&start));
     HIP_CHECK(hipEventCreate(&stop));
     float total_ms = 0.0f;
+    HIP_CHECK(hipEventRecord(start));
     for (int run = 0; run < timing_runs; ++run)
     {
-        HIP_CHECK(hipEventRecord(start));
         launch();
         HIP_CHECK(hipGetLastError());
-        HIP_CHECK(hipEventRecord(stop));
-        HIP_CHECK(hipEventSynchronize(stop));
-        float ms = 0.0f;
-        HIP_CHECK(hipEventElapsedTime(&ms, start, stop));
-        total_ms += ms;
     }
+    HIP_CHECK(hipEventRecord(stop));
+    HIP_CHECK(hipEventSynchronize(stop));
+    HIP_CHECK(hipEventElapsedTime(&total_ms, start, stop));
     std::cout << "    [timer] " << label << ": avg " << total_ms / timing_runs
               << " ms over " << timing_runs << " runs" << std::endl;
     HIP_CHECK(hipEventDestroy(start));
@@ -184,17 +196,23 @@ void time_kernel(const std::string &label, const std::function<void()> &launch)
 
 int main()
 {
-    std::vector<unsigned int> h_input(input_size);
+    std::vector<unsigned int> h_input(input_size, 0);
     std::mt19937 gen(42);
     std::uniform_int_distribution<unsigned int> dist(0, num_bins - 1);
-    for (unsigned int &v : h_input)
+    for (unsigned long long i = 0; i < input_size; i++)
     {
-        v = dist(gen);
+        unsigned int &v  = h_input[i];
+        if( i % 4 )
+          v = dist(gen);
+        else
+          v = 1;
     }
 
     std::vector<unsigned int> ref = cpu_reference(h_input);
 
     int nb1 = (input_size + block_size - 1) / block_size;
+    int nb_ipt = (input_size + block_size * ITEMS_PER_THREAD - 1) 
+           / (block_size * ITEMS_PER_THREAD);
     int nb4 = (input_size + block_size * 4 - 1) / (block_size * 4);
 
     unsigned int *d_input     = nullptr;
@@ -224,7 +242,7 @@ int main()
 
     // Local memory kernel
     HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-    histogram_local<<<nb1, block_size>>>(d_input, d_histogram, input_size);
+    histogram_local<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipDeviceSynchronize());
     std::cout << "  Local memory: ";
@@ -233,7 +251,7 @@ int main()
     time_kernel("local memory", [&]()
     {
         HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-        histogram_local<<<nb1, block_size>>>(d_input, d_histogram, input_size);
+        histogram_local<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
     });
 #endif
 
