@@ -1,6 +1,6 @@
 .. meta::
   :description:  Learn how to optimize GPU histogram computation in HIP using shared memory atomics, LDS accumulation, and vectorized loads on AMD CDNA and RDNA GPUs.
-  :keywords: AMD, ROCm, HIP, histogram, atomics, shared memory, local memory, LDS, vectorized loads, tutorial
+  :keywords: AMD, ROCm, HIP, histogram, atomics, shared memory, LDS, vectorized loads, tutorial
 
 .. _histogram:
 
@@ -139,12 +139,12 @@ The example code uses a skewed input — every fourth element is fixed to bin 1
 — to reflect a realistic distribution where one bin is significantly busier
 than the rest.
 
-Local memory histogram
-======================
+Shared memory histogram
+=======================
 
 Atomic operations in shared memory (the Local Data Share, or LDS, on AMD
 GPUs) are an order of magnitude faster than global memory atomics because the
-LDS is on-chip and directly connected to the compute units. The local memory
+LDS is on-chip and directly connected to the compute units. The shared memory
 kernel reduces global atomic traffic by two independent means: moving
 accumulation into LDS, and having each thread process multiple elements so
 fewer blocks are launched overall.
@@ -187,7 +187,7 @@ Vectorized loads
 The GPU memory system can issue 128-bit loads at the same cost as a 32-bit
 load. Replacing four scalar reads with a single ``uint4`` instruction
 quadruples the data fetched per instruction and reduces load-instruction
-pressure. The vectorized kernel applies this to the local-memory approach with
+pressure. The vectorized kernel applies this to the shared memory approach with
 four elements per thread:
 
 .. literalinclude:: ../../tools/example_codes/histogram.hip
@@ -206,10 +206,10 @@ fewer than four elements per thread remain.
    aligned. Allocations from ``hipMalloc`` satisfy this requirement.
 
 With only four elements per thread, this kernel launches four times more blocks
-than the local kernel at its default ``ITEMS_PER_THREAD = 16``, and therefore
+than the shared memory kernel at its default ``ITEMS_PER_THREAD = 16``, and therefore
 issues four times more global atomic merge operations. On this workload, where
-the bottleneck is global atomic traffic rather than load bandwidth, the local
-kernel is faster despite its narrower loads. The results on an RDNA3 GPU
+the bottleneck is global atomic traffic rather than load bandwidth, the shared
+memory kernel is faster despite its narrower loads. The results on an RDNA3 GPU
 illustrate this:
 
 .. list-table::
@@ -218,16 +218,19 @@ illustrate this:
 
    * - Kernel
      - Items per thread
-     - Time (ms)
+     - Relative performance
    * - Naive (global atomics)
      - 1
-     - 10.1
-   * - Local memory
+     - 1.00
+   * - Shared memory
      - 16
-     - 7.7
+     - 0.77
    * - Vectorized loads (``uint4``)
      - 4
-     - 8.3
+     - 0.82
+
+Relative performance is measured as kernel time divided by naive kernel time,
+so lower values indicate faster execution.
 
 Widening the load is most effective when the kernel is bottlenecked on memory
 bandwidth. Here the bottleneck is atomic serialization in the global merge, so
