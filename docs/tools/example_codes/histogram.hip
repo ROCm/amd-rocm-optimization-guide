@@ -144,16 +144,36 @@ __global__ void histogram_reduce(const unsigned int *partial_histogram,
                                  unsigned int *histogram,
                                  int num_partial)
 {
-    int bin = blockIdx.x * blockDim.x + threadIdx.x;
+    int bin = blockIdx.x;
+    int tid = threadIdx.x;
+
     if (bin >= num_bins)
         return;
 
     unsigned int sum = 0;
-    for (int i = 0; i < num_partial; i++)
+
+    // Each thread accumulates a chunk
+    for (int i = tid; i < num_partial; i += blockDim.x)
     {
         sum += partial_histogram[i * num_bins + bin];
     }
-    histogram[bin] = sum;
+
+    // Shared memory reduction
+    __shared__ unsigned int sdata[block_size];
+    sdata[tid] = sum;
+    __syncthreads();
+
+    // Tree reduction
+    for (int s = blockDim.x / 2; s > 0; s >>= 1)
+    {
+        if (tid < s)
+            sdata[tid] += sdata[tid + s];
+        __syncthreads();
+    }
+
+    // Write result
+    if (tid == 0)
+        histogram[bin] = sdata[0];
 }
 // [Sphinx histogram reduce kernel end]
 
@@ -225,7 +245,7 @@ int main()
 
     std::vector<unsigned int> ref = cpu_reference(h_input);
 
-    int nb1    = (input_size + block_size - 1) / block_size;
+    int nb     = (input_size + block_size - 1) / block_size;
     int nb_ipt = (input_size + block_size * ITEMS_PER_THREAD - 1)
                  / (block_size * ITEMS_PER_THREAD);
 
@@ -241,7 +261,7 @@ int main()
 
     // Naive kernel
     HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-    histogram_naive<<<nb1, block_size>>>(d_input, d_histogram, input_size);
+    histogram_naive<<<nb, block_size>>>(d_input, d_histogram, input_size);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipDeviceSynchronize());
     std::cout << "  Naive: ";
@@ -250,7 +270,7 @@ int main()
     time_kernel("naive", [&]()
     {
         HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-        histogram_naive<<<nb1, block_size>>>(d_input, d_histogram, input_size);
+        histogram_naive<<<nb, block_size>>>(d_input, d_histogram, input_size);
     });
 #endif
 
@@ -276,7 +296,7 @@ int main()
     HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
     histogram_partial<<<nb_ipt, block_size>>>(d_input, d_partial, input_size);
     HIP_CHECK(hipGetLastError());
-    histogram_reduce<<<1, num_bins>>>(d_partial, d_histogram, nb_ipt);
+    histogram_reduce<<<num_bins, block_size>>>(d_partial, d_histogram, nb_ipt);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipDeviceSynchronize());
     std::cout << "  Partial + reduce: ";
@@ -285,7 +305,7 @@ int main()
     time_kernel("partial + reduce", [&]()
     {
         histogram_partial<<<nb_ipt, block_size>>>(d_input, d_partial, input_size);
-        histogram_reduce<<<1, num_bins>>>(d_partial, d_histogram, nb_ipt);
+        histogram_reduce<<<num_bins, block_size>>>(d_partial, d_histogram, nb_ipt);
     });
 #endif
 

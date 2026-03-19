@@ -204,8 +204,9 @@ The ``partial_histogram`` array has ``num_blocks * num_bins`` elements, laid
 out as ``partial_histogram[blockIdx.x * num_bins + bin]``. Writing a full row
 of ``num_bins`` consecutive values per block keeps the stores coalesced.
 
-The second kernel assigns one thread to each bin and accumulates across all
-blocks:
+The second kernel assigns one block to each bin. Threads within each block
+accumulate their share of the partial results with a stride loop, then reduce
+to a single bin count using a shared memory tree reduction:
 
 .. literalinclude:: ../../tools/example_codes/histogram.hip
    :language: cpp
@@ -213,15 +214,13 @@ blocks:
    :start-after: [Sphinx histogram reduce kernel start]
    :end-before: [Sphinx histogram reduce kernel end]
 
-When thread ``bin`` reads ``partial_histogram[i * num_bins + bin]`` for
-successive values of ``i``, consecutive threads in the warp read consecutive
-addresses within each row — the access pattern is coalesced in both the write
-and the read.
-
-The reduction kernel launches a single block of ``num_bins`` threads. For
-256 bins and 4,096 partial blocks, it issues 256 × 4,096 = ~1 M plain loads
-with no atomics at all, replacing the ~1 M global atomic operations the shared
-memory kernel required in the merge phase.
+The kernel launches ``num_bins`` blocks of ``block_size`` threads each. Each
+thread accumulates every ``blockDim.x``-th partial block into a register
+accumulator, writes the result to shared memory, and participates in the tree
+reduction. Thread 0 of each block writes the final bin count. The access
+pattern ``partial_histogram[i * num_bins + bin]`` strides by ``num_bins``
+between iterations, so consecutive threads in a warp read consecutive addresses
+— the reads are coalesced.
 
 .. note::
 
@@ -229,6 +228,61 @@ memory kernel required in the merge phase.
    sizeof(unsigned int)`` bytes of device memory. With ``ITEMS_PER_THREAD =
    16``, ``block_size = 256``, and a 16 M-element input, this is 4,096 blocks
    × 256 bins × 4 bytes = 4 MB.
+
+The results on an RDNA3 GPU show how ``ITEMS_PER_THREAD`` affects each kernel.
+Relative performance is measured as kernel time divided by naive kernel time
+from the same run, so lower values indicate faster execution.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - Items per thread
+     - Naive
+     - Shared memory
+     - Partial + reduce
+   * - 1
+     - 1.00
+     - 2.57
+     - 3.27
+   * - 2
+     - 1.00
+     - 1.60
+     - 1.95
+   * - 4
+     - 1.00
+     - 1.10
+     - 1.29
+   * - 8
+     - 1.00
+     - 0.87
+     - 0.97
+   * - 16
+     - 1.00
+     - 0.77
+     - 0.83
+   * - 32
+     - 1.00
+     - 0.72
+     - 0.76
+   * - 64
+     - 1.00
+     - 0.73
+     - 0.75
+
+At low ``ITEMS_PER_THREAD`` values, each block covers only a small portion of
+the input, so many blocks are launched and the global atomic merge in the shared
+memory kernel — or the partial histogram buffer and second kernel launch in the
+two-pass approach — dominates runtime. Performance improves steadily up to
+``ITEMS_PER_THREAD = 32``, where the block count is low enough that merge
+overhead is no longer the bottleneck. Above 32, the benefit plateaus because
+the kernel becomes compute-bound within each block rather than overhead-bound.
+
+The two-pass approach consistently runs slightly slower than the shared memory
+kernel at the same ``ITEMS_PER_THREAD``. Eliminating the global atomics at
+the merge step saves some cost, but the additional kernel launch, the larger
+temporary buffer, and the tree reduction in the second kernel together exceed
+that saving on this workload.
 
 For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
 provides highly optimized histogram primitives that handle edge cases and apply
