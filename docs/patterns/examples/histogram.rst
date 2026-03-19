@@ -60,10 +60,10 @@ increment ``histogram[bin]``:
    histogram[bin] = histogram[bin] + 1;
 
 If both threads read the value before either writes back, they both compute the
-same result and one increment is silently discarded. The final count is lower
+same result, and one increment is silently discarded. The final count is lower
 than it should be. Because GPU threads execute asynchronously across many
-compute units, this interleaving can happen unpredictably, producing different
-results on different runs.
+compute units, this interleaving can occur unpredictably, producing different
+results across different runs.
 
 Race conditions on the bin counters are inevitable when the input is large
 enough that multiple threads map to the same bin. The solution is to make each
@@ -97,10 +97,10 @@ HIP provides a set of atomic primitives for both global and shared memory:
      - Compares a memory location to an expected value and, if equal, replaces
        it with a new value. The fundamental building block for custom atomic
        operations.
-   * - ``atomicMax`` / ``atomicMin``
+   * - ``atomicMax``/``atomicMin``
      - Updates a memory location to the maximum or minimum of its current value
        and a given value.
-   * - ``atomicInc`` / ``atomicDec``
+   * - ``atomicInc``/``atomicDec``
      - Atomically increments or decrements a counter, wrapping at a boundary.
 
 Atomic operations can target shared memory (block scope), global memory
@@ -136,8 +136,8 @@ Two factors make contention worse in practice:
   warp until each completes.
 
 The example code uses a skewed input — every fourth element is fixed to bin 1
-— to reflect a realistic distribution where one bin is significantly busier
-than the rest.
+— to reflect a realistic distribution in which one bin is significantly busier
+than the others.
 
 Shared memory histogram
 =======================
@@ -170,7 +170,7 @@ compile-time constant, ``#pragma unroll`` allows the compiler to eliminate the
 loop counter and branch overhead.
 
 With ``block_size = 256`` and ``ITEMS_PER_THREAD = 16``, each block covers
-4,096 input elements. For a 16 M-element input this launches 4,096 blocks,
+4,096 input elements. For a 16 M-element input, this launches 4,096 blocks,
 compared to 65,536 for the naive kernel. The global merge step issues at most
 ``num_bins`` atomics per block — 256 per block × 4,096 blocks = ~1 M global
 atomics total, versus 16 M for the naive kernel.
