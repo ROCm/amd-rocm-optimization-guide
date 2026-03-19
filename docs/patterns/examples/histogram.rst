@@ -9,12 +9,12 @@ Histogram
 *************************************************************
 
 Histogram is a fundamental operation that counts how often each value (or range
-of values) appears in an input dataset. It appears throughout GPU workloads
+of values) appears in an input dataset. It appears throughout GPU workloads,
 including image processing, radix sort, database operations, and machine
 learning. The challenge on GPUs is that the output location of each write is
 determined by the input value at runtime, meaning multiple threads can attempt
-to update the same output bin simultaneously. Managing this concurrent access
-efficiently is the central optimization problem.
+to update the same output bin simultaneously. Efficiently managing this concurrent access
+is the central optimization problem.
 
 This tutorial walks through a series of HIP kernels for computing a 256-bin
 histogram over a large array of unsigned integers. Starting from a naive kernel
@@ -45,14 +45,14 @@ The algorithm consists of three steps:
 2. Determine its bin.
 3. Increment that bin's counter.
 
-On a CPU this is straightforward. On a GPU, thousands of threads execute these
-steps simultaneously, and many may land on the same bin at the same time.
+On a CPU, this is straightforward. On a GPU, thousands of threads execute these
+steps simultaneously, and many might land in the same bin at the same time.
 
 Race conditions
 ===============
 
-A race condition occurs when two or more threads attempt to read-modify-write
-the same memory location concurrently. Consider two threads that both want to
+A race condition occurs when two or more threads concurrently attempt to read-modify-write
+the same memory location. Consider two threads that both want to
 increment ``histogram[bin]``:
 
 .. code-block:: cpp
@@ -119,17 +119,17 @@ The naive kernel issues one global ``atomicAdd`` per thread:
    :start-after: [Sphinx histogram naive kernel start]
    :end-before: [Sphinx histogram naive kernel end]
 
-Global memory atomics must travel through the full memory hierarchy. When many
-threads target the same bin, the hardware serializes their updates: only one
-proceeds at a time while the others stall. This is called **atomic contention**,
-and it limits throughput proportionally to how many threads compete for the same
+Global memory atomics must traverse the full memory hierarchy. When many
+threads target the same bin, the hardware serializes their updates. That is, only one can
+proceed at a time while the others stall. This is called **atomic contention**,
+and it limits throughput in proportion to the number of threads competing for the same
 address.
 
 Two factors make contention worse in practice:
 
 - **Hot bins:** When the input distribution is skewed, a small number of bins
   receive a disproportionate share of increments. Every thread targeting a hot
-  bin serializes against every other.
+  bin serializes against every other thread.
 
 - **Warp serialization:** Within a warp, if multiple lanes map to the same bin,
   the hardware issues their atomic operations one at a time, stalling the whole
@@ -145,7 +145,7 @@ Shared memory histogram
 Atomic operations in shared memory (the Local Data Share, or LDS, on AMD
 GPUs) are an order of magnitude faster than global memory atomics because the
 LDS is on-chip and directly connected to the compute units. The shared memory
-kernel reduces global atomic traffic by two independent means: moving
+kernel reduces global atomic traffic in two independent ways: moving
 accumulation into LDS, and having each thread process multiple elements so
 fewer blocks are launched overall.
 
@@ -178,7 +178,7 @@ atomics total, versus 16 M for the naive kernel.
 .. note::
 
    The LDS histogram occupies ``num_bins * sizeof(unsigned int)`` bytes. For
-   256 bins this is 1 KB, well within the 64 KB of LDS available per Compute
+   256 bins, this is 1 KB, well within the 64 KB of LDS available per Compute
    Unit on CDNA GPUs and per Work Group Processor on RDNA GPUs.
 
 Partial histograms
@@ -186,8 +186,8 @@ Partial histograms
 
 The shared memory kernel still issues up to ``num_bins`` global atomics per
 block during the merge phase. For 4,096 blocks and 256 bins, that is roughly
-one million global atomic operations. The two-pass approach eliminates these
-entirely: the first kernel writes each block's shared histogram to a slice of a
+one million global atomic operations. The two-pass approach eliminates these:
+the first kernel writes each block's shared histogram to a slice of a
 ``partial_histogram`` array using plain stores, and a second reduction kernel
 sums those slices into the final result.
 
@@ -229,7 +229,7 @@ between iterations, so consecutive threads in a warp read consecutive addresses
    16``, ``block_size = 256``, and a 16 M-element input, this is 4,096 blocks
    × 256 bins × 4 bytes = 4 MB.
 
-The results on an RDNA3 GPU show how ``ITEMS_PER_THREAD`` affects each kernel.
+The results on an AMD Radeon (RDNA3-based) GPU show how ``ITEMS_PER_THREAD`` affects each kernel.
 Relative performance is measured as kernel time divided by naive kernel time
 from the same run, so lower values indicate faster execution.
 
@@ -279,13 +279,13 @@ overhead is no longer the bottleneck. Above 32, the benefit plateaus because
 the kernel becomes compute-bound within each block rather than overhead-bound.
 
 The two-pass approach consistently runs slightly slower than the shared memory
-kernel at the same ``ITEMS_PER_THREAD``. Eliminating the global atomics at
-the merge step saves some cost, but the additional kernel launch, the larger
+kernel at the same ``ITEMS_PER_THREAD`` approach. Eliminating the global atomics at
+the merge step saves some cost. Still, the additional kernel launch, the larger
 temporary buffer, and the tree reduction in the second kernel together exceed
 that saving on this workload.
 
 For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
-provides highly optimized histogram primitives that handle edge cases and apply
-architecture-specific tuning automatically. The kernels in this tutorial are
-intended to build intuition for the optimization principles those primitives
+provides highly optimized histogram primitives that handle edge cases and automatically apply
+architecture-specific tuning. The kernels in this tutorial are
+intended to build intuition for the optimization principles, those primitives
 apply internally.
