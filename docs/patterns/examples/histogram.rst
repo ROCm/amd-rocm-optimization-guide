@@ -8,8 +8,8 @@
 Histogram
 *************************************************************
 
-Histogram is a fundamental operation that counts how often each value (or range
-of values) appears in an input dataset. It appears throughout GPU workloads,
+Histogram is an operation that counts how often each value (or range of
+values) appears in an input dataset. It appears throughout GPU workloads,
 including image processing, radix sort, database operations, and machine
 learning. The challenge on GPUs is that the output location of each write is
 determined by the input value at runtime, meaning multiple threads can attempt
@@ -20,8 +20,8 @@ This tutorial walks through a series of HIP kernels for computing a 256-bin
 histogram over a large array of unsigned integers. Starting from a naive kernel
 that issues one global atomic per input element, each step reduces global atomic
 traffic: first by moving accumulation into shared memory, then by having each
-thread process more elements so fewer blocks — and therefore fewer merge
-operations — are needed.
+thread process more elements so fewer blocks are launched, and therefore fewer
+merge operations are needed.
 
 Histogram fundamentals
 ======================
@@ -135,9 +135,9 @@ Two factors make contention worse in practice:
   the hardware issues their atomic operations one at a time, stalling the whole
   warp until each completes.
 
-The example code uses a skewed input — every fourth element is fixed to bin 1
-— to reflect a realistic distribution in which one bin is significantly busier
-than the others.
+The example code uses a skewed input where every fourth element is fixed to
+bin 1, to reflect a realistic distribution in which one bin is significantly
+busier than the others.
 
 Shared memory histogram
 =======================
@@ -164,7 +164,7 @@ The kernel has three phases:
    :end-before: [Sphinx histogram shared kernel end]
 
 The inner loop uses the stride ``i * blockDim.x``, so consecutive threads in a
-warp always read consecutive memory addresses in each iteration — the access
+warp always read consecutive memory addresses in each iteration, so the access
 pattern remains coalesced throughout. Because ``ITEMS_PER_THREAD`` is a
 compile-time constant, ``#pragma unroll`` allows the compiler to eliminate the
 loop counter and branch overhead.
@@ -172,7 +172,7 @@ loop counter and branch overhead.
 With ``block_size = 256`` and ``ITEMS_PER_THREAD = 16``, each block covers
 4,096 input elements. For a 16 M-element input, this launches 4,096 blocks,
 compared to 65,536 for the naive kernel. The global merge step issues at most
-``num_bins`` atomics per block — 256 per block × 4,096 blocks = ~1 M global
+``num_bins`` atomics per block: 256 per block × 4,096 blocks = ~1 M global
 atomics total, versus 16 M for the naive kernel.
 
 .. note::
@@ -220,7 +220,7 @@ accumulator, writes the result to shared memory, and participates in the tree
 reduction. Thread 0 of each block writes the final bin count. The access
 pattern ``partial_histogram[i * num_bins + bin]`` strides by ``num_bins``
 between iterations, so consecutive threads in a warp read consecutive addresses
-— the reads are coalesced.
+so the reads are coalesced.
 
 .. note::
 
@@ -272,8 +272,8 @@ from the same run, so lower values indicate faster execution.
 
 At low ``ITEMS_PER_THREAD`` values, each block covers only a small portion of
 the input, so many blocks are launched and the global atomic merge in the shared
-memory kernel — or the partial histogram buffer and second kernel launch in the
-two-pass approach — dominates runtime. Performance improves steadily up to
+memory kernel, or the partial histogram buffer and second kernel launch in the
+two-pass approach, dominates runtime. Performance improves steadily up to
 ``ITEMS_PER_THREAD = 32``, where the block count is low enough that merge
 overhead is no longer the bottleneck. Above 32, the benefit plateaus because
 the kernel becomes compute-bound within each block rather than overhead-bound.
