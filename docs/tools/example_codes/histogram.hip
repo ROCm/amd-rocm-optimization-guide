@@ -29,6 +29,10 @@
 #include <string>
 #include <vector>
 
+#ifndef ITEMS_PER_THREAD
+#define ITEMS_PER_THREAD 16
+#endif
+
 #define HIP_CHECK(expression)                      \
     {                                              \
         const hipError_t status = expression;      \
@@ -59,17 +63,12 @@ __global__ void histogram_naive(const unsigned int *input, unsigned int *histogr
 }
 // [Sphinx histogram naive kernel end]
 
-#ifndef ITEMS_PER_THREAD
-#define ITEMS_PER_THREAD 16
-#endif
-
-
-// [Sphinx histogram local kernel start]
-__global__ void histogram_local(const unsigned int *input,
-                                unsigned int *histogram,
-                                int n)
+// [Sphinx histogram shared kernel start]
+__global__ void histogram_shared(const unsigned int *input,
+                                 unsigned int *histogram,
+                                 int n)
 {
-    __shared__ unsigned int local_hist[num_bins];
+    __shared__ unsigned int shared_hist[num_bins];
 
     int tid = threadIdx.x;
     int base = (blockIdx.x * blockDim.x * ITEMS_PER_THREAD) + tid;
@@ -77,7 +76,7 @@ __global__ void histogram_local(const unsigned int *input,
     // 1. Initialize shared histogram
     for (int i = tid; i < num_bins; i += blockDim.x)
     {
-        local_hist[i] = 0;
+        shared_hist[i] = 0;
     }
     __syncthreads();
 
@@ -90,7 +89,7 @@ __global__ void histogram_local(const unsigned int *input,
         if (idx < n)
         {
             unsigned int bin = input[idx] % num_bins;
-            atomicAdd(&local_hist[bin], 1u);
+            atomicAdd(&shared_hist[bin], 1u);
         }
     }
 
@@ -99,48 +98,64 @@ __global__ void histogram_local(const unsigned int *input,
     // 3. Merge into global histogram
     for (int i = tid; i < num_bins; i += blockDim.x)
     {
-        atomicAdd(&histogram[i], local_hist[i]);
+        atomicAdd(&histogram[i], shared_hist[i]);
     }
 }
-// [Sphinx histogram local kernel end]
+// [Sphinx histogram shared kernel end]
 
-// [Sphinx histogram multi kernel start]
-__global__ void histogram_multi(const unsigned int *input, unsigned int *histogram, int n)
+// [Sphinx histogram partial kernel start]
+__global__ void histogram_partial(const unsigned int *input,
+                                  unsigned int *partial_histogram,
+                                  int n)
 {
-    __shared__ unsigned int local_hist[num_bins];
+    __shared__ unsigned int shared_hist[num_bins];
 
-    int tid = threadIdx.x;
-    int gid = blockIdx.x * (blockDim.x * 4) + tid;
-
-    for (int i = tid; i < num_bins; i += blockDim.x)
-    {
-        local_hist[i] = 0;
-    }
-    __syncthreads();
-
-    if (gid + 3 * blockDim.x < n)
-    {
-        uint4 v = reinterpret_cast<const uint4 *>(input)[blockIdx.x * blockDim.x + tid];
-        atomicAdd(&local_hist[v.x % num_bins], 1u);
-        atomicAdd(&local_hist[v.y % num_bins], 1u);
-        atomicAdd(&local_hist[v.z % num_bins], 1u);
-        atomicAdd(&local_hist[v.w % num_bins], 1u);
-    }
-    else
-    {
-        if (gid                  < n) { atomicAdd(&local_hist[input[gid                 ] % num_bins], 1u); }
-        if (gid +     blockDim.x < n) { atomicAdd(&local_hist[input[gid +     blockDim.x] % num_bins], 1u); }
-        if (gid + 2 * blockDim.x < n) { atomicAdd(&local_hist[input[gid + 2 * blockDim.x] % num_bins], 1u); }
-        if (gid + 3 * blockDim.x < n) { atomicAdd(&local_hist[input[gid + 3 * blockDim.x] % num_bins], 1u); }
-    }
-    __syncthreads();
+    int tid  = threadIdx.x;
+    int base = (blockIdx.x * blockDim.x * ITEMS_PER_THREAD) + tid;
 
     for (int i = tid; i < num_bins; i += blockDim.x)
     {
-        atomicAdd(&histogram[i], local_hist[i]);
+        shared_hist[i] = 0;
+    }
+    __syncthreads();
+
+    #pragma unroll
+    for (int i = 0; i < ITEMS_PER_THREAD; i++)
+    {
+        int idx = base + i * blockDim.x;
+        if (idx < n)
+        {
+            unsigned int bin = input[idx] % num_bins;
+            atomicAdd(&shared_hist[bin], 1u);
+        }
+    }
+    __syncthreads();
+
+    unsigned int *block_hist = partial_histogram + blockIdx.x * num_bins;
+    for (int i = tid; i < num_bins; i += blockDim.x)
+    {
+        block_hist[i] = shared_hist[i];
     }
 }
-// [Sphinx histogram multi kernel end]
+// [Sphinx histogram partial kernel end]
+
+// [Sphinx histogram reduce kernel start]
+__global__ void histogram_reduce(const unsigned int *partial_histogram,
+                                 unsigned int *histogram,
+                                 int num_partial)
+{
+    int bin = blockIdx.x * blockDim.x + threadIdx.x;
+    if (bin >= num_bins)
+        return;
+
+    unsigned int sum = 0;
+    for (int i = 0; i < num_partial; i++)
+    {
+        sum += partial_histogram[i * num_bins + bin];
+    }
+    histogram[bin] = sum;
+}
+// [Sphinx histogram reduce kernel end]
 
 std::vector<unsigned int> cpu_reference(const std::vector<unsigned int> &input)
 {
@@ -210,10 +225,9 @@ int main()
 
     std::vector<unsigned int> ref = cpu_reference(h_input);
 
-    int nb1 = (input_size + block_size - 1) / block_size;
-    int nb_ipt = (input_size + block_size * ITEMS_PER_THREAD - 1) 
-           / (block_size * ITEMS_PER_THREAD);
-    int nb4 = (input_size + block_size * 4 - 1) / (block_size * 4);
+    int nb1    = (input_size + block_size - 1) / block_size;
+    int nb_ipt = (input_size + block_size * ITEMS_PER_THREAD - 1)
+                 / (block_size * ITEMS_PER_THREAD);
 
     unsigned int *d_input     = nullptr;
     unsigned int *d_histogram = nullptr;
@@ -240,38 +254,44 @@ int main()
     });
 #endif
 
-    // Local memory kernel
+    // shared memory kernel
     HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-    histogram_local<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
+    histogram_shared<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipDeviceSynchronize());
-    std::cout << "  Local memory: ";
+    std::cout << "  Shared memory: ";
     verify(ref, d_histogram);
 #ifdef ENABLE_TIMERS
-    time_kernel("local memory", [&]()
+    time_kernel("shared memory", [&]()
     {
         HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-        histogram_local<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
+        histogram_shared<<<nb_ipt, block_size>>>(d_input, d_histogram, input_size);
     });
 #endif
 
-    // Multi-element (uint4) kernel
+    // Partial histograms + reduction
+    unsigned int *d_partial = nullptr;
+    HIP_CHECK(hipMalloc(&d_partial, sizeof(unsigned int) * nb_ipt * num_bins));
+
     HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-    histogram_multi<<<nb4, block_size>>>(d_input, d_histogram, input_size);
+    histogram_partial<<<nb_ipt, block_size>>>(d_input, d_partial, input_size);
+    HIP_CHECK(hipGetLastError());
+    histogram_reduce<<<1, num_bins>>>(d_partial, d_histogram, nb_ipt);
     HIP_CHECK(hipGetLastError());
     HIP_CHECK(hipDeviceSynchronize());
-    std::cout << "  Vectorized loads: ";
+    std::cout << "  Partial + reduce: ";
     verify(ref, d_histogram);
 #ifdef ENABLE_TIMERS
-    time_kernel("vectorized loads", [&]()
+    time_kernel("partial + reduce", [&]()
     {
-        HIP_CHECK(hipMemset(d_histogram, 0, sizeof(unsigned int) * num_bins));
-        histogram_multi<<<nb4, block_size>>>(d_input, d_histogram, input_size);
+        histogram_partial<<<nb_ipt, block_size>>>(d_input, d_partial, input_size);
+        histogram_reduce<<<1, num_bins>>>(d_partial, d_histogram, nb_ipt);
     });
 #endif
 
     std::cout << "Execution completed successfully." << std::endl;
 
+    HIP_CHECK(hipFree(d_partial));
     HIP_CHECK(hipFree(d_input));
     HIP_CHECK(hipFree(d_histogram));
 

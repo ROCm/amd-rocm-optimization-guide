@@ -160,8 +160,8 @@ The kernel has three phases:
 .. literalinclude:: ../../tools/example_codes/histogram.hip
    :language: cpp
    :linenos:
-   :start-after: [Sphinx histogram local kernel start]
-   :end-before: [Sphinx histogram local kernel end]
+   :start-after: [Sphinx histogram shared kernel start]
+   :end-before: [Sphinx histogram shared kernel end]
 
 The inner loop uses the stride ``i * blockDim.x``, so consecutive threads in a
 warp always read consecutive memory addresses in each iteration — the access
@@ -181,63 +181,54 @@ atomics total, versus 16 M for the naive kernel.
    256 bins this is 1 KB, well within the 64 KB of LDS available per Compute
    Unit on CDNA GPUs and per Work Group Processor on RDNA GPUs.
 
-Vectorized loads
-================
+Partial histograms
+==================
 
-The GPU memory system can issue 128-bit loads at the same cost as a 32-bit
-load. Replacing four scalar reads with a single ``uint4`` instruction
-quadruples the data fetched per instruction and reduces load-instruction
-pressure. The vectorized kernel applies this to the shared memory approach with
-four elements per thread:
+The shared memory kernel still issues up to ``num_bins`` global atomics per
+block during the merge phase. For 4,096 blocks and 256 bins, that is roughly
+one million global atomic operations. The two-pass approach eliminates these
+entirely: the first kernel writes each block's shared histogram to a slice of a
+``partial_histogram`` array using plain stores, and a second reduction kernel
+sums those slices into the final result.
+
+The first kernel is identical to the shared memory kernel except for the merge
+step, which becomes a plain store rather than a global atomic:
 
 .. literalinclude:: ../../tools/example_codes/histogram.hip
    :language: cpp
    :linenos:
-   :start-after: [Sphinx histogram multi kernel start]
-   :end-before: [Sphinx histogram multi kernel end]
+   :start-after: [Sphinx histogram partial kernel start]
+   :end-before: [Sphinx histogram partial kernel end]
 
-The fast path uses a ``uint4`` reinterpret cast to load four elements in a
-single 128-bit instruction. The slow path handles the tail of the input when
-fewer than four elements per thread remain.
+The ``partial_histogram`` array has ``num_blocks * num_bins`` elements, laid
+out as ``partial_histogram[blockIdx.x * num_bins + bin]``. Writing a full row
+of ``num_bins`` consecutive values per block keeps the stores coalesced.
+
+The second kernel assigns one thread to each bin and accumulates across all
+blocks:
+
+.. literalinclude:: ../../tools/example_codes/histogram.hip
+   :language: cpp
+   :linenos:
+   :start-after: [Sphinx histogram reduce kernel start]
+   :end-before: [Sphinx histogram reduce kernel end]
+
+When thread ``bin`` reads ``partial_histogram[i * num_bins + bin]`` for
+successive values of ``i``, consecutive threads in the warp read consecutive
+addresses within each row — the access pattern is coalesced in both the write
+and the read.
+
+The reduction kernel launches a single block of ``num_bins`` threads. For
+256 bins and 4,096 partial blocks, it issues 256 × 4,096 = ~1 M plain loads
+with no atomics at all, replacing the ~1 M global atomic operations the shared
+memory kernel required in the merge phase.
 
 .. note::
 
-   The ``uint4`` reinterpret cast requires the input pointer to be 16-byte
-   aligned. Allocations from ``hipMalloc`` satisfy this requirement.
-
-With only four elements per thread, this kernel launches four times more blocks
-than the shared memory kernel at its default ``ITEMS_PER_THREAD = 16``, and therefore
-issues four times more global atomic merge operations. On this workload, where
-the bottleneck is global atomic traffic rather than load bandwidth, the shared
-memory kernel is faster despite its narrower loads. The results on an RDNA3 GPU
-illustrate this:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 30 30
-
-   * - Kernel
-     - Items per thread
-     - Relative performance
-   * - Naive (global atomics)
-     - 1
-     - 1.00
-   * - Shared memory
-     - 16
-     - 0.77
-   * - Vectorized loads (``uint4``)
-     - 4
-     - 0.82
-
-Relative performance is measured as kernel time divided by naive kernel time,
-so lower values indicate faster execution.
-
-Widening the load is most effective when the kernel is bottlenecked on memory
-bandwidth. Here the bottleneck is atomic serialization in the global merge, so
-the primary lever is reducing block count — which ``ITEMS_PER_THREAD`` controls
-directly. Compiling with a larger value (``-DITEMS_PER_THREAD=32``, for
-example) further reduces the block count and merge traffic, at the cost of
-higher register pressure.
+   The ``partial_histogram`` buffer requires ``num_blocks * num_bins *
+   sizeof(unsigned int)`` bytes of device memory. With ``ITEMS_PER_THREAD =
+   16``, ``block_size = 256``, and a 16 M-element input, this is 4,096 blocks
+   × 256 bins × 4 bytes = 4 MB.
 
 For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
 provides highly optimized histogram primitives that handle edge cases and apply
