@@ -20,6 +20,7 @@ subtrees:
     - entries:
       - file: patterns/examples/reduction
       - file: patterns/examples/histogram
+      - file: patterns/examples/matrix-multiply-optimization
       - file: patterns/examples/tiling-matrix-multiply
 
 - caption: Hardware intrinsics
