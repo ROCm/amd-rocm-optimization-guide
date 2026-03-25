@@ -197,6 +197,10 @@ __global__ void matrix_multiply_generic(/* … */);
 //                                          //   = warpSize for scalar/CDNA
 //                                          //   = warpSize/2 for RDNA3 WMMA
 //                                          //     (lanes L and L+16 share a fragment)
+//   static constexpr int k_step;           // k-indices consumed per mma() call
+//                                          //   = 1 for scalar FMA (one FMA per call)
+//                                          //   = 2 for fdot2 (dot product of two FP16 pairs)
+//                                          //   Must evenly divide TilePolicy::k_tile_size.
 //
 //   // Map a thread to the top-left corner of its output sub-tile within the
 //   // block tile.  For scalar policies this is simply:
@@ -286,16 +290,19 @@ struct ComputePolicyTraits
                   "ComputePolicy::thread_tile_n must be a positive integer");
     static_assert(ComputePolicy::effective_lanes > 0,
                   "ComputePolicy::effective_lanes must be a positive integer");
+    static_assert(ComputePolicy::k_step > 0,
+                  "ComputePolicy::k_step must be a positive integer");
 
     // Accumulator must be trivially constructible (no runtime init in registers)
     static_assert(std::is_trivially_constructible_v<typename ComputePolicy::Accumulator>,
                   "ComputePolicy::Accumulator must be trivially constructible");
 
-    // Fragment element types must be arithmetic
-    static_assert(std::is_arithmetic_v<typename ComputePolicy::elem_a>,
-                  "ComputePolicy::elem_a must be an arithmetic type");
-    static_assert(std::is_arithmetic_v<typename ComputePolicy::elem_b>,
-                  "ComputePolicy::elem_b must be an arithmetic type");
+    // Fragment element types must have a well-defined size (covers both
+    // scalar arithmetic types like float and vector types like half2).
+    static_assert(sizeof(typename ComputePolicy::elem_a) > 0,
+                  "ComputePolicy::elem_a must have non-zero size");
+    static_assert(sizeof(typename ComputePolicy::elem_b) > 0,
+                  "ComputePolicy::elem_b must have non-zero size");
 };
 // [Sphinx compute policy traits end]
 
@@ -536,6 +543,7 @@ struct ScalarFMAPolicy
     static constexpr int thread_tile_n  = ThreadTileN_;
     // All lanes in a wavefront compute unique output elements (no mirroring).
     static constexpr int effective_lanes = 64; // AMD wavefront size
+    static constexpr int k_step         = 1;  // one scalar FMA per ki iteration
 
     using elem_a = float;
     using elem_b = float;
@@ -630,6 +638,141 @@ struct ScalarFMAPolicy
     }
 };
 // [Sphinx scalar fma policy end]
+
+// ---------------------------------------------------------------------------
+// Fdot2Policy: FP16 dot-product accumulation using __builtin_amdgcn_fdot2.
+//
+// __builtin_amdgcn_fdot2 computes a[0]*b[0] + a[1]*b[1] in FP16 precision
+// and accumulates the result into an FP32 accumulator.  Inputs are passed as
+// half2 two-element vectors.  The fourth argument negates the dot product
+// before accumulation; passing false gives a plain accumulate.
+//
+// Each mma() call processes TWO k-indices (k_step = 2): the load functions
+// read two consecutive float values from LDS, convert them to __fp16, and
+// pack them into a half2.  The kernel loop advances ki by 2 per iteration.
+//
+// This is a "Case 1" policy from the data-type scope discussion:
+//   global float → LDS float → __fp16 fragment (conversion in load_a/load_b)
+// No changes to TilePolicy or the kernel signature are required.
+//
+// Note: The multiplication is performed in FP16 precision (with FP32
+// accumulation), so results will differ slightly from the full-FP32 scalar
+// policy.  The identity-matrix verification tolerance may need to be relaxed.
+//
+// The intrinsic is available on all ROCm-supported architectures that
+// implement dot10-insts (CDNA, CDNA2, CDNA3, CDNA4, RDNA2, RDNA3, RDNA4).
+// ---------------------------------------------------------------------------
+// [Sphinx fdot2 policy start]
+
+// Two-element FP16 vector type used by __builtin_amdgcn_fdot2.
+using half2_vec = __attribute__((__vector_size__(4))) __fp16;
+
+template<int ThreadTileM_, int ThreadTileN_, int BlockDimX_>
+struct Fdot2Policy
+{
+    static constexpr int thread_tile_m   = ThreadTileM_;
+    static constexpr int thread_tile_n   = ThreadTileN_;
+    static constexpr int effective_lanes = 64;
+    static constexpr int k_step          = 2; // two k-indices per fdot2 call
+
+    using elem_a = half2_vec;
+    using elem_b = half2_vec;
+
+    struct Accumulator
+    {
+        float data[ThreadTileM_][ThreadTileN_];
+    };
+
+    __device__ static void zero(Accumulator& acc)
+    {
+        #pragma unroll
+        for(int i = 0; i < ThreadTileM_; ++i)
+            #pragma unroll
+            for(int j = 0; j < ThreadTileN_; ++j)
+                acc.data[i][j] = 0.0f;
+    }
+
+    __device__ static void thread_tile_offset(int tid,
+                                               int /*lane_id*/,
+                                               int* thread_row,
+                                               int* thread_col)
+    {
+        const int tx = tid % BlockDimX_;
+        const int ty = tid / BlockDimX_;
+        *thread_row  = ty * ThreadTileM_;
+        *thread_col  = tx * ThreadTileN_;
+    }
+
+    // Load two consecutive k-values from tile_a, convert float→__fp16, pack
+    // into half2.  tile_a is row-major: tile_a[row][ki] = ptr[row * k_tile_size + ki].
+    __device__ static void load_a(const float* tile_a_ptr,
+                                   int          tile_a_row,
+                                   int          ki,
+                                   int          k_tile_size,
+                                   int          /*lane_id*/,
+                                   elem_a (&frag)[ThreadTileM_])
+    {
+        #pragma unroll
+        for(int i = 0; i < ThreadTileM_; ++i)
+        {
+            const float v0 = tile_a_ptr[(tile_a_row + i) * k_tile_size + ki];
+            const float v1 = tile_a_ptr[(tile_a_row + i) * k_tile_size + ki + 1];
+            frag[i] = half2_vec{static_cast<__fp16>(v0), static_cast<__fp16>(v1)};
+        }
+    }
+
+    // Load two consecutive k-values from tile_b_T, convert float→__fp16, pack
+    // into half2.  tile_b_T is column-major: tile_b_T[col][ki] = ptr[col * k_tile_size + ki].
+    __device__ static void load_b(const float* tile_b_T_ptr,
+                                   int          tile_b_col,
+                                   int          ki,
+                                   int          k_tile_size,
+                                   int          /*lane_id*/,
+                                   elem_b (&frag)[ThreadTileN_])
+    {
+        #pragma unroll
+        for(int j = 0; j < ThreadTileN_; ++j)
+        {
+            const float v0 = tile_b_T_ptr[(tile_b_col + j) * k_tile_size + ki];
+            const float v1 = tile_b_T_ptr[(tile_b_col + j) * k_tile_size + ki + 1];
+            frag[j] = half2_vec{static_cast<__fp16>(v0), static_cast<__fp16>(v1)};
+        }
+    }
+
+    // fdot2: acc += a[0]*b[0] + a[1]*b[1]  (FP16 multiply, FP32 accumulate)
+    __device__ static void mma(Accumulator&       acc,
+                                const elem_a (&a_frag)[ThreadTileM_],
+                                const elem_b (&b_frag)[ThreadTileN_])
+    {
+        #pragma unroll
+        for(int i = 0; i < ThreadTileM_; ++i)
+            #pragma unroll
+            for(int j = 0; j < ThreadTileN_; ++j)
+                acc.data[i][j] = __builtin_amdgcn_fdot2(
+                    a_frag[i], b_frag[j], acc.data[i][j], false);
+    }
+
+    __device__ static void store_c(const Accumulator& acc,
+                                    float*             C,
+                                    int                out_row_base,
+                                    int                out_col_base,
+                                    int                m,
+                                    int                n,
+                                    int                /*lane_id*/)
+    {
+        #pragma unroll
+        for(int i = 0; i < ThreadTileM_; ++i)
+            #pragma unroll
+            for(int j = 0; j < ThreadTileN_; ++j)
+            {
+                const int r = out_row_base + i;
+                const int c = out_col_base + j;
+                if(r < m && c < n)
+                    C[r * n + c] = acc.data[i][j];
+            }
+    }
+};
+// [Sphinx fdot2 policy end]
 
 // ---------------------------------------------------------------------------
 // Architecture-specific policy stubs (filled by follow-up PRs)
@@ -730,7 +873,13 @@ __global__ void
         const float* tile_a_ptr   = TilePolicy::get_tile_a(smem, buf);
         const float* tile_b_T_ptr = TilePolicy::get_tile_b_T(smem, buf);
 
-        for(int ki = 0; ki < TilePolicy::k_tile_size; ++ki)
+        // k_step: number of k-indices consumed per mma() call.
+        // ScalarFMAPolicy uses k_step=1 (one FMA); Fdot2Policy uses k_step=2
+        // (dot product of two FP16 pairs per call).
+        static_assert(TilePolicy::k_tile_size % ComputePolicy::k_step == 0,
+                      "k_tile_size must be divisible by ComputePolicy::k_step");
+
+        for(int ki = 0; ki < TilePolicy::k_tile_size; ki += ComputePolicy::k_step)
         {
             typename ComputePolicy::elem_a a_frag[ComputePolicy::thread_tile_m];
             typename ComputePolicy::elem_b b_frag[ComputePolicy::thread_tile_n];
@@ -784,6 +933,9 @@ using DoubleBufPolicy = SoftwareDoubleBufferTilePolicy<BLOCK_TILE_M, BLOCK_TILE_
 
 // Portable scalar outer-product compute policy
 using ScalarPolicy = ScalarFMAPolicy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
+
+// FP16 dot-product compute policy (fdot2 intrinsic, k_step = 2)
+using Fdot2Compute = Fdot2Policy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
 // [Sphinx policy aliases end]
 
 // ===========================================================================
@@ -933,6 +1085,31 @@ int main()
         HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N, hipMemcpyDeviceToHost));
         const bool ok = verify_result(h_C, h_A, M, N, K);
         print_metrics("GemmKernel<DoubleBufPolicy, ScalarPolicy>", ok, ms, M, N, K);
+    }
+
+    // ------------------------------------------------------------------
+    // GemmKernel<DoubleBufPolicy, Fdot2Compute>
+    //
+    // Same kernel template, same TilePolicy, only the ComputePolicy changes.
+    // The kernel loop now steps ki by 2 (k_step = 2); load_a/load_b convert
+    // float→__fp16 and pack into half2; mma() calls __builtin_amdgcn_fdot2.
+    //
+    // Verification tolerance is relaxed because the multiplication is
+    // performed in FP16 precision (accumulation stays FP32).
+    // ------------------------------------------------------------------
+    {
+        auto launch = [&]()
+        {
+            matrix_multiply_generic<DoubleBufPolicy, Fdot2Compute>
+                <<<grid, block>>>(d_A, d_B, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+
+        const float ms = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
+        HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N, hipMemcpyDeviceToHost));
+        // FP16 multiplication introduces rounding — relax tolerance from 1e-3 to 1e-1.
+        const bool ok = verify_result(h_C, h_A, M, N, K, 1.0e-1f);
+        print_metrics("GemmKernel<DoubleBufPolicy, Fdot2Compute>", ok, ms, M, N, K);
     }
 
     // ------------------------------------------------------------------

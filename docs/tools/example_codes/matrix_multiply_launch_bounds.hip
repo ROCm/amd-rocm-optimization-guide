@@ -119,9 +119,9 @@ constexpr int BLOCK_THREADS = BLOCK_DIM_X * BLOCK_DIM_Y;    // 256
 // (supported by both CUDA and HIP); amdgpu_waves_per_eu is AMD-specific but
 // more expressive.
 //
-// Profiling guidance (ROCm Optiq)
-// --------------------------------
-// Open the compiled binary in ROCm Optiq and inspect:
+// Profiling guidance (rocprof-compute / ROCprof Compute Viewer)
+// --------------------------------------------------------------
+// Profile the kernel with rocprof-compute and inspect in the Viewer:
 //   - "VGPRs used"          : per-kernel VGPR allocation
 //   - "SGPRs used"          : scalar register count
 //   - "Occupancy (achieved)": wavefronts per CU during execution
@@ -266,11 +266,11 @@ __global__ void matrix_multiply_no_hint(const float* __restrict__ A,
 // For 256 threads per block on RDNA (wavefront = 32):
 //   8 wavefronts per block × 1 block = 8 wavefronts per CU minimum.
 //
-// The min_waves_per_eu value below is illustrative.  Profile with ROCm Optiq
+// The min_waves_per_eu value below is illustrative.  Profile with rocprof-compute
 // to find the value that maximises performance on your target architecture.
 // ---------------------------------------------------------------------------
 // [Sphinx launch bounds kernel start]
-constexpr int MIN_WAVES_PER_EU = 2; // tune this with ROCm Optiq
+constexpr int MIN_WAVES_PER_EU = 2; // tune this with rocprof-compute
 
 __global__
 __launch_bounds__(BLOCK_THREADS, MIN_WAVES_PER_EU)
@@ -298,13 +298,13 @@ void matrix_multiply_launch_bounds(const float* __restrict__ A,
 // Setting min == max pins occupancy to exactly that value.  Setting a range
 // gives the compiler freedom to choose the best allocation within the range.
 //
-// Use ROCm Optiq to compare the generated ISA ("VGPRs used",
-// "Scratch memory used") between variants and verify that the chosen range
+// Use rocprof-compute and the ROCprof Compute Viewer to compare "VGPRs used"
+// and "Scratch memory used" between variants and verify that the chosen range
 // does not introduce register spilling.
 // ---------------------------------------------------------------------------
 // [Sphinx amdgpu waves per eu kernel start]
-constexpr int WAVES_PER_EU_MIN = 2; // tune with ROCm Optiq
-constexpr int WAVES_PER_EU_MAX = 4; // tune with ROCm Optiq
+constexpr int WAVES_PER_EU_MIN = 2; // tune with rocprof-compute
+constexpr int WAVES_PER_EU_MAX = 4; // tune with rocprof-compute
 
 __global__
 [[clang::amdgpu_waves_per_eu(WAVES_PER_EU_MIN, WAVES_PER_EU_MAX)]]

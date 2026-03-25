@@ -50,11 +50,12 @@ operations per byte of DRAM traffic—is:
 
    I = \frac{2 \cdot M \cdot N \cdot K}{\text{sizeof}(\text{float}) \cdot (M \cdot K + K \cdot N + M \cdot N)}
 
-For :math:`M = N = K = 4096` this evaluates to roughly **4096 FLOPs/byte**, far
-above the roofline crossover point of any current AMD GPU.  GEMM is therefore
-**compute-bound** in principle—but only if data is supplied fast enough to keep
-the compute units busy.  The naïve kernel falls well below the roofline because
-it is *memory-bound in practice*: global memory latency stalls dominate.
+For :math:`M = N = K = n` this simplifies to :math:`\frac{n}{6}`.  With
+:math:`n = 4096` that gives roughly **683 FLOPs/byte**, far above the roofline
+ridge point of any current AMD GPU.  GEMM is therefore **compute-bound** in
+principle—but only if data is supplied fast enough to keep the compute units
+busy.  The naïve kernel falls well below the roofline because it is
+*memory-bound in practice*: global memory latency stalls dominate.
 
 The optimization steps that follow progressively close the gap between actual
 and theoretical throughput by improving data reuse and instruction-level
@@ -68,14 +69,14 @@ full row of :math:`\pmb{A}` and a full column of :math:`\pmb{B}` directly from
 global memory.
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_naive.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx naive kernel start]
    :end-before: [Sphinx naive kernel end]
 
 Launch configuration:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_naive.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx naive launch config start]
    :end-before: [Sphinx naive launch config end]
 
@@ -83,7 +84,7 @@ Launch configuration:
 
 .. code-block:: bash
 
-   hipcc -O3 -std=c++17 matrix_multiply_naive.hip -o mm_naive
+   amdclang++ -O3 -std=c++17 matrix_multiply_naive.hip -o mm_naive
    ./mm_naive
 
 **Profile wall-clock time with rocprofv3:**
@@ -116,48 +117,91 @@ and :math:`\pmb{B}` in Local Data Share (LDS) lets all ``TILE_SIZE²`` threads i
 a block reuse that data without touching global memory again.
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx LDS tile size start]
    :end-before: [Sphinx LDS tile size end]
 
 **Shared memory allocation:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx LDS shared memory start]
    :end-before: [Sphinx LDS shared memory end]
 
 **Load phase (cooperative, one element per thread):**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx LDS load phase start]
    :end-before: [Sphinx LDS load phase end]
 
 **Compute phase (inner product from LDS):**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx LDS compute phase start]
    :end-before: [Sphinx LDS compute phase end]
 
-**LDS bank conflict analysis:**
+LDS bank conflict analysis
+--------------------------
 
-AMD GPUs have 32 LDS banks interleaved at 4-byte granularity.  For
-``TILE_SIZE = 16``:
+Moving data into LDS is only half the battle — *how* threads access that data
+determines whether the LDS delivers its full bandwidth.  LDS is divided into
+independently addressable **banks**.  When threads in the same cycle access
+different addresses that map to the same bank, the hardware must serialize
+those accesses.  This is called a **bank conflict**, and it directly reduces
+the effective LDS bandwidth by the degree of the conflict (a *k*-way conflict
+takes *k* cycles instead of one).
 
-* ``tile_a[ty][i]``: all threads in a wavefront access the same row at column
-  ``i``—one broadcast, no conflict.
-* ``tile_b[i][tx]``: consecutive ``tx`` values map to consecutive banks—no
-  conflict.
+Bank mapping is straightforward: consecutive 4-byte words are assigned to
+consecutive banks in round-robin order.  For a 32-bank LDS, word at byte
+address ``a`` maps to bank ``(a / 4) % 32``.  Two threads accessing the
+*same* address are not a conflict — the hardware broadcasts the value to
+both.
 
-.. note::
+The number of LDS banks varies across AMD GPU architectures:
 
-   If ``TILE_SIZE`` is increased to 32 (equal to the bank count), consecutive
-   rows of ``tile_b`` alias to the same bank, causing 32-way conflicts during
-   the compute phase.  Step 3 resolves this with a transposed layout.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 30
 
-**What to observe in rocprof-compute after this step:**
+   * - Architecture
+     - Banks
+     - Entries per bank (4 B each)
+   * - CDNA / CDNA2 / CDNA3
+     - 32
+     - 512
+   * - CDNA4
+     - 64
+     - 640
+   * - RDNA2 / RDNA3 / RDNA3.5 / RDNA4
+     - 64
+     - 512
+
+For this kernel's compute phase—an inner product over the K-strip:
+
+.. code-block:: cuda
+
+   sum += tile_a[ty][i] * tile_b[i][tx];
+
+—the access pattern with ``float`` data is **inherently conflict-free
+regardless of tile size**:
+
+* ``tile_a[ty][i]``: all threads in a wavefront that share the same ``ty``
+  read the *same address*.  The hardware broadcasts the value — no conflict.
+* ``tile_b[i][tx]``: each thread has a unique ``tx``, and because each
+  ``float`` is exactly 4 bytes (= one bank slot), consecutive ``tx`` values
+  always map to consecutive banks.  No two threads in the same cycle can hit
+  the same bank at a different address, regardless of how large ``TILE_SIZE``
+  is.  The ``i`` loop iterates sequentially within each thread, so accesses
+  to different rows of ``tile_b`` are never concurrent.
+
+In other words, with FP32 data and the simple inner-product pattern of this
+step, bank conflicts are a non-issue.  The bank mechanism is worth
+understanding now, however, because it becomes a real concern in later steps.
+
+What to observe in rocprof-compute after this step
+--------------------------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -188,48 +232,66 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **Tile parameters:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx register tiling params start]
    :end-before: [Sphinx register tiling params end]
 
 **Transposed tile_b layout:**
 
 ``tile_b`` is stored transposed in LDS as ``tile_b_T[BLOCK_TILE_N][K_TILE_SIZE]``
-(column-major for B).  This change has two benefits:
+(column-major for B).  This layout choice is motivated by two concerns:
 
-1. Eliminates the bank-conflict risk that arises when ``TILE_SIZE`` equals the
-   LDS bank count.
-2. Produces stride-1 reads during the outer-product compute phase.
+1. **Stride-1 reads during the outer-product compute phase**: In the
+   outer-product pattern, each thread loads a fragment of ``THREAD_TILE_N``
+   consecutive elements from ``tile_b_T`` along the ``ki`` dimension.  Because
+   the inner dimension of ``tile_b_T`` is ``K_TILE_SIZE``, consecutive ``ki``
+   values are adjacent in memory — stride-1 access. Without transposition
+   (``tile_b[K_TILE_SIZE][BLOCK_TILE_N]``), the fragment load would stride
+   across the large ``BLOCK_TILE_N`` dimension, producing
+   scattered LDS reads.
+2. **Bank-conflict safety for sub-4-byte types**: In Step 2's simple
+   inner-product loop, each ``float`` occupies exactly one 4-byte LDS bank slot,
+   so bank conflicts cannot arise regardless of tile dimensions.  This property
+   does not hold for smaller data types. When architecture-specific intrinsics
+   introduce half-precision (FP16, 2 bytes) or quarter-precision (FP8, 1 byte)
+   data in follow-up sections, multiple elements pack into a single 4-byte bank
+   slot.  If the row stride of ``tile_b`` equals or is a multiple of the bank
+   count, different threads can address different sub-word elements within the
+   same bank slot, producing conflicts that are impossible with FP32. The
+   transposed layout decouples the fragment access stride (``K_TILE_SIZE``)
+   from the tile's outer dimension (``BLOCK_TILE_N``), avoiding this class of
+   conflict regardless of element size or bank count.
 
 **LDS allocation:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx register tiling shared memory start]
    :end-before: [Sphinx register tiling shared memory end]
 
 **Cooperative tile load:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx register tiling load phase start]
    :end-before: [Sphinx register tiling load phase end]
 
 **Outer-product accumulation:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx register tiling compute phase start]
    :end-before: [Sphinx register tiling compute phase end]
 
 **Write-back:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx register tiling store start]
    :end-before: [Sphinx register tiling store end]
 
-**What to observe in rocprof-compute:**
+What to observe in rocprof-compute
+----------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -266,7 +328,7 @@ the kernel body is identical regardless of the chosen approach.
    * - Method
      - Responsibility
    * - ``prologue``
-     - Load tile 0 into buffer 0 and synchronise (double-buffer only; no-op for single)
+     - Load tile 0 into buffer 0 and synchronize (double-buffer only; no-op for single)
    * - ``prefetch``
      - Issue the load for the next tile into the background buffer
    * - ``acquire``
@@ -279,28 +341,28 @@ the kernel body is identical regardless of the chosen approach.
 **Single-buffer policy** (baseline — same logic as Step 3):
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **Software double-buffer policy:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
 
 **Compile-time policy validation:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx tile policy static assert start]
    :end-before: [Sphinx tile policy static assert end]
 
 **Unified kernel template:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx double buffer kernel start]
    :end-before: [Sphinx double buffer kernel end]
 
@@ -313,11 +375,12 @@ the kernel body is identical regardless of the chosen approach.
    * Single-buffer LDS: 128 × 16 × 4 × 2 = 16 KiB
    * Double-buffer LDS: 16 KiB × 2 = 32 KiB
 
-   This is within the 32–64 KiB LDS budget on all supported architectures, but
+   This is within the 64–160 KiB LDS budget on all supported architectures, but
    leaves less headroom for occupancy.  Use the ROCprof Compute Viewer to verify
    occupancy does not drop when switching from single- to double-buffered policy.
 
-**What to observe in rocprof-compute:**
+What to observe in rocprof-compute
+----------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -333,10 +396,43 @@ the kernel body is identical regardless of the chosen approach.
 Step 5: Vectorized loads
 ========================
 
-Global memory transactions are most efficient when each wavefront issues a
-single 128-byte coalesced request.  For FP32 data (4 bytes per element),
-reading 4 consecutive elements per thread (``float4``, 128-bit) saturates one
-transaction per lane.
+Each global memory load instruction in the tile-loading loop fetches one
+``float`` per thread.  Replacing it with a ``float2`` or ``float4`` load
+fetches 2 or 4 ``float``s per instruction — the same total data moves through the
+cache hierarchy, but in fewer instructions.  This reduces pressure on the
+VMEM instruction-issue pipeline and can improve overall throughput when
+instruction issue is the bottleneck rather than memory bandwidth.
+
+To put this in context, consider how a single coalesced scalar load of a
+``float`` maps to cache lines on each architecture family:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 20 30
+
+   * - Architecture
+     - Wavefront width
+     - L1/L0 cache line
+     - Cache lines per coalesced scalar load
+   * - CDNA / CDNA2
+     - 64 threads
+     - 64 B
+     - 64 × 4 B / 64 B = **4**
+   * - CDNA3 / CDNA4
+     - 64 threads
+     - 128 B
+     - 64 × 4 B / 128 B = **2**
+   * - RDNA2 / RDNA3 / RDNA3.5 / RDNA4
+     - 32 threads
+     - 128 B
+     - 32 × 4 B / 128 B = **1**
+
+On RDNA GPUs, a coalesced scalar ``float`` load already fills exactly one cache
+line — wider vector loads do not reduce cache traffic.  On CDNA/CDNA2 a
+scalar load spans 4 cache lines; on CDNA3/CDNA4 it spans 2.  In all cases,
+vector loads do not change the number of cache lines accessed; they reduce
+the number of **instructions** the wavefront must issue to move the same
+amount of data.
 
 Two vector widths are shown alongside the scalar baseline:
 
@@ -347,31 +443,31 @@ Two vector widths are shown alongside the scalar baseline:
    * - Width
      - HIP type
      - Alignment
-     - Transaction size per thread
+     - Instruction
    * - 1
      - ``float``
      - 4 bytes
-     - 32-bit (scalar)
+     - ``buffer_load_dword`` (one 4 B element per thread)
    * - 2
      - ``float2``
      - 8 bytes
-     - 64-bit (DWORD2)
+     - ``buffer_load_dwordx2`` (two 4 B elements per thread)
    * - 4
      - ``float4``
      - 16 bytes
-     - 128-bit (DWORD4)
+     - ``buffer_load_dwordx4`` (four 4 B elements per thread)
 
 **Vector type helper:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx vector type start]
    :end-before: [Sphinx vector type end]
 
 **Vectorized load function:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx vector load function start]
    :end-before: [Sphinx vector load function end]
 
@@ -390,7 +486,7 @@ A runtime check is included in the example to catch misaligned user-supplied
 pointers:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx alignment check start]
    :end-before: [Sphinx alignment check end]
 
@@ -402,7 +498,49 @@ pointers:
    Architecture-specific intrinsics (MFMA, WMMA), covered in follow-up sections,
    address this asymmetry.
 
-**What to observe in rocprof-compute:**
+Vectorized loads and smaller data types
+---------------------------------------
+
+For FP32, vectorized loads are a moderate optimisation: they reduce instruction
+count, but a scalar load already fills cache lines well (see table above).
+The picture changes significantly for smaller data types.  With FP16 (2 bytes)
+or FP8 (1 byte), a scalar load per thread no longer fills a full cache line:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 25 35
+
+   * - Element type
+     - Size
+     - RDNA scalar load (32 threads)
+     - Cache line fill (128 B line)
+   * - FP32
+     - 4 B
+     - 32 × 4 = 128 B
+     - 100% (1 full line)
+   * - FP16
+     - 2 B
+     - 32 × 2 = 64 B
+     - **50%** (half a line wasted)
+   * - FP8
+     - 1 B
+     - 32 × 1 = 32 B
+     - **25%** (three quarters wasted)
+
+The wasted portion of each cache line is fetched from DRAM but never used —
+this is pure bandwidth overhead.  A 2-wide vector load for FP16 or a 4-wide
+vector load for FP8 restores the full cache line fill.  On CDNA3/CDNA4
+(128 B cache line, 64-wide wavefronts), FP8 scalar loads similarly fill only
+half a line.
+
+This is why the ``TilePolicy`` parameterises the vector load width: the
+optimal width depends on both the element type and the target architecture.
+For the FP32 case in this tutorial the benefit is modest, but for the
+low-precision intrinsics introduced in follow-up sections, vectorized loads
+become essential to avoid wasting memory bandwidth.
+
+What to observe in rocprof-compute
+----------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -410,12 +548,15 @@ pointers:
 
    * - Counter group
      - What to look for
-   * - ``TCP``
-     - Reduction in ``TCP_TOTAL_CACHE_ACCESSES`` (fewer, wider transactions)
    * - ``SQ``
-     - Reduction in issue stalls caused by scalar load throughput limits
-   * - ``L2``
-     - Effective bandwidth per request increases with vector width
+     - Reduction in ``SQ_INSTS_VMEM`` (fewer VMEM instructions issued for the
+       same total data — this is the primary benefit for FP32)
+   * - ``SQ``
+     - Reduction in ``SQ_WAIT_INST_VMEM`` stall cycles (fewer instructions
+       means less time waiting for the VMEM pipeline)
+   * - ``TCP``
+     - ``TCP_TOTAL_CACHE_ACCESSES`` should remain roughly constant (cache line
+       traffic does not change — only the instruction count does)
 
 Step 6: Register pressure and occupancy
 ========================================
@@ -424,7 +565,7 @@ GPU occupancy—the ratio of active wavefronts to the hardware maximum—is set 
 the most constrained resource.  For register-tiled GEMM kernels that resource
 is typically the **VGPR file**: each thread holds
 ``THREAD_TILE_M × THREAD_TILE_N`` accumulator registers plus fragment arrays,
-and the compiler may allocate additional temporaries.
+and the compiler might allocate additional temporaries.
 
 Higher register usage means fewer concurrent wavefronts per CU, which reduces
 the GPU's ability to hide memory latency through wavefront switching.  Conversely,
@@ -436,14 +577,14 @@ Three kernel variants illustrate the tradeoff:
 **No annotation (compiler decides freely):**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx no hint kernel start]
    :end-before: [Sphinx no hint kernel end]
 
 **``__launch_bounds__``:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx launch bounds kernel start]
    :end-before: [Sphinx launch bounds kernel end]
 
@@ -455,14 +596,15 @@ wavefronts can be resident per EU simultaneously, given
 **``[[clang::amdgpu_waves_per_eu]]``:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx amdgpu waves per eu kernel start]
    :end-before: [Sphinx amdgpu waves per eu kernel end]
 
 This Clang attribute directly instructs the backend to target a wavefront
 occupancy in the range ``[min, max]`` per EU.
 
-**Finding optimal values with ROCprof Compute Viewer:**
+Finding optimal values with ROCprof Compute Viewer
+--------------------------------------------------
 
 1. Profile all three kernel variants with ``rocprof-compute``:
 
@@ -495,7 +637,8 @@ occupancy in the range ``[min, max]`` per EU.
    Always re-profile with ``rocprof-compute`` after applying the annotation to
    confirm that occupancy improves without introducing scratch-memory spilling.
 
-**What to observe in the ROCprof Compute Viewer:**
+What to observe in the ROCprof Compute Viewer
+---------------------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -511,14 +654,13 @@ occupancy in the range ``[min, max]`` per EU.
    * - ``SQ`` → ``SQ_WAIT_INST_LDS`` / ``SQ_WAIT_INST_VMEM``
      - Latency-hiding efficiency (stalls fall when more wavefronts are resident)
 
-Step 7: Generic kernel (Stepanov-style)
-=======================================
+Step 7: Generic kernel
+======================
 
-By this point the scalar kernel is already a strong general-purpose
-implementation: it uses LDS tiling to exploit data reuse, register tiling to
-maximise arithmetic intensity, software double buffering to hide load latency,
-and vectorized loads to reduce memory transaction overhead.  For many workloads
-this is sufficient.
+By this point the kernel is already a strong general-purpose implementation: it
+uses LDS tiling to exploit data reuse, register tiling to maximize arithmetic
+intensity, software double buffering to hide load latency, and vectorized loads
+to reduce memory transaction overhead.  For many workloads this is sufficient.
 
 Squeezing out the last few percent of throughput, however, requires
 architecture-specific matrix-multiply instructions: MFMA on CDNA GPUs and WMMA
@@ -526,14 +668,14 @@ on RDNA3/4.  These instructions perform a small matrix multiply directly in
 hardware and deliver substantially higher FLOP/s than an equivalent sequence of
 scalar FMAs.
 
-Steps 1–6 produced a well-optimised scalar GEMM kernel, but repeating the same
+Steps 1–6 produced a well-optimized scalar GEMM kernel, but repeating the same
 work for each architecture-specific instruction set—MFMA on CDNA, WMMA on RDNA3,
 the relaxed WMMA variant on RDNA4—would mean maintaining several near-identical
 copies of the kernel with only the inner computation swapped out.  Any future
 improvement (a new tiling strategy, a wider vector load, a different buffering
 depth) would have to be applied to every copy independently.
 
-The goal of this step is to factor the kernel so that the **optimised
+The goal of this step is to factor the kernel so that the **optimized
 orchestration is written once** and architecture-specific intrinsics can be
 **dropped in later as a policy**, touching no kernel code at all.
 
@@ -550,19 +692,19 @@ exactly two independent concerns:
    loaded from LDS and how the output accumulator is updated.  This is the only
    part that differs between scalar code and architecture-specific intrinsics.
 
-Following Alexander Stepanov's principle of *lifting* an algorithm into its
-most general form, these two responsibilities are encapsulated in two orthogonal
-*policy classes*: ``TilePolicy`` and ``ComputePolicy``.  A single kernel
-template ``matrix_multiply_generic<TilePolicy, ComputePolicy>`` orchestrates
-the common control flow while delegating all architecture-specific details to
-the policies.
+Following the principle of *lifting* an algorithm into its most general form,
+these two responsibilities are encapsulated in two orthogonal *policy classes*:
+``TilePolicy`` and ``ComputePolicy``.  A single kernel template
+``matrix_multiply_generic<TilePolicy, ComputePolicy>`` orchestrates the common
+control flow while delegating all architecture-specific details to the policies.
 
 The kernel presented here uses ``ScalarFMAPolicy`` as the ``ComputePolicy``.
 It already incorporates all the optimisations from the preceding steps: LDS
 tiling, register tiling, software double buffering, and vectorized loads.  When
-an MFMA or WMMA ``ComputePolicy`` is provided in a follow-up section, the same
-data-movement infrastructure and the same kernel orchestration are reused
-unchanged—only the inner arithmetic changes.
+an MFMA or WMMA ``ComputePolicy`` is provided in one of the
+architecture-specific intrinsics chapters, the same data-movement infrastructure
+and the same kernel orchestration are reused unchanged—only the inner arithmetic
+changes.
 
 Policy interfaces
 -----------------
@@ -605,6 +747,9 @@ The key design decisions are:
    * - ``elem_a``, ``elem_b``
      - Element types of the register fragments (e.g. ``float``, ``__half``);
        the kernel loop is fully templated on these
+   * - ``k_step``
+     - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA,
+       2 for ``fdot2``); the kernel loop advances ``ki`` by this amount
    * - ``load_a``, ``load_b``, ``mma``, ``store_c``
      - Fragment load, multiply-accumulate, and write-back; all accept ``lane_id``
        for RDNA3 forward-compatibility (unused in scalar policy)
@@ -613,9 +758,10 @@ Data type scope: what the policies cover and what they don't
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``elem_a`` and ``elem_b`` parameterise the *register fragment* type and are
-already fully wired through the kernel loop.  A future ``MFMAPolicy`` can
-therefore set ``elem_a = __half`` and the conversion from LDS to fragment
-happens inside ``load_a``—the kernel body is untouched.
+already fully wired through the kernel loop.  The ``Fdot2Policy`` shown
+:ref:`below <fdot2-drop-in>` demonstrates this concretely: it sets
+``elem_a = elem_b = half2`` and the float-to-half conversion happens entirely
+inside ``load_a`` / ``load_b``—the kernel body is untouched.
 
 However, two things are **not yet parameterised** and are hardcoded to
 ``float`` in this file:
@@ -646,20 +792,22 @@ sections:
        instead of ``float``.  The kernel signature changes from
        ``const float*`` to ``const InputT*``.
 
-This tutorial covers FP32 throughout and therefore only Case 1 is relevant
-here.  Case 2 is left as an extension for the architecture-specific follow-up
-sections.
+The global memory and LDS remain ``float`` throughout this tutorial, so only
+Case 1 applies.  The ``Fdot2Policy`` :ref:`below <fdot2-drop-in>` is a
+concrete Case 1 example.  Case 2 is left as an extension for
+architecture-specific follow-up sections that operate on native FP16 or FP8
+input matrices.
 
 RDNA3 lane-mirroring note
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-On RDNA3, each WMMA instruction operates on a 32-lane logical wavefront split
-across 64 hardware lanes.  Lanes L and L+16 (0 ≤ L < 16) hold identical
-copies of the same fragment element—only the lower 16 lanes write unique output
-values.  The ``effective_lanes = 32`` constant and the ``lane_id`` parameter in
-``store_c`` allow the ``ComputePolicy`` to apply this write-back rule without
-any change to the calling kernel.  On RDNA4 this restriction is relaxed;
-on RDNA2 WMMA is not available at all.
+On RDNA3, WMMA instructions have a lane-mirroring constraint: lanes L and
+L+16 hold identical fragment data, so only half the lanes produce unique
+output.  The ``effective_lanes`` constant and the ``lane_id`` parameter in
+``store_c`` allow the ``ComputePolicy`` to handle this transparently.  See
+the :ref:`RDNA3 WMMA intrinsics guide <rdna3-wmma-intrinsics>` for the full
+explanation and a concrete ``WMMAPolicy`` implementation.  On RDNA4 this
+restriction is relaxed; on RDNA2 WMMA is not available at all.
 
 Compile-time validation
 -----------------------
@@ -669,14 +817,14 @@ Both policy interfaces are validated with C++17 ``static_assert`` traits:
 **TilePolicy traits:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx tile policy traits start]
    :end-before: [Sphinx tile policy traits end]
 
 **ComputePolicy traits:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx compute policy traits start]
    :end-before: [Sphinx compute policy traits end]
 
@@ -689,7 +837,7 @@ trait instantiation site.  C++20 ``requires`` clauses provide a more ergonomic
 alternative:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx cpp20 concept start]
    :end-before: [Sphinx cpp20 concept end]
 
@@ -703,21 +851,21 @@ Concrete policies
 **ScalarFMAPolicy** — portable scalar FP32 outer-product (no intrinsics):
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx scalar fma policy start]
    :end-before: [Sphinx scalar fma policy end]
 
 **SingleBufferTilePolicy** — single LDS buffer pair, equivalent to Step 3:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **SoftwareDoubleBufferTilePolicy** — ping-pong LDS buffers, equivalent to Step 4:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
 
@@ -725,7 +873,7 @@ Generic kernel template
 -----------------------
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx gemm kernel start]
    :end-before: [Sphinx gemm kernel end]
 
@@ -737,14 +885,14 @@ on the target ISA.  The architecture-specific MFMA and WMMA policies are stubs
 to be filled by follow-up architecture-specific sections:
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx arch dispatch start]
    :end-before: [Sphinx arch dispatch end]
 
 **Policy aliases used in this example:**
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cpp
+   :language: cuda
    :start-after: [Sphinx policy aliases start]
    :end-before: [Sphinx policy aliases end]
 
@@ -752,14 +900,58 @@ to be filled by follow-up architecture-specific sections:
 
 .. code-block:: bash
 
-   hipcc -O3 -std=c++17 matrix_multiply_generic.hip -o mm_generic
+   amdclang++ -O3 -std=c++17 matrix_multiply_generic.hip -o mm_generic
    ./mm_generic
 
-The program launches ``GemmKernel<SingleBufPolicy, ScalarPolicy>`` and
-``GemmKernel<DoubleBufPolicy, ScalarPolicy>`` in sequence and prints effective
-bandwidth and TFLOPS for each.  The two variants compile to distinct kernels
-with different LDS footprints and synchronisation patterns, but identical
-output.
+The program launches three variants:
+
+1. ``GemmKernel<SingleBufPolicy, ScalarPolicy>`` — single-buffer, scalar FP32
+2. ``GemmKernel<DoubleBufPolicy, ScalarPolicy>`` — double-buffer, scalar FP32
+3. ``GemmKernel<DoubleBufPolicy, Fdot2Compute>`` — double-buffer, ``fdot2`` intrinsic
+
+The first two differ only in their ``TilePolicy``; the third differs only in
+its ``ComputePolicy``.  All three share the same kernel template.
+
+.. _fdot2-drop-in:
+
+Intrinsic drop-in: ``Fdot2Policy``
+----------------------------------
+
+The ``Fdot2Policy`` demonstrates how an architecture-specific intrinsic can be
+used as a drop-in ``ComputePolicy`` without touching the kernel template or
+the ``TilePolicy``.
+
+``__builtin_amdgcn_fdot2`` computes the dot product of two ``half2`` vectors
+and accumulates the result into an FP32 value:
+
+.. code-block:: cuda
+
+   // a[0]*b[0] + a[1]*b[1] + acc  (FP16 multiply, FP32 accumulate)
+   acc = __builtin_amdgcn_fdot2(va, vb, acc, /*negate=*/false);
+
+Because the intrinsic consumes **two** k-values per call, the policy
+introduces a new interface constant: ``k_step = 2``.  The kernel loop advances
+``ki`` by ``ComputePolicy::k_step`` instead of 1, with a ``static_assert``
+ensuring ``k_tile_size`` is divisible by ``k_step``.  For ``ScalarFMAPolicy``,
+``k_step = 1`` — the loop behavior is unchanged.
+
+The ``load_a`` and ``load_b`` functions read two consecutive ``float`` values
+from LDS, convert them to ``__fp16``, and pack them into a ``half2`` vector.
+This is a concrete example of Case 1 from the data-type scope discussion: the
+LDS and global memory remain ``float``; only the register fragment changes
+type.
+
+.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+   :language: cuda
+   :start-after: [Sphinx fdot2 policy start]
+   :end-before: [Sphinx fdot2 policy end]
+
+.. note::
+
+   Because the multiplication is performed in FP16 precision, the ``fdot2``
+   variant produces slightly different results from the full-FP32 scalar
+   policy.  The verification tolerance in the example is relaxed from
+   ``1e-3`` to ``1e-1`` to account for this.
 
 **What to observe in rocprof-compute:**
 
@@ -770,11 +962,14 @@ output.
    * - Counter group
      - What to look for
    * - ``SQ`` / ``TCP``
-     - Confirm same DRAM traffic as Step 4 (same tile parameters)
+     - Confirm same DRAM traffic across all three variants (same tile parameters)
    * - ``LDS``
-     - Double-buffer LDS usage is 2× that of single-buffer
+     - Double-buffer LDS usage is 2x that of single-buffer
    * - ``SQ``
-     - Lower ``SQ_WAIT_INST_LDS`` stalls for the double-buffer variant
+     - Lower ``SQ_WAIT_INST_LDS`` stalls for the double-buffer variants
+   * - ``SQ``
+     - Fewer ``SQ_INSTS_VALU`` for ``Fdot2Compute`` vs ``ScalarPolicy`` (two
+       FMAs replaced by one ``fdot2`` instruction per ki step)
 
 Further reading
 ===============
@@ -784,6 +979,6 @@ Further reading
 * :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
   guide to timeline and counter profiling.
 * :doc:`ROCm Compute Profiler <rocprofiler-compute:index>` (``rocprof-compute``) —
-  hardware-counter analysis and roofline modelling.
+  hardware-counter analysis and roofline modeling.
 * AMD GPU architecture guides (ISA references) — VGPR budgets, LDS bank
   geometry, and wavefront scheduling details for each architecture family.

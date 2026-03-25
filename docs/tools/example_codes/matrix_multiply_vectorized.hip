@@ -87,17 +87,24 @@ constexpr int BLOCK_DIM_Y   = BLOCK_TILE_M / THREAD_TILE_M; // 16
 //           multiple of 2 (i.e. tid * ELEMENTS_PER_THREAD % 2 == 0).
 //   float4: the same count must be a multiple of 4.
 //
-// In the cooperative load below, each thread loads elements at positions
-// tid, tid + num_threads, tid + 2*num_threads, … (stride = num_threads).
-// For float4, ELEMENTS_PER_VECTOR = 4, so we require num_threads % 4 == 0 and
-// the tile total to be a multiple of 4.  Both hold for the chosen tile sizes:
-//   BLOCK_TILE_M * K_TILE_SIZE = 128 * 16 = 2048 (divisible by 4)
-//   BLOCK_TILE_N * K_TILE_SIZE = 128 * 16 = 2048 (divisible by 4)
-//   num_threads = 16 * 16 = 256 (divisible by 4)
+// In the cooperative load below, threads stride through the tile treated as
+// a flat 1-D array of vector elements.  The flat vector index vi maps to
+// (row, col) in the tile via:
+//   flat_elem = vi * LoadWidth
+//   row       = flat_elem / K_TILE_SIZE
+//   col       = flat_elem % K_TILE_SIZE
 //
-// If these conditions are not met at runtime (e.g., matrix dimensions are not
-// multiples of the vector width), a scalar fallback or padding to the nearest
-// aligned boundary is required.
+// Because K_TILE_SIZE % LoadWidth == 0, a vector load never crosses a row
+// boundary.  Each load reads LoadWidth contiguous floats within a single
+// row of A, which IS contiguous in global memory (row-major, stride K).
+//
+// For float4 (LoadWidth = 4) this requires:
+//   K_TILE_SIZE % 4 == 0                     (16 % 4 == 0  ✓)
+//   BLOCK_TILE_M * K_TILE_SIZE % 4 == 0      (2048 % 4 == 0  ✓)
+//
+// If these conditions are not met at compile time, the static_asserts in
+// load_tiles will fire.  Runtime alignment of the base pointer is checked
+// in main() via a simple modulo test.
 //
 // The static_assert below validates the compile-time conditions.  Runtime
 // alignment of the base pointer is checked in main() via a simple modulo test.
@@ -205,25 +212,15 @@ struct VectorizedDoubleBufferTilePolicy
                                        int             tid,
                                        int             num_threads)
     {
-        // Build a contiguous source view of the A strip in global memory.
-        // Because the strip may not be contiguous in global memory (matrix row
-        // stride != K_TILE_SIZE), we cannot vectorise the global→LDS path
-        // directly for non-square tiles without staging.  Instead we apply the
-        // vector load along the innermost (column / k) dimension where elements
-        // ARE contiguous in global memory.
-        //
-        // The load is split into two phases:
-        //   Phase 1: scalar loop over rows; vector load across the K_TILE_SIZE
-        //            columns within each row.
-        //
-        // This keeps the alignment requirement simple: the row pointer
-        // A + global_row * k + tile_k_start must be LoadWidth*4-byte aligned.
-        // For the chosen matrix dimensions (K = 4096, K_TILE_SIZE = 16) and
-        // hipMalloc base alignment (≥256 bytes), this holds for every tile.
+        // Cooperative flat-strided load: every thread strides through
+        // the flat element array of each tile.  For tile_a the elements
+        // within each row are contiguous in global memory (row-major A,
+        // stride K), so we vectorise along the column (k) dimension.
+        // tile_b_T gathers from stride-N columns of B, which is not
+        // contiguous — scalar fallback is used there.
 
         const int tile_k_start = tile_idx * K_TILE_SIZE;
 
-        // tile_a load: rows BLOCK_TILE_M, columns K_TILE_SIZE
         static_assert(K_TILE_SIZE % LoadWidth == 0,
                       "K_TILE_SIZE must be divisible by the vector load width");
         static_assert(BLOCK_TILE_M * K_TILE_SIZE % LoadWidth == 0,
@@ -231,61 +228,74 @@ struct VectorizedDoubleBufferTilePolicy
         static_assert(BLOCK_TILE_N * K_TILE_SIZE % LoadWidth == 0,
                       "tile_b_T element count must be divisible by vector load width");
 
+        // tile_a load: flat-strided across BLOCK_TILE_M * K_TILE_SIZE elements.
+        // Each vector load reads LoadWidth contiguous floats.  Because
+        // K_TILE_SIZE % LoadWidth == 0, a vector load never crosses a row
+        // boundary in the LDS tile — the flat vector index maps cleanly
+        // to (row, col) within the tile.
         {
-            const int rows_per_thread =
-                (BLOCK_TILE_M + num_threads - 1) / num_threads;
-            for(int r = 0; r < rows_per_thread; ++r)
+            using Vec                       = typename VectorType<LoadWidth>::type;
+            constexpr int tile_a_elems      = BLOCK_TILE_M * K_TILE_SIZE;
+            constexpr int tile_a_vec_elems  = tile_a_elems / LoadWidth;
+
+            Vec*       dst_vec = reinterpret_cast<Vec*>(&smem.tile_a[dst_buf][0][0]);
+
+            for(int vi = tid; vi < tile_a_vec_elems; vi += num_threads)
             {
-                const int tile_row   = tid + r * num_threads;
-                if(tile_row >= BLOCK_TILE_M)
-                    break;
+                // Convert flat vector index to (row, col) in the tile.
+                const int flat_elem  = vi * LoadWidth;
+                const int tile_row   = flat_elem / K_TILE_SIZE;
+                const int tile_col   = flat_elem % K_TILE_SIZE;
                 const int global_row = block_row_start + tile_row;
-                if(global_row >= m || tile_k_start >= k)
+                const int global_col = tile_k_start + tile_col;
+
+                if(global_row < m && global_col + LoadWidth - 1 < k)
                 {
-                    // Zero out out-of-bounds rows.
-                    for(int c = 0; c < K_TILE_SIZE; ++c)
-                        smem.tile_a[dst_buf][tile_row][c] = 0.0f;
-                    continue;
+                    const Vec* src_vec = reinterpret_cast<const Vec*>(
+                        A + global_row * k + global_col);
+                    dst_vec[vi] = *src_vec;
                 }
-                vectorized_load<LoadWidth>(
-                    &smem.tile_a[dst_buf][tile_row][0],
-                    A + global_row * k + tile_k_start,
-                    K_TILE_SIZE,
-                    0,   // single thread loads one full row
-                    1);
+                else
+                {
+                    // Out-of-bounds: zero-fill element by element.
+                    float* dst_scalar = &smem.tile_a[dst_buf][0][0] + flat_elem;
+                    for(int w = 0; w < LoadWidth; ++w)
+                    {
+                        const int gr = global_row;
+                        const int gc = global_col + w;
+                        dst_scalar[w] = (gr < m && gc < k)
+                                            ? A[gr * k + gc]
+                                            : 0.0f;
+                    }
+                }
             }
         }
 
-        // tile_b_T load: cols BLOCK_TILE_N (transposed rows), k K_TILE_SIZE
+        // tile_b_T load: flat-strided, scalar.
+        // B is row-major and we need column tile_col of the K-strip:
+        //   B[tile_k_start + ki][block_col_start + tile_col]
+        // These elements are stride-N apart in global memory (not contiguous),
+        // so vectorisation is not possible here.  Architecture-specific
+        // intrinsics can address this in follow-up sections.
+        //
+        // tile_b_T is stored [BLOCK_TILE_N][K_TILE_SIZE] in LDS, so the flat
+        // index maps to:
+        //   tile_col = flat_idx / K_TILE_SIZE
+        //   ki       = flat_idx % K_TILE_SIZE
         {
-            const int cols_per_thread =
-                (BLOCK_TILE_N + num_threads - 1) / num_threads;
-            for(int c = 0; c < cols_per_thread; ++c)
+            constexpr int tile_b_elems = BLOCK_TILE_N * K_TILE_SIZE;
+
+            for(int idx = tid; idx < tile_b_elems; idx += num_threads)
             {
-                const int tile_col   = tid + c * num_threads;
-                if(tile_col >= BLOCK_TILE_N)
-                    break;
+                const int tile_col   = idx / K_TILE_SIZE;
+                const int ki         = idx % K_TILE_SIZE;
+                const int global_row = tile_k_start + ki;
                 const int global_col = block_col_start + tile_col;
-                if(global_col >= n || tile_k_start >= k)
-                {
-                    for(int ki = 0; ki < K_TILE_SIZE; ++ki)
-                        smem.tile_b_T[dst_buf][tile_col][ki] = 0.0f;
-                    continue;
-                }
-                // B is row-major: B[global_row][global_col].
-                // We need column tile_col of the K-strip, i.e., elements
-                // B[tile_k_start + 0][global_col],
-                // B[tile_k_start + 1][global_col], …
-                // These are stride-N apart in global memory – NOT contiguous –
-                // so a scalar loop is used here.  Vectorising strided global
-                // accesses is architecture-specific and deferred to the
-                // intrinsics follow-up.
-                for(int ki = 0; ki < K_TILE_SIZE; ++ki)
-                {
-                    const int global_row = tile_k_start + ki;
-                    smem.tile_b_T[dst_buf][tile_col][ki] =
-                        (global_row < k) ? B[global_row * n + global_col] : 0.0f;
-                }
+
+                smem.tile_b_T[dst_buf][tile_col][ki] =
+                    (global_row < k && global_col < n)
+                        ? B[global_row * n + global_col]
+                        : 0.0f;
             }
         }
     }
