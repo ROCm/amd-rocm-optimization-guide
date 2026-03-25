@@ -37,7 +37,7 @@ count for bin :math:`b` is:
 
    H[b] = \sum_{i=1}^{N} \delta\bigl(b - \lfloor f(x_i) \rfloor\bigr)
 
-where :math:`\delta(\cdot)` is 1 when its argument is zero and 0 otherwise.
+where :math:`\delta( )` is 1 when its argument is zero and 0 otherwise.
 For a simple integer input, :math:`f(x_i) = x_i \bmod B` maps each value to
 one of :math:`B` bins by remainder.
 
