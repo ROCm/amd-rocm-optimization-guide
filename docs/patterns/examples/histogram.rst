@@ -20,8 +20,10 @@ This tutorial walks through a series of HIP kernels for computing a 256-bin
 histogram over a large array of unsigned integers. Starting from a naive kernel
 that issues one global atomic per input element, each step reduces global atomic
 traffic: first by moving accumulation into shared memory, then by having each
-thread process more elements so fewer blocks are launched, and therefore fewer
-merge operations are needed.
+thread process more elements so fewer blocks are launched. The final approach
+eliminates global atomics at the merge step entirely by having each block write
+its local histogram to a private slice of a temporary buffer, then summing those
+slices in a separate reduction kernel.
 
 Histogram fundamentals
 ======================
@@ -60,14 +62,13 @@ increment ``histogram[bin]``:
    histogram[bin] = histogram[bin] + 1;
 
 If both threads read the value before either writes back, they both compute the
-same result, and one increment is silently discarded. The final count is lower
-than it should be. Because GPU threads execute asynchronously across many
-compute units, this interleaving can occur unpredictably, producing different
-results across different runs.
+same result, and the second write overwrites the first, so one increment is
+lost. This is a natural consequence of parallel execution: with many threads
+running concurrently across compute units, some will read the same value before
+any of them writes back.
 
-Race conditions on the bin counters are inevitable when the input is large
-enough that multiple threads map to the same bin. The solution is to make each
-increment atomic.
+When multiple threads map to the same bin, this kind of overlap is expected.
+Atomic operations, covered in the next section, are the standard solution.
 
 Atomic operations
 =================
@@ -186,10 +187,17 @@ Partial histograms
 
 The shared memory kernel still issues up to ``num_bins`` global atomics per
 block during the merge phase. For 4,096 blocks and 256 bins, that is roughly
-one million global atomic operations. The two-pass approach eliminates these:
-the first kernel writes each block's shared histogram to a slice of a
-``partial_histogram`` array using plain stores, and a second reduction kernel
-sums those slices into the final result.
+one million global atomic operations.
+
+A partial histogram avoids this by deferring the merge entirely. Instead of
+each block atomically adding its local counts into a single shared output array,
+each block writes its ``num_bins`` counts to its own reserved slice of a
+temporary ``partial_histogram`` buffer — using plain stores, with no
+contention. The global output is then computed in a second kernel that sums
+across all the per-block slices for each bin. Because the two passes are
+separated, neither requires global atomics: the first pass uses conflict-free
+stores, and the second pass is a straightforward parallel reduction (see
+:ref:`reduction`).
 
 The first kernel is identical to the shared memory kernel except for the merge
 step, which becomes a plain store rather than a global atomic:
