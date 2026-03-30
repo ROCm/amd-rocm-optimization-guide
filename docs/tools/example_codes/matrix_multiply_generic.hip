@@ -199,7 +199,8 @@ __global__ void matrix_multiply_generic(/* … */);
 //                                          //     (lanes L and L+16 share a fragment)
 //   static constexpr int k_step;           // k-indices consumed per mma() call
 //                                          //   = 1 for scalar FMA (one FMA per call)
-//                                          //   = 2 for fdot2 (dot product of two FP16 pairs)
+//                                          //   > 1 for intrinsics that process
+//                                          //     multiple k-indices per call
 //                                          //   Must evenly divide TilePolicy::k_tile_size.
 //
 //   // Map a thread to the top-left corner of its output sub-tile within the
@@ -935,8 +936,8 @@ __global__ void
         const float* tile_b_T_ptr = TilePolicy::get_tile_b_T(smem, buf);
 
         // k_step: number of k-indices consumed per mma() call.
-        // ScalarFMAPolicy uses k_step=1 (one FMA); Fdot2Policy uses k_step=2
-        // (dot product of two FP16 pairs per call).
+        // ScalarFMAPolicy uses k_step=1 (one FMA per call); intrinsic-based
+        // policies can use higher values (e.g. k_step=2 for dot-product ops).
         static_assert(TilePolicy::k_tile_size % ComputePolicy::k_step == 0,
                       "k_tile_size must be divisible by ComputePolicy::k_step");
 

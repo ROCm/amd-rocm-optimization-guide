@@ -16,13 +16,13 @@ effect with the ROCm performance analysis stack.
 
 The complete source files for all steps are available at:
 
-* :download:`Step 1 - Naïve <../../../tools/example_codes/matrix_multiply_naive.hip>`
-* :download:`Step 2 - LDS tiling <../../../tools/example_codes/matrix_multiply_lds.hip>`
-* :download:`Step 3 - Register tiling <../../../tools/example_codes/matrix_multiply_register_tiling.hip>`
-* :download:`Step 4 - Double buffering <../../../tools/example_codes/matrix_multiply_double_buffer.hip>`
-* :download:`Step 5 - Vectorized loads <../../../tools/example_codes/matrix_multiply_vectorized.hip>`
-* :download:`Step 6 - Register pressure <../../../tools/example_codes/matrix_multiply_launch_bounds.hip>`
-* :download:`Step 7 - Generic kernel <../../../tools/example_codes/matrix_multiply_generic.hip>`
+* :download:`Step 1 - Naïve <../../tools/example_codes/matrix_multiply_naive.hip>`
+* :download:`Step 2 - LDS tiling <../../tools/example_codes/matrix_multiply_lds.hip>`
+* :download:`Step 3 - Register tiling <../../tools/example_codes/matrix_multiply_register_tiling.hip>`
+* :download:`Step 4 - Double buffering <../../tools/example_codes/matrix_multiply_double_buffer.hip>`
+* :download:`Step 5 - Vectorized loads <../../tools/example_codes/matrix_multiply_vectorized.hip>`
+* :download:`Step 6 - Register pressure <../../tools/example_codes/matrix_multiply_launch_bounds.hip>`
+* :download:`Step 7 - Generic kernel <../../tools/example_codes/matrix_multiply_generic.hip>`
 
 .. note::
 
@@ -68,17 +68,18 @@ The naïve kernel assigns one thread per output element.  Each thread reads a
 full row of :math:`\pmb{A}` and a full column of :math:`\pmb{B}` directly from
 global memory.
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_naive.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_naive.hip
    :language: cuda
    :start-after: [Sphinx naive kernel start]
    :end-before: [Sphinx naive kernel end]
 
 Launch configuration:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_naive.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_naive.hip
    :language: cuda
    :start-after: [Sphinx naive launch config start]
    :end-before: [Sphinx naive launch config end]
+   :noindent:
 
 **Compile and run:**
 
@@ -116,31 +117,34 @@ threads (one per output column) and every element of :math:`\pmb{B}` is used by
 and :math:`\pmb{B}` in Local Data Share (LDS) lets all ``TILE_SIZE²`` threads in
 a block reuse that data without touching global memory again.
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
    :language: cuda
    :start-after: [Sphinx LDS tile size start]
    :end-before: [Sphinx LDS tile size end]
 
 **Shared memory allocation:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
    :language: cuda
    :start-after: [Sphinx LDS shared memory start]
    :end-before: [Sphinx LDS shared memory end]
+   :noindent:
 
 **Load phase (cooperative, one element per thread):**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
    :language: cuda
    :start-after: [Sphinx LDS load phase start]
    :end-before: [Sphinx LDS load phase end]
+   :noindent:
 
 **Compute phase (inner product from LDS):**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_lds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
    :language: cuda
    :start-after: [Sphinx LDS compute phase start]
    :end-before: [Sphinx LDS compute phase end]
+   :noindent:
 
 LDS bank conflict analysis
 --------------------------
@@ -231,7 +235,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 
 **Tile parameters:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
    :language: cuda
    :start-after: [Sphinx register tiling params start]
    :end-before: [Sphinx register tiling params end]
@@ -264,31 +268,35 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 
 **LDS allocation:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
    :language: cuda
    :start-after: [Sphinx register tiling shared memory start]
    :end-before: [Sphinx register tiling shared memory end]
+   :noindent:
 
 **Cooperative tile load:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
    :language: cuda
    :start-after: [Sphinx register tiling load phase start]
    :end-before: [Sphinx register tiling load phase end]
+   :noindent:
 
 **Outer-product accumulation:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
    :language: cuda
    :start-after: [Sphinx register tiling compute phase start]
    :end-before: [Sphinx register tiling compute phase end]
+   :noindent:
 
 **Write-back:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_register_tiling.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
    :language: cuda
    :start-after: [Sphinx register tiling store start]
    :end-before: [Sphinx register tiling store end]
+   :noindent:
 
 What to observe in rocprof-compute
 ----------------------------------
@@ -340,28 +348,28 @@ the kernel body is identical regardless of the chosen approach.
 
 **Single-buffer policy** (baseline — same logic as Step 3):
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
    :language: cuda
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **Software double-buffer policy:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
    :language: cuda
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
 
 **Compile-time policy validation:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
    :language: cuda
    :start-after: [Sphinx tile policy static assert start]
    :end-before: [Sphinx tile policy static assert end]
 
 **Unified kernel template:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_double_buffer.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
    :language: cuda
    :start-after: [Sphinx double buffer kernel start]
    :end-before: [Sphinx double buffer kernel end]
@@ -376,8 +384,9 @@ the kernel body is identical regardless of the chosen approach.
    * Double-buffer LDS: 16 KiB × 2 = 32 KiB
 
    This is within the 64–160 KiB LDS budget on all supported architectures, but
-   leaves less headroom for occupancy.  Use the ROCprof Compute Viewer to verify
-   occupancy does not drop when switching from single- to double-buffered policy.
+   leaves less headroom for occupancy.  Use the ``rocprof-compute`` tool to
+   verify occupancy does not drop when switching from single- to double-buffered
+   policy.
 
 What to observe in rocprof-compute
 ----------------------------------
@@ -398,9 +407,9 @@ Step 5: Vectorized loads
 
 Each global memory load instruction in the tile-loading loop fetches one
 ``float`` per thread.  Replacing it with a ``float2`` or ``float4`` load
-fetches 2 or 4 ``float``s per instruction — the same total data moves through the
-cache hierarchy, but in fewer instructions.  This reduces pressure on the
-VMEM instruction-issue pipeline and can improve overall throughput when
+fetches 2 or 4 ``float`` values per instruction — the same total data moves
+through the cache hierarchy, but in fewer instructions.  This reduces pressure
+on the VMEM instruction-issue pipeline and can improve overall throughput when
 instruction issue is the bottleneck rather than memory bandwidth.
 
 To put this in context, consider how a single coalesced scalar load of a
@@ -459,14 +468,14 @@ Two vector widths are shown alongside the scalar baseline:
 
 **Vector type helper:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
    :language: cuda
    :start-after: [Sphinx vector type start]
    :end-before: [Sphinx vector type end]
 
 **Vectorized load function:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
    :language: cuda
    :start-after: [Sphinx vector load function start]
    :end-before: [Sphinx vector load function end]
@@ -485,7 +494,7 @@ pointer is aligned to ``sizeof(Vec)`` bytes.  Two alignment guarantees apply:
 A runtime check is included in the example to catch misaligned user-supplied
 pointers:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_vectorized.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
    :language: cuda
    :start-after: [Sphinx alignment check start]
    :end-before: [Sphinx alignment check end]
@@ -576,14 +585,14 @@ Three kernel variants illustrate the tradeoff:
 
 **No annotation (compiler decides freely):**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
    :language: cuda
    :start-after: [Sphinx no hint kernel start]
    :end-before: [Sphinx no hint kernel end]
 
 **``__launch_bounds__``:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
    :language: cuda
    :start-after: [Sphinx launch bounds kernel start]
    :end-before: [Sphinx launch bounds kernel end]
@@ -595,7 +604,7 @@ wavefronts can be resident per EU simultaneously, given
 
 **``[[clang::amdgpu_waves_per_eu]]``:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_launch_bounds.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
    :language: cuda
    :start-after: [Sphinx amdgpu waves per eu kernel start]
    :end-before: [Sphinx amdgpu waves per eu kernel end]
@@ -748,8 +757,9 @@ The key design decisions are:
      - Element types of the register fragments (e.g. ``float``, ``__half``);
        the kernel loop is fully templated on these
    * - ``k_step``
-     - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA,
-       2 for ``fdot2``); the kernel loop advances ``ki`` by this amount
+     - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA;
+       higher values for intrinsics that process multiple k-indices per call);
+       the kernel loop advances ``ki`` by this amount
    * - ``load_a``, ``load_b``, ``mma``, ``store_c``
      - Fragment load, multiply-accumulate, and write-back; all accept ``lane_id``
        for RDNA3 forward-compatibility (unused in scalar policy)
@@ -758,9 +768,8 @@ Data type scope: what the policies cover and what they don't
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``elem_a`` and ``elem_b`` parameterise the *register fragment* type and are
-already fully wired through the kernel loop.  The ``Fdot2Policy`` shown
-:ref:`below <fdot2-drop-in>` demonstrates this concretely: it sets
-``elem_a = elem_b = half2`` and the float-to-half conversion happens entirely
+already fully wired through the kernel loop.  A future ``ComputePolicy`` can
+set ``elem_a = __half`` and the float-to-half conversion happens entirely
 inside ``load_a`` / ``load_b``—the kernel body is untouched.
 
 However, two things are **not yet parameterised** and are hardcoded to
@@ -793,10 +802,12 @@ sections:
        ``const float*`` to ``const InputT*``.
 
 The global memory and LDS remain ``float`` throughout this tutorial, so only
-Case 1 applies.  The ``Fdot2Policy`` :ref:`below <fdot2-drop-in>` is a
-concrete Case 1 example.  Case 2 is left as an extension for
-architecture-specific follow-up sections that operate on native FP16 or FP8
-input matrices.
+Case 1 applies.  The ``DirectLoadTilePolicy``
+:ref:`below <direct-load-drop-in>` is a Case 1 example at the ``TilePolicy``
+level; a ``ComputePolicy`` that converts to FP16 in its ``load_a`` /
+``load_b`` would be a Case 1 example at the compute level.  Case 2 is left
+as an extension for architecture-specific follow-up sections that operate on
+native FP16 or FP8 input matrices.
 
 RDNA3 lane-mirroring note
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -816,14 +827,14 @@ Both policy interfaces are validated with C++17 ``static_assert`` traits:
 
 **TilePolicy traits:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx tile policy traits start]
    :end-before: [Sphinx tile policy traits end]
 
 **ComputePolicy traits:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx compute policy traits start]
    :end-before: [Sphinx compute policy traits end]
@@ -836,7 +847,7 @@ traits struct to be instantiated explicitly, and error messages appear at the
 trait instantiation site.  C++20 ``requires`` clauses provide a more ergonomic
 alternative:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx cpp20 concept start]
    :end-before: [Sphinx cpp20 concept end]
@@ -850,21 +861,21 @@ Concrete policies
 
 **ScalarFMAPolicy** — portable scalar FP32 outer-product (no intrinsics):
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx scalar fma policy start]
    :end-before: [Sphinx scalar fma policy end]
 
 **SingleBufferTilePolicy** — single LDS buffer pair, equivalent to Step 3:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **SoftwareDoubleBufferTilePolicy** — ping-pong LDS buffers, equivalent to Step 4:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
@@ -872,7 +883,7 @@ Concrete policies
 Generic kernel template
 -----------------------
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx gemm kernel start]
    :end-before: [Sphinx gemm kernel end]
@@ -884,14 +895,14 @@ A compile-time dispatch block selects the appropriate ``ComputePolicy`` based
 on the target ISA.  The architecture-specific MFMA and WMMA policies are stubs
 to be filled by follow-up architecture-specific sections:
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx arch dispatch start]
    :end-before: [Sphinx arch dispatch end]
 
 **Policy aliases used in this example:**
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx policy aliases start]
    :end-before: [Sphinx policy aliases end]
@@ -962,7 +973,7 @@ processes it in chunks of 64 (one wavefront width per instruction).  For
 instruction = 32 chunks.  With 4 wavefronts: **8 instructions per wavefront**
 to fill the entire tile.
 
-.. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
    :start-after: [Sphinx direct load policy start]
    :end-before: [Sphinx direct load policy end]

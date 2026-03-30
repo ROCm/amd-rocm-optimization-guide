@@ -24,54 +24,17 @@ Architecture availability
 The following table summarizes which intrinsics are available on each
 architecture.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 40 10 10 10 10 10
-
-   * - Intrinsic
-     - CDNA
-     - CDNA2
-     - CDNA3
-     - CDNA4
-     - RDNA2
-     - RDNA3
-     - RDNA3.5
-     - RDNA4
-   * - ``__builtin_amdgcn_global_load_lds``
-     -
-     - 
-     - Yes
-     - Yes
-     -
-     -
-     -
-     -
-   * - ``__builtin_amdgcn_load_to_lds``
-     -
-     - 
-     - Yes
-     - Yes
-     -
-     -
-     -
-     -
-   * - ``__builtin_amdgcn_raw_ptr_buffer_load_lds``
-     - Yes
-     - Yes
-     - Yes
-     - Yes
-     - Yes
-     -
-     -
-     -
-   * - ``__builtin_amdgcn_struct_ptr_buffer_load_lds``
-     - Yes
-     - Yes
-     - Yes
-     - Yes
-     -
-     -
-     -
++-------------------------------------------------+------+-------+-------+--------+-------+-------+---------+-------+
+| Intrinsic                                       | CDNA | CDNA2 | CDNA3 | CDNA 4 | RDNA2 | RDNA3 | RDNA3.5 | RDNA4 |
++=================================================+======+=======+=======+========+=======+=======+=========+=======|
+| ``__builtin_amdgcn_global_load_lds``            | No   | No    | Yes   | Yes    | No    | No    | No      | No    |
++-------------------------------------------------+------+-------+-------+--------+-------+-------+---------+-------+
+| ``__builtin_amdgcn_load_to_lds``                | No   | No    | Yes   | Yes    | No    | No    | No      | No    |
++-------------------------------------------------+------+-------+-------+--------+-------+-------+---------+-------+
+| ``__builtin_amdgcn_raw_ptr_buffer_load_lds``    | No   | No    | Yes   | Yes    | Yes   | No    | No      | No    |
++-------------------------------------------------+------+-------+-------+--------+-------+-------+---------+-------+
+| ``__builtin_amdgcn_struct_ptr_buffer_load_lds`` | No   | No    | Yes   | Yes    | Yes   | No    | No      | No    |
++-------------------------------------------------+------+-------+-------+--------+-------+-------+---------+-------+
 
 Flat-addressed intrinsics
 =========================
@@ -94,28 +57,28 @@ loads ``size`` bytes from its own global address; the hardware writes lane
 *k*'s value to ``dst_base + offset + k * stride`` where ``stride = 4`` for
 ``size <= 4`` and (on CDNA4 GPUs) ``16`` for ``size > 4``.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Parameter
-     - Description
-   * - ``src``
-     - Global address space pointer.  Each lane can hold a different address.
-   * - ``dst_base``
-     - LDS address space base pointer. Must be wave-uniform. The pointer is
-       implicitly offset by ``lane_id * stride``. ``stride`` is ``4`` for
-       ``size <= 4`` and (on CDNA4 GPUs) ``16`` for ``size > 4``.
-   * - ``size``
-     - Transfer size per lane in bytes.  Must be a compile-time constant.
-       CDNA3 supports 1, 2, and 4.  CDNA4 additionally supports 12 and 16.
-   * - ``offset``
-     - Signed byte offset applied to **both** ``src`` and ``dst_base``.  Must
-       be a compile-time constant.  Encoded as a 13-bit signed immediate
-       (valid range: ``-4096`` to ``4095``).
-   * - ``aux``
-     - Cache policy bits.  Must be a compile-time constant.  See
-       :ref:`direct-to-lds-cache-policy-cdna3-cdna4`.
++--------------+---------------------------------------------------------------+
+| Parameter    | Description                                                   |
++==============+===============================================================+
+| ``src``      | Global address space pointer. Each lane can hold a different  |
+|              | address.                                                      |
++--------------+---------------------------------------------------------------+
+| ``dst_base`` | LDS address space base pointer. Must be wave-uniform. The     |
+|              | pointer is implicitly offset by ``lane_id * stride``.         |
+|              | ``stride`` is ``4`` for ``size <= 4`` and (on CDNA4 GPUs)     |
+|              | ``16`` for ``size > 4``.                                      |
++--------------+---------------------------------------------------------------+
+| ``size``     | Transfer size per lane in bytes. Must be a compile-time       |
+|              | constant. CDNA3 supports 1, 2, and 4.  CDNA4 additionally     |
+|              | supports 12 and 16.                                           |
++--------------+---------------------------------------------------------------+
+| ``offset``   | Signed byte offset applied to **both** ``src`` and            |
+|              | ``dst_base``.  Must be a compile-time constant. Encoded as a  |
+|              | 13-bit signed immediate (valid range: ``-4096`` to ``4095``). |
++--------------+---------------------------------------------------------------+
+| ``aux``      | Cache policy bits.  Must be a compile-time constant.  See     |
+|              | :ref:`direct-to-lds-cache-policy`.                            |
++--------------+---------------------------------------------------------------+
 
 ``__builtin_amdgcn_load_to_lds``
 ---------------------------------
@@ -133,29 +96,28 @@ VGPRs.  Each lane loads ``size`` bytes from its own address; the hardware
 writes lane *k*'s value to ``dst_base + offset + k * stride`` where
 ``stride = 4`` for ``size <= 4`` and (on CDNA4 GPUs) ``16`` for ``size > 4``.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Parameter
-     - Description
-   * - ``src``
-     - Generic, global, or buffer address pointer to load from.  Each lane
-       can hold a different address.
-   * - ``dst_base``
-     - LDS address space pointer.  Must be wave-uniform.  The pointer is
-       implicitly offset by ``lane_id * stride``.  ``stride`` is ``4`` for
-       ``size <= 4`` and (on CDNA4 GPUs) ``16`` for ``size > 4``.
-   * - ``size``
-     - Transfer size per lane in bytes.  Must be a compile-time constant.
-       Same architecture support as ``global_load_lds``.
-   * - ``offset``
-     - Signed byte offset applied to both ``src`` and ``dst_base``.  Must
-       be a compile-time constant.  Encoded as a 13-bit signed immediate
-       (valid range: ``-4096`` to ``4095``).
-   * - ``aux``
-     - Cache policy bits (compile-time constant).  See
-       :ref:`direct-to-lds-cache-policy`.
++--------------+---------------------------------------------------------------+
+| Parameter    | Description                                                   |
++==============|===============================================================|
+| ``src``      | Generic, global, or buffer address pointer. Each lane can     |
+|              | hold a different address.                                     |
++--------------+---------------------------------------------------------------+
+| ``dst_base`` | LDS address space base pointer. Must be wave-uniform. The     |
+|              | pointer is implicitly offset by ``lane_id * stride``.         |
+|              | ``stride`` is ``4`` for ``size <= 4`` and (on CDNA4 GPUs)     |
+|              | ``16`` for ``size > 4``.                                      |
++--------------+---------------------------------------------------------------+
+| ``size``     | Transfer size per lane in bytes. Must be a compile-time       |
+|              | constant. CDNA3 supports 1, 2, and 4.  CDNA4 additionally     |
+|              | supports 12 and 16.                                           |
++--------------+---------------------------------------------------------------+
+| ``offset``   | Signed byte offset applied to **both** ``src`` and            |
+|              | ``dst_base``.  Must be a compile-time constant. Encoded as a  |
+|              | 13-bit signed immediate (valid range: ``-4096`` to ``4095``). |
++--------------+---------------------------------------------------------------+
+| ``aux``      | Cache policy bits.  Must be a compile-time constant.  See     |
+|              | :ref:`direct-to-lds-cache-policy`.                            |
++--------------+---------------------------------------------------------------+
 
 Buffer-addressed intrinsics
 ============================
@@ -176,7 +138,7 @@ wave-uniform, and compile-time) are combined to form the final source address.
 
    void __builtin_amdgcn_raw_ptr_buffer_load_lds(
        __amdgpu_buffer_rsrc_t src,
-       __shared__ void*       dst,
+       __shared__ void*       dst_base,
        std::int32_t           size,
        std::int32_t           voffset,
        std::int32_t           soffset,
@@ -190,9 +152,9 @@ For each lane in a wavefront, the **load address** (global source) is:
 
 .. code-block:: text
 
-   src_addr = base_ptr + soffset + offset + voffset + stride * lane_id
+   src_addr = src_base + soffset + offset + voffset + stride * lane_id
 
-``base_ptr`` and ``stride`` come from the buffer resource descriptor.  The
+``src_base`` and ``stride`` come from the buffer resource descriptor.  The
 ``lane_id`` term is only active if the corresponding flag was set when creating
 the resource descriptor; otherwise it evaluates to zero.
 
@@ -200,44 +162,38 @@ For each lane in a wavefront, the **store address** (LDS destination) is:
 
 .. code-block:: text
 
-   dst_addr = dst + offset + lane_id * 4    // size <= 4
-   dst_addr = dst + offset + lane_id * 16   // size > 4 (CDNA4 only)
+   dst_addr = dst_base + offset + lane_id * 4    // size <= 4
+   dst_addr = dst_base + offset + lane_id * 16   // size > 4 (CDNA4 only)
 
 The ``lane_id`` term in the LDS address is always active.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Parameter
-     - Description
-   * - ``src``
-     - Buffer resource descriptor (``__amdgpu_buffer_rsrc_t``).  Created with
-       ``__builtin_amdgcn_make_buffer_rsrc``.  The descriptor wraps a base
-       pointer, stride, extent, and flags.
-   * - ``dst``
-     - LDS address space pointer.  Must be wave-uniform.  The hardware adds
-       ``lane_id * stride`` implicitly.
-   * - ``size``
-     - Transfer size per lane in bytes.  Must be a compile-time constant.
-       CDNA, CDNA2, CDNA3, and RDNA2 support 1, 2, and 4.  CDNA4 additionally
-       supports 12 and 16.
-   * - ``voffset``
-     - Per-lane byte offset into the buffer.  Each lane can provide a
-       different value, enabling scatter-style reads from the buffer.
-   * - ``soffset``
-     - Wave-uniform byte offset into the buffer.  Added to ``voffset`` and
-       ``offset`` to form the final source address.
-   * - ``offset``
-     - Unsigned compile-time byte offset.  Encoded as a 12-bit unsigned
-       immediate (valid range: ``0`` to ``4095``).  Added to ``voffset`` and
-       ``soffset``.
-   * - ``aux``
-     - Cache policy bits (compile-time constant).  Bit 3 enables buffer
-       swizzling on all supported architectures.  The remaining bits differ
-       by generation.  See :ref:`direct-to-lds-cache-policy-cdna3-cdna4`,
-       :ref:`direct-to-lds-cache-policy-cdna-cdna2`, and
-       :ref:`direct-to-lds-cache-policy-rdna2`.
++--------------+---------------------------------------------------------------+
+| Parameter    | Description                                                   |
++==============+===============================================================+
+| ``src``      | Buffer resource descriptor (``__amdgpu_buffer_rsrc_t``).      |
+|              | Created with ``__builtin_amdgcn_make_buffer_rsrc``.  The      |
+|              | descriptor wraps a base pointer, stride, extent, and flags.   |
++--------------+---------------------------------------------------------------+
+| ``dst_base`` | LDS address space base pointer. Must be wave-uniform. The     |
+|              | hardware adds ``lane_id * stride`` implicitly.                |
++--------------+---------------------------------------------------------------+
+| ``size``     | Transfer size per lane in bytes.  Must be a compile-time      |
+|              | constant. CDNA, CDNA2, CDNA3, and RDNA2 support 1, 2, and 4.  |
+|              | CDNA4 additionally supports 12 and 16.                        |
++--------------+---------------------------------------------------------------+
+| ``voffset``  | Per-lane byte offset into the buffer. Each lane can provide a |
+|              | different value, enabling gather-style reads from the buffer. |
++--------------+---------------------------------------------------------------+
+| ``soffset``  | Wave-uniform byte offset into the buffer.                     |
++--------------+---------------------------------------------------------------+
+| ``offset``   | Unsigned compile-time byte offset.  Encoded as a 12-bit       |
+|              | unsigned immediate (valid range: ``0`` to ``4095``).          |
++--------------+---------------------------------------------------------------+
+| ``aux``      | Cache policy bits (compile-time constant).  Bit 3 enables     |
+|              | buffer swizzling on all supported architectures.  The         |
+|              | remaining bits differ by architecture. See                    |
+|              | :ref:`direct-to-lds-cache-policy`.                            |
++--------------+---------------------------------------------------------------+
 
 ``__builtin_amdgcn_struct_ptr_buffer_load_lds``
 ------------------------------------------------
@@ -246,7 +202,7 @@ The ``lane_id`` term in the LDS address is always active.
 
    void __builtin_amdgcn_struct_ptr_buffer_load_lds(
        __amdgpu_buffer_rsrc_t src,
-       __shared__ void*       dst,
+       __shared__ void*       dst_base,
        std::int32_t           size,
        std::int32_t           vindex,
        std::int32_t           voffset,
@@ -264,9 +220,9 @@ For each lane in a wavefront, the **load address** (global source) is:
 
 .. code-block:: text
 
-   src_addr = base_ptr + soffset + offset + voffset + stride * (vindex + lane_id)
+   src_addr = src_base + soffset + offset + voffset + stride * (vindex + lane_id)
 
-``base_ptr`` and ``stride`` come from the buffer resource descriptor.  The
+``src_base`` and ``stride`` come from the buffer resource descriptor.  The
 ``lane_id`` term is only active if the corresponding flag was set when creating
 the resource descriptor; otherwise it evaluates to zero.
 
@@ -274,46 +230,40 @@ For each lane in a wavefront, the **store address** (LDS destination) is:
 
 .. code-block:: text
 
-   dst_addr = dst + offset + lane_id * 4    // size <= 4
-   dst_addr = dst + offset + lane_id * 16   // size > 4 (CDNA4 only)
+   dst_addr = dst_base + offset + lane_id * 4    // size <= 4
+   dst_addr = dst_base + offset + lane_id * 16   // size > 4 (CDNA4 only)
 
 The ``lane_id`` term in the LDS address is always active.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Parameter
-     - Description
-   * - ``src``
-     - Buffer resource descriptor (``__amdgpu_buffer_rsrc_t``).  Created with
-       ``__builtin_amdgcn_make_buffer_rsrc``.  The descriptor wraps a base
-       pointer, stride, extent, and flags.
-   * - ``dst``
-     - LDS address space pointer.  Must be wave-uniform.  The hardware adds
-       ``lane_id * stride`` implicitly.
-   * - ``size``
-     - Transfer size per lane in bytes.  Must be a compile-time constant.
-       CDNA, CDNA2, CDNA3, and RDNA2 support 1, 2, and 4.  CDNA4 additionally
-       supports 12 and 16.
-   * - ``vindex``
-     - Per-lane index value.  Combined with ``lane_id`` and multiplied by
-       ``stride`` in the source address calculation.
-   * - ``voffset``
-     - Per-lane byte offset into the buffer.
-   * - ``soffset``
-     - Wave-uniform byte offset into the buffer.  Added to ``voffset`` and
-       ``offset`` to form the final source address.
-   * - ``offset``
-     - Unsigned compile-time byte offset.  Encoded as a 12-bit unsigned
-       immediate (valid range: ``0`` to ``4095``).  Added to ``voffset`` and
-       ``soffset``.
-   * - ``aux``
-     - Cache policy bits (compile-time constant).  Bit 3 enables buffer
-       swizzling on all supported architectures.  The remaining bits differ
-       by generation.  See :ref:`direct-to-lds-cache-policy-cdna3-cdna4`,
-       :ref:`direct-to-lds-cache-policy-cdna-cdna2`, and
-       :ref:`direct-to-lds-cache-policy-rdna2`.
++--------------+---------------------------------------------------------------+
+| Parameter    | Description                                                   |
++==============+===============================================================+
+| ``src``      | Buffer resource descriptor (``__amdgpu_buffer_rsrc_t``).      |
+|              | Created with ``__builtin_amdgcn_make_buffer_rsrc``.  The      |
+|              | descriptor wraps a base pointer, stride, extent, and flags.   |
++--------------+---------------------------------------------------------------+
+| ``dst_base`` | LDS address space base pointer. Must be wave-uniform. The     |
+|              | hardware adds ``lane_id * stride`` implicitly.                |
++--------------+---------------------------------------------------------------+
+| ``size``     | Transfer size per lane in bytes.  Must be a compile-time      |
+|              | constant. CDNA, CDNA2, CDNA3, and RDNA2 support 1, 2, and 4.  |
+|              | CDNA4 additionally supports 12 and 16.                        |
++--------------+---------------------------------------------------------------+
+| ``vindex``   | Per-lane index value.                                         |
++--------------+---------------------------------------------------------------+
+| ``voffset``  | Per-lane byte offset into the buffer. Each lane can provide a |
+|              | different value, enabling gather-style reads from the buffer. |
++--------------+---------------------------------------------------------------+
+| ``soffset``  | Wave-uniform byte offset into the buffer.                     |
++--------------+---------------------------------------------------------------+
+| ``offset``   | Unsigned compile-time byte offset.  Encoded as a 12-bit       |
+|              | unsigned immediate (valid range: ``0`` to ``4095``).          |
++--------------+---------------------------------------------------------------+
+| ``aux``      | Cache policy bits (compile-time constant).  Bit 3 enables     |
+|              | buffer swizzling on all supported architectures.  The         |
+|              | remaining bits differ by architecture. See                    |
+|              | :ref:`direct-to-lds-cache-policy`.                            |
++--------------+---------------------------------------------------------------+
 
 .. _direct-to-lds-cache-policy:
 
@@ -370,7 +320,7 @@ Three control bits are relevant:
      - 0
      - Hit LRU (Miss LRU with ``tgsplit``)
      - Hit LRU
-     - Hit LRU (with ``tgsplit``); Hit Evict (without)
+     - Hit Evict (Hit LRU with ``tgsplit``)
    * - Group
      - 0
      - 1
