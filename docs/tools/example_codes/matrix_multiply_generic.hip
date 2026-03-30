@@ -640,139 +640,200 @@ struct ScalarFMAPolicy
 // [Sphinx scalar fma policy end]
 
 // ---------------------------------------------------------------------------
-// Fdot2Policy: FP16 dot-product accumulation using __builtin_amdgcn_fdot2.
+// DirectLoadTilePolicy: use __builtin_amdgcn_global_load_lds to bypass VGPRs
 //
-// __builtin_amdgcn_fdot2 computes a[0]*b[0] + a[1]*b[1] in FP16 precision
-// and accumulates the result into an FP32 accumulator.  Inputs are passed as
-// half2 two-element vectors.  The fourth argument negates the dot product
-// before accumulation; passing false gives a plain accumulate.
+// On CDNA3 and CDNA4, the global_load_lds instruction transfers data from
+// global memory directly into LDS without staging in vector registers.  This
+// frees VGPRs for compute, potentially enabling higher occupancy.
 //
-// Each mma() call processes TWO k-indices (k_step = 2): the load functions
-// read two consecutive float values from LDS, convert them to __fp16, and
-// pack them into a half2.  The kernel loop advances ki by 2 per iteration.
+// ISA-level operation (from the LLVM intrinsic description):
+//   global_load_lds_dword is a wavefront-wide gather-to-LDS operation:
 //
-// This is a "Case 1" policy from the data-type scope discussion:
-//   global float → LDS float → __fp16 fragment (conversion in load_a/load_b)
-// No changes to TilePolicy or the kernel signature are required.
+//   - VADDR (v[0:1]) is a vector register: each lane provides its OWN
+//     global source address.  The global pointer need not be wave-uniform.
+//   - M0 is a scalar register providing the LDS base address (wave-uniform).
+//   - The LDS destination is implicitly offset by lane_id:
+//       lane k writes to  M0 + offset + k * 4   (for size <= 4)
+//       lane k writes to  M0 + offset + k * 16  (for size > 4)
+//   - The offset is an immediate constant (same for all lanes).
 //
-// Note: The multiplication is performed in FP16 precision (with FP32
-// accumulation), so results will differ slightly from the full-FP32 scalar
-// policy.  The identity-matrix verification tolerance may need to be relaxed.
+//   A single dword instruction therefore transfers 64 floats (256 bytes)
+//   from 64 (potentially different) global addresses into 64 contiguous
+//   LDS locations.  No VGPR holds the loaded data at any point.
 //
-// The intrinsic is available on all ROCm-supported architectures that
-// implement dot10-insts (CDNA, CDNA2, CDNA3, CDNA4, RDNA2, RDNA3, RDNA4).
+//   The VGPR savings compared to global_load_dword + ds_write come from
+//   the data path: with the regular path, VGPRs hold the loaded values
+//   between the global read and the LDS write.  In a VGPR-constrained
+//   kernel those extra registers can be the difference between N and N+1
+//   resident wavefronts per CU, improving latency hiding across the
+//   kernel's entire execution.
+//
+// Intrinsic signature:
+//   __builtin_amdgcn_global_load_lds(const void* src, void* dst,
+//                                     int32_t size, int32_t offset,
+//                                     int32_t aux);
+//
+//   src:    global-address-space pointer (address space 1).  Mapped to
+//           VADDR — each lane can hold a different address.
+//   dst:    LDS-address-space pointer (address space 3).  Mapped to M0
+//           by the compiler.  Must be wave-uniform.  The hardware adds
+//           lane_id * element_size implicitly.
+//   size:   transfer width per lane in bytes; must be an immediate.
+//           CDNA3: 1, 2, 4.  CDNA4: 1, 2, 4, 12, 16.
+//   offset: byte offset added to both src and dst; must be an immediate.
+//   aux:    cache policy bits (SC0, NT, SC1); must be an immediate.
+//
+// Loading strategy:
+//   The tile is treated as a flat array of elements.  Elements are grouped
+//   into chunks of 64 (one wavefront width).  Each wavefront handles one
+//   chunk per iteration, round-robin across wavefronts:
+//
+//     M0 = &lds_dest[chunk_start]          (wave-uniform LDS base)
+//     lane k: VADDR = &global_src[...]     (per-lane global address)
+//     → hardware writes lane k's value to  M0 + k * 4
+//
+//   For BLOCK_TILE_M=128, K_TILE_SIZE=16: 2048 elements / 64 per instruction
+//   = 32 chunks.  With 4 wavefronts: 8 instructions per wavefront.
+//
+// Constraint: the total number of tile elements must be a multiple of 64.
 // ---------------------------------------------------------------------------
-// [Sphinx fdot2 policy start]
-
-// Two-element FP16 vector type used by __builtin_amdgcn_fdot2.
-using half2_vec = __attribute__((__vector_size__(4))) __fp16;
-
-template<int ThreadTileM_, int ThreadTileN_, int BlockDimX_>
-struct Fdot2Policy
+// [Sphinx direct load policy start]
+template<int BlockTileM_, int BlockTileN_, int KTileSize_>
+struct DirectLoadTilePolicy
 {
-    static constexpr int thread_tile_m   = ThreadTileM_;
-    static constexpr int thread_tile_n   = ThreadTileN_;
-    static constexpr int effective_lanes = 64;
-    static constexpr int k_step          = 2; // two k-indices per fdot2 call
+    static constexpr int num_buffers  = 1;
+    static constexpr int block_tile_m = BlockTileM_;
+    static constexpr int block_tile_n = BlockTileN_;
+    static constexpr int k_tile_size  = KTileSize_;
 
-    using elem_a = half2_vec;
-    using elem_b = half2_vec;
+    static_assert((BlockTileM_ * KTileSize_) % 64 == 0,
+                  "tile_a element count must be a multiple of 64 (wavefront width)");
+    static_assert((BlockTileN_ * KTileSize_) % 64 == 0,
+                  "tile_b_T element count must be a multiple of 64 (wavefront width)");
 
-    struct Accumulator
+    struct SharedStorage
     {
-        float data[ThreadTileM_][ThreadTileN_];
+        float tile_a[BlockTileM_][KTileSize_];
+        float tile_b_T[BlockTileN_][KTileSize_];
     };
 
-    __device__ static void zero(Accumulator& acc)
+    // Helper: gather-load a flat tile from global memory to LDS.
+    //
+    // Elements are processed in chunks of 64 (one per wavefront-wide
+    // instruction).  Each lane computes its own global source address;
+    // the hardware writes lane k's value to M0 + k * sizeof(float).
+    //
+    // Parameters:
+    //   lds_dest       – base of the flat LDS tile array
+    //   global_src     – base of the global matrix
+    //   num_rows/cols  – tile dimensions (LDS layout is [num_rows][num_cols])
+    //   global_row/col – top-left corner of this tile in the global matrix
+    //   global_stride  – row stride of the global matrix
+    //   transpose      – if true, swap row/col in the global read pattern
+    //                    (used for tile_b_T: LDS[col][ki], global B[ki][col])
+    __device__ static void direct_load_flat(float*       lds_dest,
+                                             const float* global_src,
+                                             int          num_rows,
+                                             int          num_cols,
+                                             int          global_row_start,
+                                             int          global_col_start,
+                                             int          global_stride,
+                                             bool         transpose,
+                                             int          tid,
+                                             int          num_threads)
     {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-                acc.data[i][j] = 0.0f;
-    }
+        constexpr int warp_size    = 64;
+        const int     wave_id      = tid / warp_size;
+        const int     lane         = tid % warp_size;
+        const int     num_waves    = num_threads / warp_size;
+        const int     total        = num_rows * num_cols;
+        const int     total_chunks = total / warp_size;
 
-    __device__ static void thread_tile_offset(int tid,
-                                               int /*lane_id*/,
-                                               int* thread_row,
-                                               int* thread_col)
-    {
-        const int tx = tid % BlockDimX_;
-        const int ty = tid / BlockDimX_;
-        *thread_row  = ty * ThreadTileM_;
-        *thread_col  = tx * ThreadTileN_;
-    }
-
-    // Load two consecutive k-values from tile_a, convert float→__fp16, pack
-    // into half2.  tile_a is row-major: tile_a[row][ki] = ptr[row * k_tile_size + ki].
-    __device__ static void load_a(const float* tile_a_ptr,
-                                   int          tile_a_row,
-                                   int          ki,
-                                   int          k_tile_size,
-                                   int          /*lane_id*/,
-                                   elem_a (&frag)[ThreadTileM_])
-    {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
+        for(int chunk = wave_id; chunk < total_chunks; chunk += num_waves)
         {
-            const float v0 = tile_a_ptr[(tile_a_row + i) * k_tile_size + ki];
-            const float v1 = tile_a_ptr[(tile_a_row + i) * k_tile_size + ki + 1];
-            frag[i] = half2_vec{static_cast<__fp16>(v0), static_cast<__fp16>(v1)};
+            const int chunk_start = chunk * warp_size;
+
+            // --- Per-lane global source address ---
+            // Flat index of the element this lane handles.
+            const int flat_idx = chunk_start + lane;
+            const int lr       = flat_idx / num_cols; // row in LDS tile
+            const int lc       = flat_idx % num_cols; // col in LDS tile
+
+            // Map to global coordinates (swap row/col for transposed tiles).
+            const int gr = global_row_start + (transpose ? lc : lr);
+            const int gc = global_col_start + (transpose ? lr : lc);
+
+            // Each lane computes its own global address (VADDR, per-lane).
+            const float* src_lane = &global_src[gr * global_stride + gc];
+
+            // --- Wave-uniform LDS destination ---
+            // M0 points to the start of this 64-element chunk.
+            // The hardware adds lane * sizeof(float) implicitly, so
+            // lane k's value lands at lds_dest[chunk_start + k].
+            float* dst_chunk = &lds_dest[chunk_start];
+
+            __builtin_amdgcn_global_load_lds(
+                src_lane,                       // per-lane global address
+                static_cast<void*>(dst_chunk),  // wave-uniform LDS base (→ M0)
+                4,                              // size: 4 bytes per lane
+                0,                              // offset: immediate, 0
+                0);                             // aux: wave scope, temporal
         }
     }
 
-    // Load two consecutive k-values from tile_b_T, convert float→__fp16, pack
-    // into half2.  tile_b_T is column-major: tile_b_T[col][ki] = ptr[col * k_tile_size + ki].
-    __device__ static void load_b(const float* tile_b_T_ptr,
-                                   int          tile_b_col,
-                                   int          ki,
-                                   int          k_tile_size,
-                                   int          /*lane_id*/,
-                                   elem_b (&frag)[ThreadTileN_])
+    __device__ static void prologue(SharedStorage& /*smem*/,
+                                    const float* /*A*/, const float* /*B*/,
+                                    int /*block_row_start*/, int /*block_col_start*/,
+                                    int /*m*/, int /*n*/, int /*k*/,
+                                    int /*tid*/, int /*num_threads*/)
     {
-        #pragma unroll
-        for(int j = 0; j < ThreadTileN_; ++j)
-        {
-            const float v0 = tile_b_T_ptr[(tile_b_col + j) * k_tile_size + ki];
-            const float v1 = tile_b_T_ptr[(tile_b_col + j) * k_tile_size + ki + 1];
-            frag[j] = half2_vec{static_cast<__fp16>(v0), static_cast<__fp16>(v1)};
-        }
     }
 
-    // fdot2: acc += a[0]*b[0] + a[1]*b[1]  (FP16 multiply, FP32 accumulate)
-    __device__ static void mma(Accumulator&       acc,
-                                const elem_a (&a_frag)[ThreadTileM_],
-                                const elem_b (&b_frag)[ThreadTileN_])
+    __device__ static void prefetch(SharedStorage& smem,
+                                    const float*   A,
+                                    const float*   B,
+                                    int            t_next,
+                                    int block_row_start, int block_col_start,
+                                    int m, int n, int k,
+                                    int tid, int num_threads)
     {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-                acc.data[i][j] = __builtin_amdgcn_fdot2(
-                    a_frag[i], b_frag[j], acc.data[i][j], false);
+        const int t = t_next; // single-buffer: t_next == t
+
+        // tile_a: row-major gather [block_tile_m × k_tile_size]
+        // LDS flat layout matches global row-major order, so transpose=false.
+        direct_load_flat(&smem.tile_a[0][0], A,
+                         block_tile_m, k_tile_size,
+                         block_row_start, t * k_tile_size,
+                         k,
+                         /*transpose=*/false,
+                         tid, num_threads);
+
+        // tile_b_T: transposed gather [block_tile_n × k_tile_size]
+        //   LDS layout: tile_b_T[col_within_tile][k_idx]
+        //   Global read: B[k_idx_global][col_global]
+        //   transpose=true swaps lr↔lc in the global coordinate mapping.
+        direct_load_flat(&smem.tile_b_T[0][0], B,
+                         block_tile_n, k_tile_size,
+                         t * k_tile_size, block_col_start,
+                         n,
+                         /*transpose=*/true,
+                         tid, num_threads);
     }
 
-    __device__ static void store_c(const Accumulator& acc,
-                                    float*             C,
-                                    int                out_row_base,
-                                    int                out_col_base,
-                                    int                m,
-                                    int                n,
-                                    int                /*lane_id*/)
+    __device__ static void acquire(int /*t*/) { __syncthreads(); }
+    __device__ static void release(int /*t*/) { __syncthreads(); }
+    __device__ static int  buf_idx(int /*t*/) { return 0; }
+
+    __device__ static float* get_tile_a(SharedStorage& smem, int /*buf*/)
     {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-            {
-                const int r = out_row_base + i;
-                const int c = out_col_base + j;
-                if(r < m && c < n)
-                    C[r * n + c] = acc.data[i][j];
-            }
+        return &smem.tile_a[0][0];
+    }
+    __device__ static float* get_tile_b_T(SharedStorage& smem, int /*buf*/)
+    {
+        return &smem.tile_b_T[0][0];
     }
 };
-// [Sphinx fdot2 policy end]
+// [Sphinx direct load policy end]
 
 // ---------------------------------------------------------------------------
 // Architecture-specific policy stubs (filled by follow-up PRs)
@@ -934,8 +995,8 @@ using DoubleBufPolicy = SoftwareDoubleBufferTilePolicy<BLOCK_TILE_M, BLOCK_TILE_
 // Portable scalar outer-product compute policy
 using ScalarPolicy = ScalarFMAPolicy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
 
-// FP16 dot-product compute policy (fdot2 intrinsic, k_step = 2)
-using Fdot2Compute = Fdot2Policy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
+// Direct global→LDS tile policy (CDNA3/CDNA4, bypasses VGPRs during tile load)
+using DirectLoadPolicy = DirectLoadTilePolicy<BLOCK_TILE_M, BLOCK_TILE_N, K_TILE_SIZE>;
 // [Sphinx policy aliases end]
 
 // ===========================================================================
@@ -1088,28 +1149,27 @@ int main()
     }
 
     // ------------------------------------------------------------------
-    // GemmKernel<DoubleBufPolicy, Fdot2Compute>
+    // GemmKernel<DirectLoadPolicy, ScalarPolicy>
     //
-    // Same kernel template, same TilePolicy, only the ComputePolicy changes.
-    // The kernel loop now steps ki by 2 (k_step = 2); load_a/load_b convert
-    // float→__fp16 and pack into half2; mma() calls __builtin_amdgcn_fdot2.
+    // Same kernel template, same ComputePolicy, only the TilePolicy changes.
+    // Tile loads use __builtin_amdgcn_global_load_lds to transfer data from
+    // global memory directly to LDS without staging in VGPRs.
     //
-    // Verification tolerance is relaxed because the multiplication is
-    // performed in FP16 precision (accumulation stays FP32).
+    // Available on CDNA3 and CDNA4 only.  The arithmetic is identical to the
+    // other variants (full FP32 scalar outer-product), so results match exactly.
     // ------------------------------------------------------------------
     {
         auto launch = [&]()
         {
-            matrix_multiply_generic<DoubleBufPolicy, Fdot2Compute>
+            matrix_multiply_generic<DirectLoadPolicy, ScalarPolicy>
                 <<<grid, block>>>(d_A, d_B, d_C, M, N, K);
             HIP_CHECK(hipGetLastError());
         };
 
         const float ms = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
         HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N, hipMemcpyDeviceToHost));
-        // FP16 multiplication introduces rounding — relax tolerance from 1e-3 to 1e-1.
-        const bool ok = verify_result(h_C, h_A, M, N, K, 1.0e-1f);
-        print_metrics("GemmKernel<DoubleBufPolicy, Fdot2Compute>", ok, ms, M, N, K);
+        const bool ok = verify_result(h_C, h_A, M, N, K);
+        print_metrics("GemmKernel<DirectLoadPolicy, ScalarPolicy>", ok, ms, M, N, K);
     }
 
     // ------------------------------------------------------------------

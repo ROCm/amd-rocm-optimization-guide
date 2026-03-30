@@ -907,78 +907,99 @@ The program launches three variants:
 
 1. ``GemmKernel<SingleBufPolicy, ScalarPolicy>`` — single-buffer, scalar FP32
 2. ``GemmKernel<DoubleBufPolicy, ScalarPolicy>`` — double-buffer, scalar FP32
-3. ``GemmKernel<DoubleBufPolicy, Fdot2Compute>`` — double-buffer, ``fdot2`` intrinsic
+3. ``GemmKernel<DirectLoadPolicy, ScalarPolicy>`` — direct global-to-LDS loads
+   (CDNA3 and CDNA4 only)
 
-The first two differ only in their ``TilePolicy``; the third differs only in
-its ``ComputePolicy``.  All three share the same kernel template.
+The first two differ only in their ``TilePolicy``; the third replaces the
+standard cooperative load with a hardware-specific intrinsic.  All three share
+the same kernel template and ``ComputePolicy``.
 
-.. _fdot2-drop-in:
+.. _direct-load-drop-in:
 
-Intrinsic drop-in: ``Fdot2Policy``
-----------------------------------
+Intrinsic drop-in: ``DirectLoadTilePolicy``
+-------------------------------------------
 
-The ``Fdot2Policy`` demonstrates how an architecture-specific intrinsic can be
-used as a drop-in ``ComputePolicy`` without touching the kernel template or
-the ``TilePolicy``.
+The ``DirectLoadTilePolicy`` demonstrates how an architecture-specific
+intrinsic can be used as a drop-in ``TilePolicy`` without touching the kernel
+template or the ``ComputePolicy``.
 
-``__builtin_amdgcn_fdot2`` computes the dot product of two ``half2`` vectors
-and accumulates the result into an FP32 value:
+On CDNA3 and CDNA4, the ``__builtin_amdgcn_global_load_lds`` intrinsic
+transfers data from global memory directly into LDS without staging in vector
+registers:
 
-.. code-block:: cuda
+.. code-block:: cpp
 
-   // a[0]*b[0] + a[1]*b[1] + acc  (FP16 multiply, FP32 accumulate)
-   acc = __builtin_amdgcn_fdot2(va, vb, acc, /*negate=*/false);
+   // Gather 64 floats from global memory into 64 contiguous LDS locations.
+   // Each lane provides its own global source address (per-lane VADDR).
+   // The hardware writes lane k's value to dst_chunk + k * sizeof(float).
+   __builtin_amdgcn_global_load_lds(
+       src_lane,                          // per-lane global address (VADDR)
+       static_cast<void*>(dst_chunk),     // wave-uniform LDS base (-> M0)
+       4,                                 // size per lane in bytes (immediate)
+       0,                                 // offset (immediate)
+       0);                                // cache policy (immediate)
 
-Because the intrinsic consumes **two** k-values per call, the policy
-introduces a new interface constant: ``k_step = 2``.  The kernel loop advances
-``ki`` by ``ComputePolicy::k_step`` instead of 1, with a ``static_assert``
-ensuring ``k_tile_size`` is divisible by ``k_step``.  For ``ScalarFMAPolicy``,
-``k_step = 1`` — the loop behavior is unchanged.
+The key benefit is VGPR savings: the loaded data never occupies a vector
+register.  For register-pressure-sensitive kernels (see Step 6), this can
+enable higher occupancy.
 
-The ``load_a`` and ``load_b`` functions read two consecutive ``float`` values
-from LDS, convert them to ``__fp16``, and pack them into a ``half2`` vector.
-This is a concrete example of Case 1 from the data-type scope discussion: the
-LDS and global memory remain ``float``; only the register fragment changes
-type.
+At the ISA level, ``global_load_lds_dword`` is a **wavefront-wide gather**:
+
+* ``VADDR`` (a vector register) provides each lane's global source address —
+  the global pointer need not be wave-uniform.
+* ``M0`` (a scalar register) provides the LDS base address — wave-uniform.
+* The LDS write destination is implicitly offset per lane:
+  lane *k* writes to ``M0 + offset + k * 4`` (for ``size <= 4``), or
+  ``M0 + offset + k * 16`` (for ``size > 4``).
+
+A single ``global_load_lds_dword`` instruction therefore gathers **64 floats**
+(256 bytes) from 64 potentially different global addresses into 64 contiguous
+LDS locations — all without touching VGPRs.
+
+The ``DirectLoadTilePolicy`` treats the tile as a flat array of elements and
+processes it in chunks of 64 (one wavefront width per instruction).  For
+``BLOCK_TILE_M = 128``, ``K_TILE_SIZE = 16``: 2048 elements / 64 per
+instruction = 32 chunks.  With 4 wavefronts: **8 instructions per wavefront**
+to fill the entire tile.
 
 .. literalinclude:: ../../../tools/example_codes/matrix_multiply_generic.hip
    :language: cuda
-   :start-after: [Sphinx fdot2 policy start]
-   :end-before: [Sphinx fdot2 policy end]
+   :start-after: [Sphinx direct load policy start]
+   :end-before: [Sphinx direct load policy end]
 
 .. note::
 
-   Because the multiplication is performed in FP16 precision, the ``fdot2``
-   variant produces slightly different results from the full-FP32 scalar
-   policy.  The verification tolerance in the example is relaxed from
-   ``1e-3`` to ``1e-1`` to account for this.
+Because the arithmetic is unchanged (full FP32 scalar outer-product), the
+``DirectLoadPolicy`` variant produces results identical to the other two.
+The only difference is the data path during the tile load phase.
 
-**What to observe in rocprof-compute:**
+For the full intrinsic reference — signatures, parameter tables, address
+calculation formulas, and cache policy encoding — see
+:ref:`direct-to-lds-intrinsics`.
+
+**What to observe in the ROCprof Compute Viewer:**
 
 .. list-table::
    :header-rows: 1
    :widths: 30 70
 
-   * - Counter group
+   * - Counter or panel
      - What to look for
    * - ``SQ`` / ``TCP``
      - Confirm same DRAM traffic across all three variants (same tile parameters)
    * - ``LDS``
-     - Double-buffer LDS usage is 2x that of single-buffer
-   * - ``SQ``
-     - Lower ``SQ_WAIT_INST_LDS`` stalls for the double-buffer variants
-   * - ``SQ``
-     - Fewer ``SQ_INSTS_VALU`` for ``Fdot2Compute`` vs ``ScalarPolicy`` (two
-       FMAs replaced by one ``fdot2`` instruction per ki step)
+     - Same LDS usage as ``SingleBufPolicy`` (both use one buffer pair)
+   * - Kernel Statistics → VGPRs
+     - Reduced VGPR count for ``DirectLoadPolicy`` compared to the
+       ``SingleBufPolicy`` variant (tile data bypasses registers)
 
 Further reading
 ===============
 
-* :doc:`Tiling and reuse: matrix multiplication <tiling-matrix-multiply>` —
-  an accessible introduction to LDS tiling on which the early steps build.
 * :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
   guide to timeline and counter profiling.
 * :doc:`ROCm Compute Profiler <rocprofiler-compute:index>` (``rocprof-compute``) —
   hardware-counter analysis and roofline modeling.
 * AMD GPU architecture guides (ISA references) — VGPR budgets, LDS bank
   geometry, and wavefront scheduling details for each architecture family.
+
