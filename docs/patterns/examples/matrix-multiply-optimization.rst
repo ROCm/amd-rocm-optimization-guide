@@ -47,8 +47,8 @@ Before starting this tutorial, ensure the following are in place.
 * ROCm installed and ``amdclang++`` available on ``PATH``.
 * Familiarity with the HIP execution model (grids, blocks, warps) and its
   mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
-* ``rocprofv3``, ROCm Compute Profiler (``rocprof-compute``) and ROCprof Compute
-  Viewer (RCV) installed for performance analysis.
+* ``rocprofv3`` and ROCprof Compute Viewer (RCV) installed for performance
+  analysis.
 
 GEMM fundamentals
 ==================
@@ -141,17 +141,17 @@ Launch configuration:
 
 Examine the ``Kernel_Duration`` column for ``matrix_multiply_naive``.
 
-**Profile memory traffic with rocprof-compute:**
+**Profile hardware counters with rocprofv3:**
 
 .. code-block:: bash
 
-   rocprof-compute profile --name naive -- ./mm_naive
-   rocprof-compute analyze --path naive/
+   rocprofv3 --pmc TCP_TCC_READ_REQ_sum --output-format csv -- ./mm_naive
 
-Focus on the **L2 Cache** panel and the ``TCP_TCC_READ_REQ_sum`` counter.  For
-the naïve kernel you will see that the total bytes transferred from DRAM
-significantly exceed the minimum required bandwidth (``sizeof(float) * (M*K +
-K*N + M*N)``), confirming cache thrashing.
+Open the resulting CSV in the ROCprof Compute Viewer.  Focus on the
+**L2 Cache** panel and the ``TCP_TCC_READ_REQ_sum`` counter.  For the naïve
+kernel you will see that the total bytes transferred from DRAM significantly
+exceed the minimum required bandwidth (``sizeof(float) * (M*K + K*N + M*N)``),
+confirming cache thrashing.
 
 Step 2: LDS tiling
 ==================
@@ -218,22 +218,25 @@ both.
 
 The number of LDS banks varies across AMD GPU architectures:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 20 30
-
-   * - Architecture
-     - Banks
-     - Entries per bank (4 B each)
-   * - CDNA / CDNA2 / CDNA3
-     - 32
-     - 512
-   * - CDNA4
-     - 64
-     - 640
-   * - RDNA2 / RDNA3 / RDNA3.5 / RDNA4
-     - 64
-     - 512
++---------------------+---------------+----------------------------------------+
+| Architecture        | Bank          | Entries per bank (4 byte each)         |
++=====================+===============+========================================+
+| CDNA                | 32            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| CDNA2               | 32            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| CDNA3               | 32            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| CDNA4               | 64            | 640                                    |
++---------------------+---------------+----------------------------------------+
+| RDNA2               | 64            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| RDNA3               | 64            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| RDNA3.5             | 64            | 512                                    |
++---------------------+---------------+----------------------------------------+
+| RDNA4               | 64            | 512                                    |
++---------------------+---------------+----------------------------------------+
 
 For this kernel's compute phase—an inner product over the K-strip:
 
@@ -257,19 +260,19 @@ In other words, with FP32 data and the simple inner-product pattern of this
 step, bank conflicts are a non-issue.  The bank mechanism is worth
 understanding now, however, because it becomes a real concern in later steps.
 
-What to observe in rocprof-compute after this step
---------------------------------------------------
+What to observe in the ROCprof Compute Viewer after this step
+-------------------------------------------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Counter group
-     - What to look for
-   * - ``SQ`` / ``TCP``
-     - Reduction in ``TCP_TCC_READ_REQ_sum`` proportional to ``TILE_SIZE``
-   * - ``LDS``
-     - Low ``LDS_BANK_CONFLICT`` count (confirm no conflicts for ``TILE_SIZE=16``)
++---------------------+--------------------------------------------------------+
+| Counter group       | What to look for                                       |
++=====================+========================================================+
+| ``SQ`` / ``TCP``    | Reduction in ``TCP_TCC_READ_REQ_sum`` proportional to  |
+|                     | ``TILE_SIZE`` (more data reuse from LDS, fewer DRAM    |
+|                     | reads)                                                 |
++---------------------+--------------------------------------------------------+
+| ``LDS``             | Low ``LDS_BANK_CONFLICT`` count (confirm no conflicts  |
+|                     | for ``TILE_SIZE=16``)                                  |
++---------------------+--------------------------------------------------------+
 
 Step 3: Register tiling
 =======================
@@ -351,22 +354,21 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    :end-before: [Sphinx register tiling store end]
    :dedent:
 
-What to observe in rocprof-compute
-----------------------------------
+What to observe in the ROCprof Compute Viewer
+---------------------------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Counter group
-     - What to look for
-   * - ``VALU``
-     - Increase in VALU utilization (more FMAs per LDS read)
-   * - ``LDS``
-     - Reduced LDS reads per output element (``THREAD_TILE_M + THREAD_TILE_N``
-       instead of ``2 × THREAD_TILE_M × THREAD_TILE_N``)
-   * - ``SQ``
-     - Reduction in stall cycles (register reuse hides LDS latency)
++---------------------+--------------------------------------------------------+
+| Counter group       | What to look for                                       |
++=====================+========================================================+
+| ``VALU``            | Increase in VALU utilization (more FMAs per LDS read)  |
++---------------------+--------------------------------------------------------+
+| ``LDS``             | Reduced LDS reads per output element                   |
+|                     | (``THREAD_TILE_M + THREAD_TILE_N`` instead of          |
+|                     | ``2 × THREAD_TILE_M × THREAD_TILE_N``)                 |
++---------------------+--------------------------------------------------------+
+| ``SQ``              | Reduction in stall cycles (register reuse hides LDS    |
+|                     | latency)                                               |
++---------------------+--------------------------------------------------------+
 
 Tile parameter tuning guidance
 ------------------------------
@@ -397,8 +399,8 @@ values depend on several interacting constraints:
    LDS bank counts, wavefront widths, VGPR file size, and L1/L2 cache line
    sizes differ across CDNA and RDNA families.  Tile sizes that are optimal
    on a CDNA3 GPU might not be optimal on an RDNA4 GPU.  Use
-   ``rocprof-compute`` to measure LDS efficiency, VGPR usage, and occupancy
-   on each target, and re-tune accordingly.
+   the ROCprof Compute Viewer to measure LDS efficiency, VGPR usage, and
+   occupancy on each target, and re-tune accordingly.
 
 Step 4: Double buffering
 ========================
@@ -414,22 +416,22 @@ the kernel body is identical regardless of the chosen approach.
 
 **Policy interface overview:**
 
-.. list-table::
-   :header-rows: 1
-   :widths: 25 75
-
-   * - Method
-     - Responsibility
-   * - ``prologue``
-     - Load tile 0 into buffer 0 and synchronize (double-buffer only; no-op for single)
-   * - ``prefetch``
-     - Issue the load for the next tile into the background buffer
-   * - ``acquire``
-     - Synchronize before compute (single-buffer: ``__syncthreads()``; double: no-op)
-   * - ``release``
-     - Synchronize after compute (both: ``__syncthreads()``)
-   * - ``buf_idx``
-     - Return which buffer to read for the current iteration
++-----------------+------------------------------------------------------------+
+| Method          | Responsibility                                             |
++=================+============================================================+
+| ``prologue``    | Load tile 0 into buffer 0 and synchronize (double-buffer   |
+|                 | only; no-op for single)                                    |
++-----------------+------------------------------------------------------------+
+| ``prefetch``    | Issue the load for the next tile into the background       |
+|                 | buffer                                                     |
++-----------------+------------------------------------------------------------+
+| ``acquire``     | Synchronize before compute (single-buffer:                 |
+|                 | ``__syncthreads()``; double: no-op)                        |
++-----------------+------------------------------------------------------------+
+| ``release``     | Synchronize after compute (both: ``__syncthreads()``)      |
++-----------------+------------------------------------------------------------+
+| ``buf_idx``     | Return which buffer to read for the current iteration      |
++-----------------+------------------------------------------------------------+
 
 **Single-buffer policy** (baseline — same logic as Step 3):
 
@@ -469,23 +471,22 @@ the kernel body is identical regardless of the chosen approach.
    * Double-buffer LDS: 16 KiB × 2 = 32 KiB
 
    This is within the 64–160 KiB LDS budget on all supported architectures, but
-   leaves less headroom for occupancy.  Use the ``rocprof-compute`` tool to
+   leaves less headroom for occupancy.  Use the ROCprof Compute Viewer to
    verify occupancy does not drop when switching from single- to double-buffered
    policy.
 
-What to observe in rocprof-compute
-----------------------------------
+What to observe in the ROCprof Compute Viewer
+---------------------------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Counter group
-     - What to look for
-   * - ``SQ``
-     - Reduction in ``SQ_WAIT_INST_LDS`` stall cycles (load latency hidden)
-   * - ``TCP``
-     - Similar total bandwidth to Step 3 (same number of DRAM fetches)
++---------------------+--------------------------------------------------------+
+| Counter group       | What to look for                                       |
++=====================+========================================================+
+| ``SQ``              | Reduction in ``SQ_WAIT_INST_LDS`` stall cycles (load   |
+|                     | latency hidden)                                        |
++---------------------+--------------------------------------------------------+
+| ``TCP``             | Similar total bandwidth to Step 3 (same number of DRAM |
+|                     | fetches)                                               |
++---------------------+--------------------------------------------------------+
 
 Step 5: Vectorized loads
 ========================
@@ -500,56 +501,47 @@ instruction issue is the bottleneck rather than memory bandwidth.
 To put this in context, consider how a single coalesced scalar load of a
 ``float`` maps to cache lines on each architecture family:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 20 20 30
-
-   * - Architecture
-     - Wavefront width
-     - L1/L0 cache line
-     - Cache lines per coalesced scalar load
-   * - CDNA / CDNA2
-     - 64 threads
-     - 64 B
-     - 64 × 4 B / 64 B = **4**
-   * - CDNA3 / CDNA4
-     - 64 threads
-     - 128 B
-     - 64 × 4 B / 128 B = **2**
-   * - RDNA2 / RDNA3 / RDNA3.5 / RDNA4
-     - 32 threads
-     - 128 B
-     - 32 × 4 B / 128 B = **1**
++--------------+-----------------+-----------------------+---------------------------------------+
+| Architecture | Wavefront width | L1/L0 cache line size | Cache lines per coalesced scalar load |
++==============+=================+=======================+=======================================+
+| CDNA         | 64 lanes        | 64 bytes              | 64 × 4 B / 64 B = **4**               |
++--------------+-----------------+-----------------------+---------------------------------------+
+| CDNA2        | 64 lanes        | 64 bytes              | 64 × 4 B / 64 B = **4**               |
++--------------+-----------------+-----------------------+---------------------------------------+
+| CDNA3        | 64 lanes        | 128 bytes             | 64 × 4 B / 128 B = **2**              |
++--------------+-----------------+-----------------------+---------------------------------------+
+| CDNA4        | 64 lanes        | 128 bytes             | 64 × 4 B / 128 B = **2**              |
++--------------+-----------------+-----------------------+---------------------------------------+
+| RDNA2        | 32 lanes        | 128 bytes             | 32 × 4 B / 128 B = **1**              |
++--------------+-----------------+-----------------------+---------------------------------------+
+| RDNA3        | 32 lanes        | 128 bytes             | 32 × 4 B / 128 B = **1**              |
++--------------+-----------------+-----------------------+---------------------------------------+
+| RDNA3.5      | 32 lanes        | 128 bytes             | 32 × 4 B / 128 B = **1**              |
++--------------+-----------------+-----------------------+---------------------------------------+
+| RDNA4        | 32 lanes        | 128 bytes             | 32 × 4 B / 128 B = **1**              |
++--------------+-----------------+-----------------------+---------------------------------------+
 
 On RDNA GPUs, a coalesced scalar ``float`` load already fills exactly one cache
-line — wider vector loads do not reduce cache traffic.  On CDNA/CDNA2 a
-scalar load spans 4 cache lines; on CDNA3/CDNA4 it spans 2.  In all cases,
+line — wider vector loads do not reduce cache traffic.  On CDNA and CDNA2 a
+scalar load spans 4 cache lines; on CDNA3 and CDNA4 it spans 2.  In all cases,
 vector loads do not change the number of cache lines accessed; they reduce
 the number of **instructions** the wavefront must issue to move the same
 amount of data.
 
 Two vector widths are shown alongside the scalar baseline:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 15 20 25 40
-
-   * - Width
-     - HIP type
-     - Alignment
-     - Instruction
-   * - 1
-     - ``float``
-     - 4 bytes
-     - ``buffer_load_dword`` (one 4 B element per thread)
-   * - 2
-     - ``float2``
-     - 8 bytes
-     - ``buffer_load_dwordx2`` (two 4 B elements per thread)
-   * - 4
-     - ``float4``
-     - 16 bytes
-     - ``buffer_load_dwordx4`` (four 4 B elements per thread)
++-------+------------+-----------+---------------------------------------------+
+| Width | HIP type   | Alignment | Instruction                                 |
++=======+============+===========+=============================================+
+| 1     | ``float``  | 4 bytes   | ``buffer_load_dword`` (one 4 B element per  |
+|       |            |           | thread)                                     |
++-------+------------+-----------+---------------------------------------------+
+| 2     | ``float2`` | 8 bytes   | ``buffer_load_dwordx2`` (two 4 B elements   |
+|       |            |           | per thread)                                 |
++-------+------------+-----------+---------------------------------------------+
+| 4     | ``float4`` | 16 bytes  | ``buffer_load_dwordx4`` (four 4 B elements  |
+|       |            |           | per thread)                                 |
++-------+------------+-----------+---------------------------------------------+
 
 **Vector type helper:**
 
@@ -600,26 +592,16 @@ count, but a scalar load already fills cache lines well (see table above).
 The picture changes significantly for smaller data types.  With FP16 (2 bytes)
 or FP8 (1 byte), a scalar load per thread no longer fills a full cache line:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 25 35
-
-   * - Element type
-     - Size
-     - RDNA scalar load (32 threads)
-     - Cache line fill (128 B line)
-   * - FP32
-     - 4 B
-     - 32 × 4 = 128 B
-     - 100% (1 full line)
-   * - FP16
-     - 2 B
-     - 32 × 2 = 64 B
-     - **50%** (half a line wasted)
-   * - FP8
-     - 1 B
-     - 32 × 1 = 32 B
-     - **25%** (three quarters wasted)
++--------------+---------+-----------------------------+------------------------------+
+| Element type | Size    | RDNA scalar load (32 lanes) | Cache line fill (128 B line) |
++==============+=========+=============================+==============================+
+| FP32         | 4 bytes | 32 × 4 = 128 B              | 100% (1 full line)           |
++--------------+---------+-----------------------------+------------------------------+
+| FP16         | 2 bytes | 32 × 2 = 64 B               | **50%** (half a line wasted) |
++--------------+---------+-----------------------------+------------------------------+
+| FP8          | 1 byte  | 32 × 1 = 32 B               | **25%** (three quarters      |
+|              |         |                             | wasted)                      |
++--------------+---------+-----------------------------+------------------------------+
 
 The wasted portion of each cache line is fetched from DRAM but never used —
 this is pure bandwidth overhead.  A 2-wide vector load for FP16 or a 4-wide
@@ -633,24 +615,21 @@ For the FP32 case in this tutorial the benefit is modest, but for the
 low-precision intrinsics introduced in follow-up sections, vectorized loads
 become essential to avoid wasting memory bandwidth.
 
-What to observe in rocprof-compute
-----------------------------------
+What to observe in the ROCprof Compute Viewer
+---------------------------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Counter group
-     - What to look for
-   * - ``SQ``
-     - Reduction in ``SQ_INSTS_VMEM`` (fewer VMEM instructions issued for the
-       same total data — this is the primary benefit for FP32)
-   * - ``SQ``
-     - Reduction in ``SQ_WAIT_INST_VMEM`` stall cycles (fewer instructions
-       means less time waiting for the VMEM pipeline)
-   * - ``TCP``
-     - ``TCP_TOTAL_CACHE_ACCESSES`` should remain roughly constant (cache line
-       traffic does not change — only the instruction count does)
++---------------+--------------------------------------------------------------+
+| Counter group | What to look for                                             |
++===============+==============================================================+
+| ``SQ``        | Reduction in ``SQ_INSTS_VMEM`` (fewer VMEM instructions      |
+|               | issued for the same total data) and reduction in             |
+|               | ``SQ_WAIT_INST_VMEM`` stall cycles (fewer instructions means |
+|               | less time waiting for the VMEM pipeline)                     |
++---------------+--------------------------------------------------------------+
+| ``TCP``       | ``TCP_TOTAL_CACHE_ACCESSES`` should remain roughly constant  |
+|               | (cache line traffic does not change — only the instruction   |
+|               | count does)                                                  |
++---------------+--------------------------------------------------------------+
 
 Step 6: Register pressure and occupancy
 ========================================
@@ -700,14 +679,13 @@ occupancy in the range ``[min, max]`` per EU.
 Finding optimal values with ROCprof Compute Viewer
 --------------------------------------------------
 
-1. Profile all three kernel variants with ``rocprof-compute``:
+1. Profile all three kernel variants with ``rocprofv3``:
 
    .. code-block:: bash
 
-      rocprof-compute profile --name launch_bounds -- ./mm_launch_bounds
-      rocprof-compute analyze --path launch_bounds/
+      rocprofv3 --pmc SQ_WAVES SQ_WAIT_INST_LDS SQ_WAIT_INST_VMEM --output-format csv -- ./mm_launch_bounds
 
-2. Open the results in the ROCprof Compute Viewer.  In the **Kernel Statistics**
+2. Open the resulting CSV in the ROCprof Compute Viewer.  In the **Kernel Statistics**
    panel, note the values of:
 
    * **VGPRs used** (vector register count allocated per thread)
@@ -728,25 +706,25 @@ Finding optimal values with ROCprof Compute Viewer
    The numeric values ``MIN_WAVES_PER_EU = 2`` and ``WAVES_PER_EU_MAX = 4``
    in the example are illustrative.  Optimal values depend on the target GPU
    and the exact kernel register usage shown in the ROCprof Compute Viewer.
-   Always re-profile with ``rocprof-compute`` after applying the annotation to
+   Always re-profile with ``rocprofv3`` after applying the annotation to
    confirm that occupancy improves without introducing scratch-memory spilling.
 
 What to observe in the ROCprof Compute Viewer
 ---------------------------------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Panel / counter
-     - What to look for
-   * - Kernel Statistics → VGPRs / Scratch memory / Occupancy
-     - Confirm VGPRs decrease and occupancy rises after adding the annotation;
-       scratch memory must remain at zero
-   * - ``SQ`` → ``SQ_WAVES``
-     - Active wavefronts per CU (should increase with higher occupancy)
-   * - ``SQ`` → ``SQ_WAIT_INST_LDS`` / ``SQ_WAIT_INST_VMEM``
-     - Latency-hiding efficiency (stalls fall when more wavefronts are resident)
++------------------------------+-----------------------------------------------+
+| Panel / counter              | What to look for                              |
++==============================+===============================================+
+| Kernel Statistics → VGPRs /  | Confirm VGPRs decrease and occupancy rises    |
+| Scratch memory / Occupancy   | after adding the annotation; scratch memory   |
+|                              | must remain at zero                           |
++------------------------------+-----------------------------------------------+
+| ``SQ`` → ``SQ_WAVES``        | Active wavefronts per CU (should increase     |
+|                              | with higher occupancy)                        |
++------------------------------+-----------------------------------------------+
+| ``SQ`` → ``SQ_WAIT_INST_LDS``| Latency-hiding efficiency (stalls fall when   |
+| / ``SQ_WAIT_INST_VMEM``      | more wavefronts are resident)                 |
++------------------------------+-----------------------------------------------+
 
 Step 7: Generic kernel
 ======================
@@ -808,46 +786,52 @@ The key design decisions are:
 
 **TilePolicy interface summary:**
 
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
++-------------------------+----------------------------------------------------+
+| Requirement             | Rationale                                          |
++=========================+====================================================+
+| ``num_buffers = 1 | 2`` | Governs LDS layout (one or two buffer pairs) and   |
+|                         | sync strategy                                      |
++-------------------------+----------------------------------------------------+
+| ``block_tile_m``,       | Tile shape needed by the kernel to compute grid    |
+| ``block_tile_n``,       | dimensions                                         |
+| ``k_tile_size``         |                                                    |
++-------------------------+----------------------------------------------------+
+| ``SharedStorage``       | Placed in ``__shared__``; must not require a       |
+| (trivially destructible)| destructor call                                    |
++-------------------------+----------------------------------------------------+
+| ``prologue``,           | Data movement hooks; see below                     |
+| ``prefetch``,           |                                                    |
+| ``acquire``,            |                                                    |
+| ``release``             |                                                    |
++-------------------------+----------------------------------------------------+
 
-   * - Requirement
-     - Rationale
-   * - ``num_buffers = 1 | 2``
-     - Governs LDS layout (one or two buffer pairs) and sync strategy
-   * - ``block_tile_m``, ``block_tile_n``, ``k_tile_size``
-     - Tile shape needed by the kernel to compute grid dimensions
-   * - ``SharedStorage`` (trivially destructible)
-     - Placed in ``__shared__``; must not require a destructor call
-   * - ``prologue``, ``prefetch``, ``acquire``, ``release``
-     - Data movement hooks; see below
 
 **ComputePolicy interface summary:**
 
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Requirement
-     - Rationale
-   * - ``thread_tile_m``, ``thread_tile_n``
-     - Output sub-tile per thread; kernel derives block dimensions from these
-   * - ``effective_lanes``
-     - Unique output lanes per wavefront (64 for scalar/CDNA; 32 for RDNA3 WMMA
-       due to lane-mirroring: lanes L and L+16 share the same fragment)
-   * - ``thread_tile_offset(tid, lane_id, *row, *col)``
-     - Architecture-aware thread→output mapping (lane_id needed for RDNA3)
-   * - ``elem_a``, ``elem_b``
-     - Element types of the register fragments (for example, ``float`` or ``__half``);
-       the kernel loop is fully templated on these
-   * - ``k_step``
-     - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA;
-       higher values for intrinsics that process multiple k-indices per call);
-       the kernel loop advances ``ki`` by this amount
-   * - ``load_a``, ``load_b``, ``mma``, ``store_c``
-     - Fragment load, multiply-accumulate, and write-back; all accept ``lane_id``
-       for RDNA3 forward-compatibility (unused in scalar policy)
++-------------------------+----------------------------------------------------+
+| Requirement             | Rationale                                          |
++=========================+====================================================+
+| ``thread_tile_m``,      | Output sub-tile per thread; kernel derives block   | 
+| ``thread_tile_n``       | dimensions from these                              |
++-------------------------+----------------------------------------------------+
+| ``effective_lanes``     | Unique output lanes per wavefront                  |
++-------------------------+----------------------------------------------------+
+| ``thread_tile_offset``, | Architecture-aware thread→output mapping           |
+| ``tid``, ``lane_id``,   |                                                    |
+| ``*row``, *col``        |                                                    |
++-------------------------+----------------------------------------------------+
+| ``elem_a``, ``elem_b``  | Element types of the register fragments (for       |
+|                         | example, ``float`` or ``__half``); the kernel loop |
+|                         | is fully templated on these                        |
++-------------------------+----------------------------------------------------+
+| ``k_step``              | Number of k-indices consumed per ``mma()`` call (1 |
+|                         | for scalar FMA; higher values for intrinsics that  |
+|                         | process multiple k-indices per call); the kernel   |
+|                         | loop advances ``ki`` by this amount                |
++-------------------------+----------------------------------------------------+
+| ``load_a``, ``load_b``, | Fragment load, multiply-accumulate, and write-back |
+| ``mma``, ``store_c``    |                                                    |
++-------------------------+----------------------------------------------------+
 
 Data type scope: what the policies cover and what they don't
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -868,23 +852,23 @@ However, two things are **not yet parameterized** and are hardcoded to
 This means two distinct cases arise when introducing intrinsics in follow-up
 sections:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 20 30 50
-
-   * - Case
-     - Example
-     - What needs to change
-   * - **FP32 in memory, low-precision fragments**
-     - Global ``float`` → LDS ``float`` → ``__half`` fragment for MFMA
-     - Only ``ComputePolicy::load_a`` / ``load_b`` (conversion in registers).
-       ``TilePolicy`` and the kernel signature are unchanged.
-   * - **Low-precision in memory**
-     - Global ``__half`` → LDS ``__half`` → ``__half`` fragment
-     - ``TilePolicy`` needs an ``InputT`` template parameter so
-       ``SharedStorage`` and the cooperative load helpers use ``InputT``
-       instead of ``float``.  The kernel signature changes from
-       ``const float*`` to ``const InputT*``.
++---------------+------------------------+-------------------------------------+
+| Case          | Example                | What needs to change                |
++===============+========================+======================================
+| FP32 in       | Global ``float`` → LDS | Only ``ComputePolicy::load_a`` and  |
+| memory,       | ``float`` → ``__half`` | ``load_b`` (conversion in           | 
+| low-precision | fragment for MFMA      | registers). ``TilePolicy`` and the  |
+| fragments     |                        | kernel signature are unchanged.     |
++---------------+------------------------+-------------------------------------+
+| Low-precision | Global ``__half`` →    | ``TilePolicy`` needs an ``InputT``  | 
+| in memory     | LDS ``__half`` →       | template parameter so               |
+|               | ``__half`` fragment    | ``SharedStorage`` and the           |
+|               |                        | cooperative load helpers use        |
+|               |                        | ``InputT`` instead of ``float``.    |
+|               |                        | The kernel signature changes from   |
+|               |                        | ``const float*`` to                 |
+|               |                        | ``const InputT*``.                  |
++---------------+------------------------+-------------------------------------+
 
 The global memory and LDS remain ``float`` throughout this tutorial, so only
 Case 1 applies.  The ``DirectLoadTilePolicy``
@@ -893,17 +877,6 @@ level; a ``ComputePolicy`` that converts to FP16 in its ``load_a`` /
 ``load_b`` would be a Case 1 example at the compute level.  Case 2 is left
 as an extension for architecture-specific follow-up sections that operate on
 native FP16 or FP8 input matrices.
-
-RDNA3 lane-mirroring note
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-On RDNA3, WMMA instructions have a lane-mirroring constraint: lanes L and
-L+16 hold identical fragment data, so only half the lanes produce unique
-output.  The ``effective_lanes`` constant and the ``lane_id`` parameter in
-``store_c`` allow the ``ComputePolicy`` to handle this transparently.  See
-the :ref:`RDNA3 WMMA intrinsics guide <rdna3-wmma-intrinsics>` for the full
-explanation and a concrete ``WMMAPolicy`` implementation.  On RDNA4 this
-restriction is relaxed; on RDNA2 WMMA is not available at all.
 
 Compile-time validation
 -----------------------
@@ -1023,7 +996,7 @@ On CDNA3 and CDNA4, the ``__builtin_amdgcn_global_load_lds`` intrinsic
 transfers data from global memory directly into LDS without staging in vector
 registers:
 
-.. code-block:: cpp
+.. code-block:: cuda
 
    // Gather 64 floats from global memory into 64 contiguous LDS locations.
    // Each lane provides its own global source address (per-lane VADDR).
@@ -1075,19 +1048,19 @@ calculation formulas, and cache policy encoding — see
 
 **What to observe in the ROCprof Compute Viewer:**
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Counter or panel
-     - What to look for
-   * - ``SQ`` / ``TCP``
-     - Confirm same DRAM traffic across all three variants (same tile parameters)
-   * - ``LDS``
-     - Same LDS usage as ``SingleBufPolicy`` (both use one buffer pair)
-   * - Kernel Statistics → VGPRs
-     - Reduced VGPR count for ``DirectLoadPolicy`` compared to the
-       ``SingleBufPolicy`` variant (tile data bypasses registers)
++----------------------+-------------------------------------------------------+
+| Counter or panel     | What to look for                                      |
++======================+=======================================================+
+| ``SQ`` / ``TCP``     | Confirm same DRAM traffic across all three variants   |
+|                      | (same tile parameters)                                |
++----------------------+-------------------------------------------------------+
+| ``LDS``              | Same LDS usage as ``SingleBufPolicy`` (both use one   |
+|                      | buffer pair)                                          |
++----------------------+-------------------------------------------------------+
+| Kernel Statistics →  | Reduced VGPR count for ``DirectLoadPolicy`` compared  |
+| VGPRs                | to the ``SingleBufPolicy`` variant (tile data         |
+|                      | bypasses registers)                                   |
++----------------------+-------------------------------------------------------+
 
 Further reading
 ===============

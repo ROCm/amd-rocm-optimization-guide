@@ -289,73 +289,40 @@ Three control bits are relevant:
 * **NT** (bit 1, non-temporal): ``0`` = expect temporal reuse, ``1`` = do not
   expect temporal reuse.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 10 8 8 8 22 22 22
 
-   * - Scope
-     - SC1
-     - SC0
-     - NT
-     - L1 cache behavior
-     - L2 cache behavior
-     - Last-level cache behavior
-   * - Wave
-     - 0
-     - 0
-     - 0
-     - Hit LRU
-     - Hit LRU
-     - Hit LRU
-   * - Wave
-     - 0
-     - 0
-     - 1
-     - Miss Evict
-     - Hit Stream
-     - Hit Evict
-   * - Group
-     - 0
-     - 1
-     - 0
-     - Hit LRU (Miss LRU with ``tgsplit``)
-     - Hit LRU
-     - Hit Evict (Hit LRU with ``tgsplit``)
-   * - Group
-     - 0
-     - 1
-     - 1
-     - Miss Evict
-     - Hit Stream
-     - Hit Evict
-   * - Device
-     - 1
-     - 0
-     - 0
-     - Miss Evict
-     - Hit LRU (1 L2) or coherent cache bypass (>1 L2)
-     - Hit LRU
-   * - Device
-     - 1
-     - 0
-     - 1
-     - Miss Evict
-     - Hit Stream (1 L2) or coherent cache bypass (>1 L2)
-     - Hit Evict
-   * - System
-     - 1
-     - 1
-     - 0
-     - Miss Evict
-     - Coherent cache bypass
-     - Hit LRU
-   * - System
-     - 1
-     - 1
-     - 1
-     - Miss Evict
-     - Coherent cache bypass
-     - Hit Evict
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Scope  | SC1 | SC0 | NT | L1 cache     | L2 cache     | Last-level cache     |
+|        |     |     |    | behavior     | behavior     | behavior             |
++========+=====+=====+====+==============+==============+======================+
+| Wave   | 0   | 0   | 0  | Hit LRU      | Hit LRU      | Hit LRU              |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Wave   | 0   | 0   | 1  | Miss Evict   | Hit Stream   | Hit Evict            |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Group  | 0   | 1   | 0  | Hit LRU      | Hit LRU      | Hit Evict            |
+|        |     |     |    | Miss LRU[#t]_|              | Hit LRU[#t]_         |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Group  | 0   | 1   | 1  | Miss Evict   | Hit Stream   | Hit Evict            |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Device | 1   | 0   | 0  | Miss Evict   | Hit LRU      | Hit LRU              |
+|        |     |     |    |              | (1 L2) or    |                      |
+|        |     |     |    |              | coherent     |                      |
+|        |     |     |    |              | cache bypass |                      |
+|        |     |     |    |              | (>1 L2)      |                      |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| Device | 1   | 0   | 1  | Miss Evict   | Hit Stream   | Hit Evict            |
+|        |     |     |    |              | (1 L2) or    |                      |
+|        |     |     |    |              | coherent     |                      |
+|        |     |     |    |              | cache bypass |                      |
+|        |     |     |    |              | (>1 L2)      |                      |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| System | 1   | 1   | 0  | Miss Evict   | Coherent     | Hit LRU              |
+|        |     |     |    |              | cache bypass |                      |
++--------+-----+-----+----+--------------+--------------+----------------------+
+| System | 1   | 1   | 1  | Miss Evict   | Coherent     | Hit Evict            |
+|        |     |     |    |              | cache bypass |                      |
++--------+-----+-----+----+--------------+--------------+----------------------+
+
+.. [#t] When compiled with ``tgsplit+``.
 
 .. _direct-to-lds-cache-policy-cdna-cdna2:
 
@@ -366,23 +333,23 @@ One control bit is relevant:
 
 * **GLC** (bit 0): controls L1 cache behavior.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 10 45 45
-
-   * - GLC
-     - L1 cache behavior
-     - Notes
-   * - 0
-     - The load can read data from the L1 cache.
-     -
-   * - 1
-     - The load intentionally misses the L1 cache and reads from L2.  If a
-       matching line exists in L1, it is invalidated and L2 is re-read.
-     - Depending on alignment, L2 might not be re-read for every lane in the
-       same wavefront.  If the address is aligned correctly, the first lane
-       brings in the line from L2 (or beyond), and all other lanes in the
-       wavefront read from the same L1 cache line.
++-----+-----------------------------------------+------------------------------+
+| GLC | L1 cache behavior                       | Notes                        |
++=====+=========================================+==============================+
+| 0   | The load can read data from the L1      |                              |
+|     | cache.                                  |                              |
++-----+-----------------------------------------+------------------------------+
+| 1   | The load intentionally misses the L1    | Depending on alignment, L2   |
+|     | cache and reads from L2. If a matching  | might not be re-read for     |
+|     | line exists in L1, it is invalidated    | every lane in the same       |
+|     | and L2 is re-read.                      | wavefront.  If the address   |
+|     |                                         | is aligned correctly, the    |
+|     |                                         | first lane brings in the     |
+|     |                                         | line from L2 (or beyond),    |
+|     |                                         | and all other lanes in the   |
+|     |                                         | wavefront read from the same |
+|     |                                         | L1 cache line.               |
++-----+-----------------------------------------+------------------------------+
 
 .. _direct-to-lds-cache-policy-rdna2:
 
@@ -391,53 +358,40 @@ RDNA2
 
 Three control bits are relevant:
 
-* **GLC** (bit 0): controls L0 cache behavior (same semantics as CDNA/CDNA2
-  GLC, but applied to L0 instead of L1).
+* **GLC** (bit 0): controls L0 cache behavior.
 * **SLC** (bit 1) and **DLC** (bit 2): control L2 and L1 cache behavior.
 
 GLC behavior:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 10 45 45
-
-   * - GLC
-     - L0 cache behavior
-     - Notes
-   * - 0
-     - The load can read data from the L0 cache.
-     -
-   * - 1
-     - The load intentionally misses the L0 cache and reads from L2.  If a
-       matching line exists in L0, it is invalidated and L2 is re-read.
-     - Depending on alignment, L2 might not be re-read for every lane in the
-       same wavefront.  If the address is aligned correctly, the first lane
-       brings in the line from L2 (or beyond), and all other lanes in the
-       wavefront read from the same L0 cache line.
++-----+-----------------------------------------+------------------------------+
+| GLC | L0 cache behavior                       | Notes                        |
++=====+=========================================+==============================+
+| 0   | The load can read data from the L0      |                              |
+|     | cache.                                  |                              |
++-----+-----------------------------------------+------------------------------+
+| 1   | The load intentionally misses the L0    | Depending on alignment, L2   |
+|     | cache and reads from L2. If a matching  | might not be re-read for     |
+|     | line exists in L0, it is invalidated    | every lane in the same       |
+|     | and L2 is re-read.                      | wavefront.  If the address   |
+|     |                                         | is aligned correctly, the    |
+|     |                                         | first lane brings in the     |
+|     |                                         | line from L2 (or beyond),    |
+|     |                                         | and all other lanes in the   |
+|     |                                         | wavefront read from the same |
+|     |                                         | L0 cache line.               |
++-----+-----------------------------------------+------------------------------+
 
 SLC and DLC behavior:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 10 10 30 30
-
-   * - SLC
-     - DLC
-     - L2 cache
-     - L1 cache
-   * - 0
-     - 0
-     - LRU
-     - Hit LRU (reads can hit on previous data)
-   * - 0
-     - 1
-     - LRU
-     - Miss Evict (reads miss)
-   * - 1
-     - 0
-     - Stream
-     - Hit LRU
-   * - 1
-     - 1
-     - Hit No Allocate
-     - Miss Evict
++-----+-----+--------------------------------+---------------------------------+
+| SLC | DLC | L2 cache                       | L1 cache                        |
++=====+=====+================================+=================================+
+| 0   | 0   | LRU                            | Hit LRU (reads can hit on       |
+|     |     |                                | previous data)                  |
++-----+-----+--------------------------------+---------------------------------+
+| 0   | 1   | LRU                            | Miss Evict (reads miss)         |
++-----+-----+--------------------------------+---------------------------------+
+| 1   | 0   | Stream                         | Hit LRU                         |
++-----+-----+--------------------------------+---------------------------------+
+| 1   | 1   | Hit No Allocate                | Miss Evict                      |
++-----+-----+--------------------------------+---------------------------------+
