@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -158,10 +158,10 @@ struct VectorType<4>
 // [Sphinx vector load function start]
 template<int Width>
 __device__ void vectorized_load(float* __restrict__       dst,
-                                 const float* __restrict__ src,
-                                 int                       tile_elems,
-                                 int                       tid,
-                                 int                       num_threads)
+                                const float* __restrict__ src,
+                                int                       tile_elems,
+                                int                       tid,
+                                int                       num_threads)
 {
     using Vec = typename VectorType<Width>::type;
 
@@ -200,17 +200,17 @@ struct VectorizedDoubleBufferTilePolicy
     };
 
     static __device__ void load_tiles(SharedStorage&  smem,
-                                       int             dst_buf,
-                                       const float*    A,
-                                       const float*    B,
-                                       int             tile_idx,
-                                       int             block_row_start,
-                                       int             block_col_start,
-                                       int             m,
-                                       int             n,
-                                       int             k,
-                                       int             tid,
-                                       int             num_threads)
+                                      int             dst_buf,
+                                      const float*    A,
+                                      const float*    B,
+                                      int             tile_idx,
+                                      int             block_row_start,
+                                      int             block_col_start,
+                                      int             m,
+                                      int             n,
+                                      int             k,
+                                      int             tid,
+                                      int             num_threads)
     {
         // Cooperative flat-strided load: every thread strides through
         // the flat element array of each tile.  For tile_a the elements
@@ -301,16 +301,16 @@ struct VectorizedDoubleBufferTilePolicy
     }
 
     static __device__ void prologue(SharedStorage&  smem,
-                                     const float*    A,
-                                     const float*    B,
-                                     int             block_row_start,
-                                     int             block_col_start,
-                                     int             m,
-                                     int             n,
-                                     int             k,
-                                     int             tid,
-                                     int             num_threads,
-                                     int             /*num_tiles*/)
+                                    const float*    A,
+                                    const float*    B,
+                                    int             block_row_start,
+                                    int             block_col_start,
+                                    int             m,
+                                    int             n,
+                                    int             k,
+                                    int             tid,
+                                    int             num_threads,
+                                    int             /*num_tiles*/)
     {
         load_tiles(smem, 0, A, B, 0, block_row_start, block_col_start,
                    m, n, k, tid, num_threads);
@@ -318,17 +318,17 @@ struct VectorizedDoubleBufferTilePolicy
     }
 
     static __device__ void prefetch(SharedStorage&  smem,
-                                     const float*    A,
-                                     const float*    B,
-                                     int             tile_idx,
-                                     int             block_row_start,
-                                     int             block_col_start,
-                                     int             m,
-                                     int             n,
-                                     int             k,
-                                     int             tid,
-                                     int             num_threads,
-                                     int             num_tiles)
+                                    const float*    A,
+                                    const float*    B,
+                                    int             tile_idx,
+                                    int             block_row_start,
+                                    int             block_col_start,
+                                    int             m,
+                                    int             n,
+                                    int             k,
+                                    int             tid,
+                                    int             num_threads,
+                                    int             num_tiles)
     {
         if(tile_idx >= num_tiles)
             return;
@@ -365,11 +365,11 @@ struct VectorizedDoubleBufferTilePolicy
 // ---------------------------------------------------------------------------
 template<typename TilePolicy>
 __global__ void matrix_multiply_vectorized(const float* __restrict__ A,
-                                            const float* __restrict__ B,
-                                            float* __restrict__ C,
-                                            int m,
-                                            int n,
-                                            int k)
+                                           const float* __restrict__ B,
+                                           float* __restrict__ C,
+                                           int m,
+                                           int n,
+                                           int k)
 {
     __shared__ typename TilePolicy::SharedStorage smem;
 

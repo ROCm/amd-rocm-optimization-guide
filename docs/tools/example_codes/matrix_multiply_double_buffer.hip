@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -131,16 +131,16 @@ struct SingleBufferTilePolicy
 
     // No preloading: the first prefetch() call loads tile 0.
     static __device__ void prologue(SharedStorage& /*smem*/,
-                                     const float* /*A*/,
-                                     const float* /*B*/,
-                                     int /*block_row_start*/,
-                                     int /*block_col_start*/,
-                                     int /*m*/,
-                                     int /*n*/,
-                                     int /*k*/,
-                                     int /*tid*/,
-                                     int /*num_threads*/,
-                                     int /*num_tiles*/)
+                                    const float* /*A*/,
+                                    const float* /*B*/,
+                                    int /*block_row_start*/,
+                                    int /*block_col_start*/,
+                                    int /*m*/,
+                                    int /*n*/,
+                                    int /*k*/,
+                                    int /*tid*/,
+                                    int /*num_threads*/,
+                                    int /*num_tiles*/)
     {}
 
     // Load tile `tile_idx` into the single buffer.
@@ -149,17 +149,17 @@ struct SingleBufferTilePolicy
     // calls acquire() immediately after, which __syncthreads() and thereby
     // ensures the tile is visible before compute begins.
     static __device__ void prefetch(SharedStorage&  smem,
-                                     const float*    A,
-                                     const float*    B,
-                                     int             tile_idx,
-                                     int             block_row_start,
-                                     int             block_col_start,
-                                     int             m,
-                                     int             n,
-                                     int             k,
-                                     int             tid,
-                                     int             num_threads,
-                                     int             num_tiles)
+                                    const float*    A,
+                                    const float*    B,
+                                    int             tile_idx,
+                                    int             block_row_start,
+                                    int             block_col_start,
+                                    int             m,
+                                    int             n,
+                                    int             k,
+                                    int             tid,
+                                    int             num_threads,
+                                    int             num_tiles)
     {
         // Guard: the last iteration calls prefetch(num_tiles), which is out
         // of range.  Nothing to load.
@@ -257,16 +257,16 @@ struct SoftwareDoubleBufferTilePolicy
     // Load tile 0 into buf[0] and synchronise so that the first iteration
     // can call acquire() as a no-op.
     static __device__ void prologue(SharedStorage&  smem,
-                                     const float*    A,
-                                     const float*    B,
-                                     int             block_row_start,
-                                     int             block_col_start,
-                                     int             m,
-                                     int             n,
-                                     int             k,
-                                     int             tid,
-                                     int             num_threads,
-                                     int             /*num_tiles*/)
+                                    const float*    A,
+                                    const float*    B,
+                                    int             block_row_start,
+                                    int             block_col_start,
+                                    int             m,
+                                    int             n,
+                                    int             k,
+                                    int             tid,
+                                    int             num_threads,
+                                    int             /*num_tiles*/)
     {
         const int tile_elems_a = BLOCK_TILE_M * K_TILE_SIZE;
         for(int idx = tid; idx < tile_elems_a; idx += num_threads)
@@ -301,17 +301,17 @@ struct SoftwareDoubleBufferTilePolicy
     // Issue the load for tile `tile_idx` into the alternate buffer.
     // This load runs concurrently with the compute on the current buffer.
     static __device__ void prefetch(SharedStorage&  smem,
-                                     const float*    A,
-                                     const float*    B,
-                                     int             tile_idx,
-                                     int             block_row_start,
-                                     int             block_col_start,
-                                     int             m,
-                                     int             n,
-                                     int             k,
-                                     int             tid,
-                                     int             num_threads,
-                                     int             num_tiles)
+                                    const float*    A,
+                                    const float*    B,
+                                    int             tile_idx,
+                                    int             block_row_start,
+                                    int             block_col_start,
+                                    int             m,
+                                    int             n,
+                                    int             k,
+                                    int             tid,
+                                    int             num_threads,
+                                    int             num_tiles)
     {
         if(tile_idx >= num_tiles)
         {
@@ -408,11 +408,11 @@ struct TilePolicyTraits
 // [Sphinx double buffer kernel start]
 template<typename TilePolicy>
 __global__ void matrix_multiply_buffered(const float* __restrict__ A,
-                                          const float* __restrict__ B,
-                                          float* __restrict__ C,
-                                          int m,
-                                          int n,
-                                          int k)
+                                         const float* __restrict__ B,
+                                         float* __restrict__ C,
+                                         int m,
+                                         int n,
+                                         int k)
 {
     // Instantiate the trait checker; all static_asserts fire at compile time.
     (void)TilePolicyTraits<TilePolicy>{};

@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -139,13 +139,13 @@ constexpr int BLOCK_THREADS = BLOCK_DIM_X * BLOCK_DIM_Y;    // 256
 // this function into each kernel.
 // ---------------------------------------------------------------------------
 __device__ void gemm_body(const float* __restrict__ A,
-                           const float* __restrict__ B,
-                           float* __restrict__ C,
-                           int m,
-                           int n,
-                           int k,
-                           float (&tile_a)[BLOCK_TILE_M][K_TILE_SIZE],
-                           float (&tile_b_T)[BLOCK_TILE_N][K_TILE_SIZE])
+                          const float* __restrict__ B,
+                          float* __restrict__ C,
+                          int m,
+                          int n,
+                          int k,
+                          float (&tile_a)[BLOCK_TILE_M][K_TILE_SIZE],
+                          float (&tile_b_T)[BLOCK_TILE_N][K_TILE_SIZE])
 {
     const int tx          = threadIdx.x;
     const int ty          = threadIdx.y;
@@ -242,11 +242,11 @@ __device__ void gemm_body(const float* __restrict__ A,
 // ---------------------------------------------------------------------------
 // [Sphinx no hint kernel start]
 __global__ void matrix_multiply_no_hint(const float* __restrict__ A,
-                                         const float* __restrict__ B,
-                                         float* __restrict__ C,
-                                         int m,
-                                         int n,
-                                         int k)
+                                        const float* __restrict__ B,
+                                        float* __restrict__ C,
+                                        int m,
+                                        int n,
+                                        int k)
 {
     __shared__ float tile_a[BLOCK_TILE_M][K_TILE_SIZE];
     __shared__ float tile_b_T[BLOCK_TILE_N][K_TILE_SIZE];
@@ -275,11 +275,11 @@ constexpr int MIN_WAVES_PER_EU = 2; // tune this with rocprof-compute
 __global__
 __launch_bounds__(BLOCK_THREADS, MIN_WAVES_PER_EU)
 void matrix_multiply_launch_bounds(const float* __restrict__ A,
-                                    const float* __restrict__ B,
-                                    float* __restrict__ C,
-                                    int m,
-                                    int n,
-                                    int k)
+                                   const float* __restrict__ B,
+                                   float* __restrict__ C,
+                                   int m,
+                                   int n,
+                                   int k)
 {
     __shared__ float tile_a[BLOCK_TILE_M][K_TILE_SIZE];
     __shared__ float tile_b_T[BLOCK_TILE_N][K_TILE_SIZE];
@@ -309,11 +309,11 @@ constexpr int WAVES_PER_EU_MAX = 4; // tune with rocprof-compute
 __global__
 [[clang::amdgpu_waves_per_eu(WAVES_PER_EU_MIN, WAVES_PER_EU_MAX)]]
 void matrix_multiply_waves_per_eu(const float* __restrict__ A,
-                                   const float* __restrict__ B,
-                                   float* __restrict__ C,
-                                   int m,
-                                   int n,
-                                   int k)
+                                  const float* __restrict__ B,
+                                  float* __restrict__ C,
+                                  int m,
+                                  int n,
+                                  int k)
 {
     __shared__ float tile_a[BLOCK_TILE_M][K_TILE_SIZE];
     __shared__ float tile_b_T[BLOCK_TILE_N][K_TILE_SIZE];

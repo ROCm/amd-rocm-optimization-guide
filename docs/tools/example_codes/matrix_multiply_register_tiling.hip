@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -82,11 +82,11 @@ constexpr int BLOCK_DIM_Y = BLOCK_TILE_M / THREAD_TILE_M; // 16
 constexpr int LDS_TILE_SIZE = 16;
 
 __global__ void matrix_multiply_lds(const float* __restrict__ A,
-                                     const float* __restrict__ B,
-                                     float* __restrict__ C,
-                                     int m,
-                                     int n,
-                                     int k)
+                                    const float* __restrict__ B,
+                                    float* __restrict__ C,
+                                    int m,
+                                    int n,
+                                    int k)
 {
     __shared__ float tile_a[LDS_TILE_SIZE][LDS_TILE_SIZE];
     __shared__ float tile_b[LDS_TILE_SIZE][LDS_TILE_SIZE];
@@ -162,11 +162,11 @@ __global__ void matrix_multiply_lds(const float* __restrict__ A,
 // ---------------------------------------------------------------------------
 // [Sphinx register tiling kernel start]
 __global__ void matrix_multiply_register_tiling(const float* __restrict__ A,
-                                                  const float* __restrict__ B,
-                                                  float* __restrict__ C,
-                                                  int m,
-                                                  int n,
-                                                  int k)
+                                                const float* __restrict__ B,
+                                                float* __restrict__ C,
+                                                int m,
+                                                int n,
+                                                int k)
 {
     // [Sphinx register tiling shared memory start]
     // tile_a: row-major strip of A, shape [BLOCK_TILE_M][K_TILE_SIZE]

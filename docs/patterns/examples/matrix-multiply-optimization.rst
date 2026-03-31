@@ -1,12 +1,20 @@
 .. meta::
-  :description: Step-by-step optimization of a HIP matrix multiplication kernel
-  :keywords: AMD, ROCm, HIP, matrix multiplication, LDS, register tiling, double buffering, vectorized loads, launch_bounds, occupancy, generic kernel, Stepanov
+  :description: Optimize a HIP GEMM kernel step by step: LDS tiling, register tiling, double buffering, vectorized loads, occupancy tuning, and a generic policy-based kernel for AMD Instinct and AMD Radeon GPUs.
+  :keywords: AMD, ROCm, HIP, GEMM, matrix multiplication, LDS, register tiling, double buffering, vectorized loads, launch_bounds, occupancy, generic kernel, MFMA, WMMA, CDNA, RDNA
 
 .. _matrix-multiply-optimization:
 
 ********************************************************************************
 Optimizing matrix multiplication: a step-by-step guide
 ********************************************************************************
+
+Matrix multiplication is one of the most fundamental GPU workloads.  It
+underlies the compute-intensive layers of deep neural networks — fully connected
+layers, convolutional layers expressed as implicit GEMMs, and attention
+mechanisms — and is central to scientific computing, computer vision, and
+recommendation systems.  GPUs are heavily optimized for matrix multiplication,
+and understanding how to write an efficient GEMM kernel is an effective way to
+learn how GPU hardware resources interact.
 
 This tutorial walks through seven progressive optimization steps applied to a
 general-purpose single-precision (FP32) matrix multiplication kernel
@@ -34,11 +42,37 @@ The complete source files for all steps are available at:
 Prerequisites
 =============
 
+Before starting this tutorial, ensure the following are in place.
+
 * ROCm installed and ``amdclang++`` available on ``PATH``.
 * Familiarity with the HIP execution model (grids, blocks, warps) and its
-  mapping to AMD GPU hardware (dispatches, work-groups, wavefronts).
+  mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
 * ``rocprofv3``, ROCm Compute Profiler (``rocprof-compute``) and ROCprof Compute
   Viewer (RCV) installed for performance analysis.
+
+GEMM fundamentals
+==================
+
+A GEMM multiplies an :math:`M \times K` matrix :math:`\pmb{A}` by a
+:math:`K \times N` matrix :math:`\pmb{B}` to produce an :math:`M \times N`
+output matrix :math:`\pmb{C}`.  Each element :math:`C_{ij}` is the inner
+product of the *i*-th row of :math:`\pmb{A}` and the *j*-th column of
+:math:`\pmb{B}`:
+
+.. figure:: ../../data/tutorial/matrix_multiply/matrix_multiply.svg
+   :alt: Three labeled matrices: A (M×K) with row i highlighted and dimension arrows, B (K×N) with column j highlighted and dimension arrows, and C (M×N) with element c_ij highlighted showing the result of their inner product
+
+A CPU implementation applies three nested loops over *m*, *n*, and *k*,
+performing one multiply-accumulate per iteration — 2 × M × N × K scalar
+operations in total.
+
+A GPU implementation is **embarrassingly parallel** across the output elements.
+A HIP kernel assigns one thread (or a small tile of threads) to each output
+element, eliminating the *m* and *n* loops entirely and leaving only the
+*k* reduction loop inside each thread.  With :math:`M \times N` output
+elements and a modern AMD GPU fielding tens of thousands of concurrent threads,
+the full output matrix can be computed in a single dispatch — provided data
+can be supplied fast enough to keep the compute units busy.
 
 Background: the GEMM arithmetic intensity
 ==========================================
@@ -68,6 +102,17 @@ The naïve kernel assigns one thread per output element.  Each thread reads a
 full row of :math:`\pmb{A}` and a full column of :math:`\pmb{B}` directly from
 global memory.
 
+While this maps naturally onto the GPU's parallel execution model, it produces
+severe **cache thrashing**.  Consider any element :math:`A[i][k]`: it is needed
+by *all N threads* that compute a different output column in the same row, and
+:math:`B[k][j]` is needed by all *M threads* that compute a different output
+row in the same column.  With tens of thousands of threads in flight
+simultaneously, the working set far exceeds the L2 cache, so data that should
+be reused is evicted before the next thread requests it.  The result is that
+total DRAM traffic is a large multiple of the minimum required bandwidth
+(``sizeof(float) * (M*K + K*N + M*N)``), and the kernel is firmly
+memory-bound despite GEMM's high arithmetic intensity in principle.
+
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_naive.hip
    :language: cuda
    :start-after: [Sphinx naive kernel start]
@@ -79,7 +124,7 @@ Launch configuration:
    :language: cuda
    :start-after: [Sphinx naive launch config start]
    :end-before: [Sphinx naive launch config end]
-   :noindent:
+   :dedent:
 
 **Compile and run:**
 
@@ -111,11 +156,19 @@ K*N + M*N)``), confirming cache thrashing.
 Step 2: LDS tiling
 ==================
 
+The root cause of the naïve kernel's cache thrashing is that all threads share
+a single transparent L2 cache with no way to guarantee that a loaded value
+stays resident until every thread that needs it has read it.  AMD GPUs expose
+**Local Data Share (LDS)** — a low-latency, high-bandwidth on-chip memory that
+is explicitly managed by the programmer, functioning as a programmable L1 cache.
+Unlike CPU hardware caches, data placed in LDS stays there until the kernel
+explicitly overwrites or discards it.
+
 The key insight is that every element of :math:`\pmb{A}` is used by :math:`N`
 threads (one per output column) and every element of :math:`\pmb{B}` is used by
 :math:`M` threads.  Caching a ``TILE_SIZE * TILE_SIZE`` strip of :math:`\pmb{A}`
-and :math:`\pmb{B}` in Local Data Share (LDS) lets all ``TILE_SIZE²`` threads in
-a block reuse that data without touching global memory again.
+and :math:`\pmb{B}` in LDS lets all ``TILE_SIZE²`` threads in a block reuse
+that data without touching global memory again.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
    :language: cuda
@@ -128,7 +181,7 @@ a block reuse that data without touching global memory again.
    :language: cuda
    :start-after: [Sphinx LDS shared memory start]
    :end-before: [Sphinx LDS shared memory end]
-   :noindent:
+   :dedent:
 
 **Load phase (cooperative, one element per thread):**
 
@@ -136,7 +189,7 @@ a block reuse that data without touching global memory again.
    :language: cuda
    :start-after: [Sphinx LDS load phase start]
    :end-before: [Sphinx LDS load phase end]
-   :noindent:
+   :dedent:
 
 **Compute phase (inner product from LDS):**
 
@@ -144,7 +197,7 @@ a block reuse that data without touching global memory again.
    :language: cuda
    :start-after: [Sphinx LDS compute phase start]
    :end-before: [Sphinx LDS compute phase end]
-   :noindent:
+   :dedent:
 
 LDS bank conflict analysis
 --------------------------
@@ -224,7 +277,7 @@ Step 3: Register tiling
 In the LDS kernel each thread computes exactly one output element, reading
 ``TILE_SIZE`` values from ``tile_a`` and ``TILE_SIZE`` values from ``tile_b``
 for every K-strip.  If instead each thread computes a
-``THREAD_TILE_M × THREAD_TILE_N`` sub-tile in registers, it amortises the LDS
+``THREAD_TILE_M × THREAD_TILE_N`` sub-tile in registers, it amortizes the LDS
 load cost across ``THREAD_TILE_M × THREAD_TILE_N`` outputs.
 
 The outer product of a length-``THREAD_TILE_M`` column fragment of A and a
@@ -272,7 +325,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    :language: cuda
    :start-after: [Sphinx register tiling shared memory start]
    :end-before: [Sphinx register tiling shared memory end]
-   :noindent:
+   :dedent:
 
 **Cooperative tile load:**
 
@@ -280,7 +333,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    :language: cuda
    :start-after: [Sphinx register tiling load phase start]
    :end-before: [Sphinx register tiling load phase end]
-   :noindent:
+   :dedent:
 
 **Outer-product accumulation:**
 
@@ -288,7 +341,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    :language: cuda
    :start-after: [Sphinx register tiling compute phase start]
    :end-before: [Sphinx register tiling compute phase end]
-   :noindent:
+   :dedent:
 
 **Write-back:**
 
@@ -296,7 +349,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    :language: cuda
    :start-after: [Sphinx register tiling store start]
    :end-before: [Sphinx register tiling store end]
-   :noindent:
+   :dedent:
 
 What to observe in rocprof-compute
 ----------------------------------
@@ -314,6 +367,38 @@ What to observe in rocprof-compute
        instead of ``2 × THREAD_TILE_M × THREAD_TILE_N``)
    * - ``SQ``
      - Reduction in stall cycles (register reuse hides LDS latency)
+
+Tile parameter tuning guidance
+------------------------------
+
+The tile dimensions (``BLOCK_TILE_M``, ``BLOCK_TILE_N``, ``K_TILE_SIZE``,
+``THREAD_TILE_M``, ``THREAD_TILE_N``) are not one-size-fits-all.  Optimal
+values depend on several interacting constraints:
+
+**Matrix dimensions**
+   Tile sizes should evenly divide the matrix dimensions to avoid boundary
+   handling overhead.  Padding the matrices to a multiple of the tile size
+   is common in production GEMM libraries.
+
+**LDS capacity**
+   Each workgroup allocates ``BLOCK_TILE_M × K_TILE_SIZE`` and
+   ``K_TILE_SIZE × BLOCK_TILE_N`` floats in LDS.  LDS capacity varies
+   across AMD GPU architectures (typically 64–160 KiB per compute unit).
+   Exceeding the LDS budget reduces occupancy by limiting how many
+   workgroups can be resident simultaneously.
+
+**Register file**
+   Each thread holds a ``THREAD_TILE_M × THREAD_TILE_N`` accumulator array
+   plus fragment temporaries.  Larger thread tiles increase arithmetic
+   intensity but consume more VGPRs, reducing occupancy.  Step 6 addresses
+   this tradeoff directly.
+
+**Architecture-to-architecture variation**
+   LDS bank counts, wavefront widths, VGPR file size, and L1/L2 cache line
+   sizes differ across CDNA and RDNA families.  Tile sizes that are optimal
+   on a CDNA3 GPU might not be optimal on an RDNA4 GPU.  Use
+   ``rocprof-compute`` to measure LDS efficiency, VGPR usage, and occupancy
+   on each target, and re-tune accordingly.
 
 Step 4: Double buffering
 ========================
@@ -340,9 +425,9 @@ the kernel body is identical regardless of the chosen approach.
    * - ``prefetch``
      - Issue the load for the next tile into the background buffer
    * - ``acquire``
-     - Synchronise before compute (single-buffer: ``__syncthreads()``; double: no-op)
+     - Synchronize before compute (single-buffer: ``__syncthreads()``; double: no-op)
    * - ``release``
-     - Synchronise after compute (both: ``__syncthreads()``)
+     - Synchronize after compute (both: ``__syncthreads()``)
    * - ``buf_idx``
      - Return which buffer to read for the current iteration
 
@@ -510,7 +595,7 @@ pointers:
 Vectorized loads and smaller data types
 ---------------------------------------
 
-For FP32, vectorized loads are a moderate optimisation: they reduce instruction
+For FP32, vectorized loads are a moderate optimization: they reduce instruction
 count, but a scalar load already fills cache lines well (see table above).
 The picture changes significantly for smaller data types.  With FP16 (2 bytes)
 or FP8 (1 byte), a scalar load per thread no longer fills a full cache line:
@@ -542,7 +627,7 @@ vector load for FP8 restores the full cache line fill.  On CDNA3/CDNA4
 (128 B cache line, 64-wide wavefronts), FP8 scalar loads similarly fill only
 half a line.
 
-This is why the ``TilePolicy`` parameterises the vector load width: the
+This is why the ``TilePolicy`` parameterizes the vector load width: the
 optimal width depends on both the element type and the target architecture.
 For the FP32 case in this tutorial the benefit is modest, but for the
 low-precision intrinsics introduced in follow-up sections, vectorized loads
@@ -673,7 +758,7 @@ to reduce memory transaction overhead.  For many workloads this is sufficient.
 
 Squeezing out the last few percent of throughput, however, requires
 architecture-specific matrix-multiply instructions: MFMA on CDNA GPUs and WMMA
-on RDNA3/4.  These instructions perform a small matrix multiply directly in
+on RDNA3 and RDNA4.  These instructions perform a small matrix multiply directly in
 hardware and deliver substantially higher FLOP/s than an equivalent sequence of
 scalar FMAs.
 
@@ -692,7 +777,7 @@ The insight from the preceding steps is that all the work decomposes into
 exactly two independent concerns:
 
 1. **Data movement** (``TilePolicy``) — tile shape, LDS layout, vector load
-   width, and buffering strategy.  These optimisations are identical regardless
+   width, and buffering strategy.  These optimizations are identical regardless
    of which instruction is used to compute the output; a ``float4`` load into a
    double-buffered LDS tile is just as beneficial whether the inner loop uses
    scalar FMAs or MFMA.
@@ -708,7 +793,7 @@ these two responsibilities are encapsulated in two orthogonal *policy classes*:
 control flow while delegating all architecture-specific details to the policies.
 
 The kernel presented here uses ``ScalarFMAPolicy`` as the ``ComputePolicy``.
-It already incorporates all the optimisations from the preceding steps: LDS
+It already incorporates all the optimizations from the preceding steps: LDS
 tiling, register tiling, software double buffering, and vectorized loads.  When
 an MFMA or WMMA ``ComputePolicy`` is provided in one of the
 architecture-specific intrinsics chapters, the same data-movement infrastructure
@@ -754,7 +839,7 @@ The key design decisions are:
    * - ``thread_tile_offset(tid, lane_id, *row, *col)``
      - Architecture-aware thread→output mapping (lane_id needed for RDNA3)
    * - ``elem_a``, ``elem_b``
-     - Element types of the register fragments (e.g. ``float``, ``__half``);
+     - Element types of the register fragments (for example, ``float`` or ``__half``);
        the kernel loop is fully templated on these
    * - ``k_step``
      - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA;
@@ -767,12 +852,12 @@ The key design decisions are:
 Data type scope: what the policies cover and what they don't
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``elem_a`` and ``elem_b`` parameterise the *register fragment* type and are
+``elem_a`` and ``elem_b`` parameterize the *register fragment* type and are
 already fully wired through the kernel loop.  A future ``ComputePolicy`` can
 set ``elem_a = __half`` and the float-to-half conversion happens entirely
 inside ``load_a`` / ``load_b``—the kernel body is untouched.
 
-However, two things are **not yet parameterised** and are hardcoded to
+However, two things are **not yet parameterized** and are hardcoded to
 ``float`` in this file:
 
 * The **LDS storage type** — ``SharedStorage`` in every ``TilePolicy`` holds
@@ -1006,6 +1091,8 @@ calculation formulas, and cache policy encoding — see
 
 Further reading
 ===============
+
+The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
 
 * :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
   guide to timeline and counter profiling.

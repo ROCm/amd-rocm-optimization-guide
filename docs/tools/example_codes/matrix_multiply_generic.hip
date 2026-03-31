@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,10 @@
 // SOFTWARE.
 
 // ---------------------------------------------------------------------------
-// matrix_multiply_generic.hip  –  Step 7: Stepanov-style generic GEMM
+// matrix_multiply_generic.hip  –  Step 7: Generic GEMM
 //
-// This file demonstrates the Stepanov principle of "lifting" an algorithm into
-// a fully generic form by separating *what* the algorithm does (policy-neutral
+// This file demonstrates the principle of "lifting" an algorithm into a fully
+// generic form by separating *what* the algorithm does (policy-neutral
 // orchestration) from *how* individual steps are performed (the policies).
 //
 // Two orthogonal policies parameterise the kernel:
@@ -162,8 +162,8 @@ struct TilePolicyTraits
 // C++20 `requires` clauses solve both problems.  The equivalent constraint for
 // the TilePolicy is:
 //
-// [Sphinx cpp20 concept start]
 #if 0  // C++20 illustration – enable with -std=c++20
+// [Sphinx cpp20 concept start]
 template<typename TilePolicy>
 concept TilePolicyConcept = requires
 {
@@ -182,8 +182,8 @@ __global__ void matrix_multiply_generic(/* … */);
 // Constraint violations are reported at the point of the template
 // instantiation with a clear "constraint not satisfied" diagnostic rather than
 // a cryptic static_assert failure inside a trait struct.
-#endif
 // [Sphinx cpp20 concept end]
+#endif
 
 // ===========================================================================
 // Section 2: ComputePolicy interface and concept validation
@@ -321,15 +321,15 @@ struct ComputePolicyTraits
 // This helper is shared by all TilePolicy implementations below.
 // ---------------------------------------------------------------------------
 __device__ inline void cooperative_load_tile_a(float*       dest,       // LDS tile_a slice
-                                                const float* A,
-                                                int          block_row_start,
-                                                int          block_tile_m,
-                                                int          t,
-                                                int          k_tile_size,
-                                                int          m,
-                                                int          k,
-                                                int          tid,
-                                                int          num_threads)
+                                               const float* A,
+                                               int          block_row_start,
+                                               int          block_tile_m,
+                                               int          t,
+                                               int          k_tile_size,
+                                               int          m,
+                                               int          k,
+                                               int          tid,
+                                               int          num_threads)
 {
     const int tile_elems = block_tile_m * k_tile_size;
     for(int idx = tid; idx < tile_elems; idx += num_threads)
@@ -344,15 +344,15 @@ __device__ inline void cooperative_load_tile_a(float*       dest,       // LDS t
 }
 
 __device__ inline void cooperative_load_tile_b_T(float*       dest,       // LDS tile_b_T slice
-                                                   const float* B,
-                                                   int          block_col_start,
-                                                   int          block_tile_n,
-                                                   int          t,
-                                                   int          k_tile_size,
-                                                   int          k,
-                                                   int          n,
-                                                   int          tid,
-                                                   int          num_threads)
+                                                 const float* B,
+                                                 int          block_col_start,
+                                                 int          block_tile_n,
+                                                 int          t,
+                                                 int          k_tile_size,
+                                                 int          k,
+                                                 int          n,
+                                                 int          tid,
+                                                 int          num_threads)
 {
     // tile_b_T is stored column-major: [BLOCK_TILE_N][K_TILE_SIZE]
     // i.e., dest[col_within_tile * k_tile_size + k_idx]
@@ -566,9 +566,9 @@ struct ScalarFMAPolicy
     // Map thread id to the top-left corner of its output sub-tile.
     // lane_id is accepted but unused (interface forward-compatibility).
     __device__ static void thread_tile_offset(int tid,
-                                               int /*lane_id*/,
-                                               int* thread_row,
-                                               int* thread_col)
+                                              int /*lane_id*/,
+                                              int* thread_row,
+                                              int* thread_col)
     {
         const int tx = tid % BlockDimX_;
         const int ty = tid / BlockDimX_;
@@ -579,11 +579,11 @@ struct ScalarFMAPolicy
     // Load a column fragment of tile_a into registers.
     // tile_a is stored row-major: tile_a[row][ki] = ptr[row * k_tile_size + ki]
     __device__ static void load_a(const float* tile_a_ptr,
-                                   int          tile_a_row,
-                                   int          ki,
-                                   int          k_tile_size,
-                                   int          /*lane_id*/,
-                                   elem_a (&frag)[ThreadTileM_])
+                                  int          tile_a_row,
+                                  int          ki,
+                                  int          k_tile_size,
+                                  int          /*lane_id*/,
+                                  elem_a (&frag)[ThreadTileM_])
     {
         #pragma unroll
         for(int i = 0; i < ThreadTileM_; ++i)
@@ -593,11 +593,11 @@ struct ScalarFMAPolicy
     // Load a row fragment of tile_b_T into registers.
     // tile_b_T is stored column-major: tile_b_T[col][ki] = ptr[col * k_tile_size + ki]
     __device__ static void load_b(const float* tile_b_T_ptr,
-                                   int          tile_b_col,
-                                   int          ki,
-                                   int          k_tile_size,
-                                   int          /*lane_id*/,
-                                   elem_b (&frag)[ThreadTileN_])
+                                  int          tile_b_col,
+                                  int          ki,
+                                  int          k_tile_size,
+                                  int          /*lane_id*/,
+                                  elem_b (&frag)[ThreadTileN_])
     {
         #pragma unroll
         for(int j = 0; j < ThreadTileN_; ++j)
@@ -606,8 +606,8 @@ struct ScalarFMAPolicy
 
     // Outer-product FMA: acc += a_frag ⊗ b_frag
     __device__ static void mma(Accumulator&       acc,
-                                const elem_a (&a_frag)[ThreadTileM_],
-                                const elem_b (&b_frag)[ThreadTileN_])
+                               const elem_a (&a_frag)[ThreadTileM_],
+                               const elem_b (&b_frag)[ThreadTileN_])
     {
         #pragma unroll
         for(int i = 0; i < ThreadTileM_; ++i)
@@ -619,12 +619,12 @@ struct ScalarFMAPolicy
     // Write accumulator to global memory.
     // lane_id accepted but unused; all lanes write their unique sub-tile.
     __device__ static void store_c(const Accumulator& acc,
-                                    float*             C,
-                                    int                out_row_base,
-                                    int                out_col_base,
-                                    int                m,
-                                    int                n,
-                                    int                /*lane_id*/)
+                                   float*             C,
+                                   int                out_row_base,
+                                   int                out_col_base,
+                                   int                m,
+                                   int                n,
+                                   int                /*lane_id*/)
     {
         #pragma unroll
         for(int i = 0; i < ThreadTileM_; ++i)
@@ -733,15 +733,15 @@ struct DirectLoadTilePolicy
     //   transpose      – if true, swap row/col in the global read pattern
     //                    (used for tile_b_T: LDS[col][ki], global B[ki][col])
     __device__ static void direct_load_flat(float*       lds_dest,
-                                             const float* global_src,
-                                             int          num_rows,
-                                             int          num_cols,
-                                             int          global_row_start,
-                                             int          global_col_start,
-                                             int          global_stride,
-                                             bool         transpose,
-                                             int          tid,
-                                             int          num_threads)
+                                            const float* global_src,
+                                            int          num_rows,
+                                            int          num_cols,
+                                            int          global_row_start,
+                                            int          global_col_start,
+                                            int          global_stride,
+                                            bool         transpose,
+                                            int          tid,
+                                            int          num_threads)
     {
         constexpr int warp_size    = 64;
         const int     wave_id      = tid / warp_size;
@@ -843,7 +843,7 @@ struct DirectLoadTilePolicy
 //
 // Selecting a ComputePolicy at compile time based on device ISA:
 //
-//   gfx90a / gfx940 / gfx941 / gfx942  →  MFMAPolicy<float,float>   (CDNA2/3)
+//   gfx90a / gfx940 / gfx941 / gfx942   →  MFMAPolicy<float,float>   (CDNA2/3)
 //   gfx1100 / gfx1101                   →  WMMAPolicy<__half,float>  (RDNA3)
 //   gfx1200 / gfx1201                   →  RDNA4WMMAPolicy (relaxed lane rules)
 //   fallback (all others)               →  ScalarFMAPolicy
@@ -873,11 +873,11 @@ __global__ void
     __launch_bounds__(TilePolicy::block_tile_m / ComputePolicy::thread_tile_m
                           * TilePolicy::block_tile_n / ComputePolicy::thread_tile_n)
     matrix_multiply_generic(const float* __restrict__ A,
-                             const float* __restrict__ B,
-                             float* __restrict__       C,
-                             int                       m,
-                             int                       n,
-                             int                       k)
+                            const float* __restrict__ B,
+                            float* __restrict__       C,
+                            int                       m,
+                            int                       n,
+                            int                       k)
 {
     // Instantiate TilePolicyTraits/ComputePolicyTraits to trigger static_assert
     // checks at the point where this kernel is instantiated.

@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -69,11 +69,11 @@ constexpr int TILE_SIZE = 16;
 // See matrix_multiply_naive.hip for a detailed description.
 // ---------------------------------------------------------------------------
 __global__ void matrix_multiply_naive(const float* __restrict__ A,
-                                       const float* __restrict__ B,
-                                       float* __restrict__ C,
-                                       int m,
-                                       int n,
-                                       int k)
+                                      const float* __restrict__ B,
+                                      float* __restrict__ C,
+                                      int m,
+                                      int n,
+                                      int k)
 {
     const int col = blockIdx.x * blockDim.x + threadIdx.x;
     const int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -137,11 +137,11 @@ __global__ void matrix_multiply_naive(const float* __restrict__ A,
 // ---------------------------------------------------------------------------
 // [Sphinx LDS kernel start]
 __global__ void matrix_multiply_lds(const float* __restrict__ A,
-                                     const float* __restrict__ B,
-                                     float* __restrict__ C,
-                                     int m,
-                                     int n,
-                                     int k)
+                                    const float* __restrict__ B,
+                                    float* __restrict__ C,
+                                    int m,
+                                    int n,
+                                    int k)
 {
     // [Sphinx LDS shared memory start]
     // Allocate two LDS tiles: one strip of A (row-major) and one of B (row-major).
