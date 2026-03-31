@@ -276,6 +276,7 @@ DF
 DFT
 DGEMM
 DGL
+DLC
 DGLGraph
 dGPU
 dGPUs
@@ -414,6 +415,7 @@ GGUF
 GiB
 GiB
 GIM
+GLC
 githooks
 GitHub
 github
@@ -521,6 +523,7 @@ ICD
 ICT
 ICV
 IDE
+ij
 IDEs
 iDRAC
 IFWI
@@ -827,7 +830,7 @@ Pallas
 pallas
 PaLM
 PAPI
-parameterises
+parameterizes
 params
 parallelizable
 parallelization
@@ -1103,6 +1106,8 @@ Skylake
 sL
 SLES
 sles
+SLC
+Slurm
 SLURM
 Slurm
 sm
