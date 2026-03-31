@@ -215,6 +215,7 @@ CUs
 cuSOLVER
 cuSPARSE
 customizations
+cvt
 CX
 CXX
 da
@@ -347,6 +348,7 @@ FDK
 FeDK
 Feldkamp
 FFmpeg
+fdot
 ffmpeg
 FFT
 FFTs
@@ -704,6 +706,7 @@ MPI
 Mpops
 MPT
 MSVC
+msad
 mtypes
 mul
 multicore
@@ -902,6 +905,7 @@ quasirandom
 queryable
 querySelector
 querySelectorAll
+qsad
 queueing
 qwen
 Qwen
@@ -1023,6 +1027,7 @@ RW
 Ryzen
 Sabila
 SALU
+SADs
 SAXPY
 SBIOS
 SCA
@@ -1200,9 +1205,11 @@ uarch
 UC
 UCC
 UCX
+udot
 udev
 UE
 UIF
+uint
 ULP
 ULPs
 UltraChat

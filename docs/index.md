@@ -34,6 +34,8 @@ and multi-GPU programming.
 
 * {doc}`./hardware-intrinsics/introduction`
 
+  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-intrinsics`
+
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
 
 To contribute to the documentation, see {doc}`Contributing to ROCm docs <rocm:contribute/contributing>` for contribution guidelines.
