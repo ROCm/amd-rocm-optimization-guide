@@ -133,25 +133,37 @@ Launch configuration:
    amdclang++ -O3 -std=c++17 matrix_multiply_naive.hip -o mm_naive
    ./mm_naive
 
+.. note::
+
+   Hardware performance counter availability depends on the ROCm version, Linux
+   kernel version, and system permissions.  Not all counters listed by
+   ``rocprofv3 --list-avail`` collect non-zero values on every system, even
+   when the counter name appears in the output.  If a counter returns only zero
+   values, the counter is likely unavailable on your system due to a driver or
+   permission limitation rather than the kernel behavior described.  Kernel
+   duration (``End_Timestamp - Start_Timestamp`` from ``rocprofv3
+   --kernel-trace``) is always available and provides a reliable baseline for
+   measuring improvement across all steps.
+
 **Profile wall-clock time with rocprofv3:**
 
 .. code-block:: bash
 
-   rocprofv3 --hip-trace --output-format csv -- ./mm_naive
+   rocprofv3 --kernel-trace --output-format csv -- ./mm_naive
 
-Examine the ``Kernel_Duration`` column for ``matrix_multiply_naive``.
+Kernel duration is ``End_Timestamp - Start_Timestamp`` (both in nanoseconds).
+The trace also captures ``VGPR_Count`` and ``Scratch_Size`` for each dispatch.
 
-**Profile hardware counters with rocprofv3:**
+The ``--kernel-trace`` CSV is sufficient to establish the baseline: the naïve
+kernel's ``End_Timestamp - Start_Timestamp`` will be the slowest of all steps
+because every global memory access is a cache miss.
 
-.. code-block:: bash
+.. note::
 
-   rocprofv3 --pmc TCP_TCC_READ_REQ_sum --output-format csv -- ./mm_naive
-
-Open the resulting CSV in the ROCprof Compute Viewer.  Focus on the
-**L2 Cache** panel and the ``TCP_TCC_READ_REQ_sum`` counter.  For the naïve
-kernel you will see that the total bytes transferred from DRAM significantly
-exceed the minimum required bandwidth (``sizeof(float) * (M*K + K*N + M*N)``),
-confirming cache thrashing.
+   On CDNA architectures, L2-to-HBM read traffic can be measured directly with
+   ``rocprofv3 --pmc TCP_TCC_READ_REQ_sum``.  For RDNA architectures, memory
+   traffic counter availability varies by GPU and ROCm version; use
+   ``rocprofv3 --list-avail`` to find the counters available on your GPU.
 
 Step 2: LDS tiling
 ==================
@@ -264,14 +276,17 @@ What to observe in the ROCprof Compute Viewer after this step
 -------------------------------------------------------------
 
 +---------------------+--------------------------------------------------------+
-| Counter group       | What to look for                                       |
+| Counter             | What to look for                                       |
 +=====================+========================================================+
-| ``SQ`` / ``TCP``    | Reduction in ``TCP_TCC_READ_REQ_sum`` proportional to  |
-|                     | ``TILE_SIZE`` (more data reuse from LDS, fewer DRAM    |
-|                     | reads)                                                 |
+| Kernel duration     | ``End_Timestamp - Start_Timestamp`` should drop        |
+| (kernel-trace CSV)  | significantly vs the naïve kernel, confirming that LDS |
+|                     | data reuse is reducing global memory traffic           |
 +---------------------+--------------------------------------------------------+
-| ``LDS``             | Low ``LDS_BANK_CONFLICT`` count (confirm no conflicts  |
-|                     | for ``TILE_SIZE=16``)                                  |
+| ``TCP_TCC_READ_REQ  | CDNA only: reduction proportional to ``TILE_SIZE``     |
+| _sum`` (CDNA)       | confirms fewer L2-to-HBM read requests                 |
++---------------------+--------------------------------------------------------+
+| ``LDSBankConflict`` | Should remain at or near zero for ``TILE_SIZE=16``     |
+|                     | with FP32 data (confirms no bank conflicts)            |
 +---------------------+--------------------------------------------------------+
 
 Step 3: Register tiling
@@ -358,16 +373,19 @@ What to observe in the ROCprof Compute Viewer
 ---------------------------------------------
 
 +---------------------+--------------------------------------------------------+
-| Counter group       | What to look for                                       |
+| Counter             | What to look for                                       |
 +=====================+========================================================+
-| ``VALU``            | Increase in VALU utilization (more FMAs per LDS read)  |
+| ``VALUInsts``       | Increase in VALU instructions per wave (more FMAs per  |
+| (RDNA, CDNA, CDNA2) | LDS read).  On CDNA3 and CDNA4, the equivalent raw     |
+| / ``SQ_INSTS_VALU`` | hardware counter is ``SQ_INSTS_VALU``.                 |
+| (CDNA3, CDNA4)      |                                                        |
 +---------------------+--------------------------------------------------------+
-| ``LDS``             | Reduced LDS reads per output element                   |
+| ``SQ_INSTS_LDS``    | Reduction in LDS instructions per wave                 |
 |                     | (``THREAD_TILE_M + THREAD_TILE_N`` instead of          |
 |                     | ``2 × THREAD_TILE_M × THREAD_TILE_N``)                 |
 +---------------------+--------------------------------------------------------+
-| ``SQ``              | Reduction in stall cycles (register reuse hides LDS    |
-|                     | latency)                                               |
+| ``SQ_WAIT_INST_LDS``| Reduction in LDS stall cycles (register reuse hides    |
+| (RDNA3, CDNA)       | LDS latency). Not available on RDNA4.                  |
 +---------------------+--------------------------------------------------------+
 
 Tile parameter tuning guidance
@@ -479,13 +497,16 @@ What to observe in the ROCprof Compute Viewer
 ---------------------------------------------
 
 +---------------------+--------------------------------------------------------+
-| Counter group       | What to look for                                       |
+| Counter             | What to look for                                       |
 +=====================+========================================================+
-| ``SQ``              | Reduction in ``SQ_WAIT_INST_LDS`` stall cycles (load   |
-|                     | latency hidden)                                        |
+| ``SQ_WAIT_INST_LDS``| Reduction in LDS stall cycles (load latency hidden by  |
+| (RDNA3, all CDNA)   | prefetch).  Not available on RDNA4.                    |
 +---------------------+--------------------------------------------------------+
-| ``TCP``             | Similar total bandwidth to Step 3 (same number of DRAM |
-|                     | fetches)                                               |
+| Kernel duration     | Should remain similar to Step 3 (prefetch hides        |
+| (kernel-trace CSV)  | latency but does not reduce total data fetched)        |
++---------------------+--------------------------------------------------------+
+| ``TCP_TCC_READ_REQ  | CDNA only: roughly constant vs Step 3 (same number of |
+| _sum`` (all CDNA)   | L2-to-HBM reads; only latency is hidden, not traffic) |
 +---------------------+--------------------------------------------------------+
 
 Step 5: Vectorized loads
@@ -618,18 +639,19 @@ become essential to avoid wasting memory bandwidth.
 What to observe in the ROCprof Compute Viewer
 ---------------------------------------------
 
-+---------------+--------------------------------------------------------------+
-| Counter group | What to look for                                             |
-+===============+==============================================================+
-| ``SQ``        | Reduction in ``SQ_INSTS_VMEM`` (fewer VMEM instructions      |
-|               | issued for the same total data) and reduction in             |
-|               | ``SQ_WAIT_INST_VMEM`` stall cycles (fewer instructions means |
-|               | less time waiting for the VMEM pipeline)                     |
-+---------------+--------------------------------------------------------------+
-| ``TCP``       | ``TCP_TOTAL_CACHE_ACCESSES`` should remain roughly constant  |
-|               | (cache line traffic does not change — only the instruction   |
-|               | count does)                                                  |
-+---------------+--------------------------------------------------------------+
++------------------------+-----------------------------------------------------+
+| Counter                | What to look for                                    |
++========================+=====================================================+
+| ``SQ_INST_CYCLES_VMEM``| Reduction in VMEM instruction cycles (fewer         |
+| (all RDNA) /           | instructions for the same total data). CDNA GPUs    |
+| ``SQ_INST_CYCLES_      | split this into ``SQ_INST_CYCLES_VMEM_RD`` (reads)  |
+| VMEM_RD`` (all CDNA)   | and ``SQ_INST_CYCLES_VMEM_WR`` (writes); use the    |
+|                        | read counter for GEMM tile loads.                   |
++------------------------+-----------------------------------------------------+
+| ``TCP_TOTAL_CACHE_     | CDNA only: total L2 cache accesses should remain    |
+| ACCESSES`` (all CDNA)  | roughly constant (cache-line traffic does not       |
+|                        | change — only the instruction count does)           |
++------------------------+-----------------------------------------------------+
 
 Step 6: Register pressure and occupancy
 ========================================
@@ -679,27 +701,42 @@ occupancy in the range ``[min, max]`` per EU.
 Finding optimal values with ROCprof Compute Viewer
 --------------------------------------------------
 
-1. Profile all three kernel variants with ``rocprofv3``:
+1. Collect static kernel metadata for all three variants:
 
    .. code-block:: bash
 
-      rocprofv3 --pmc SQ_WAVES SQ_WAIT_INST_LDS SQ_WAIT_INST_VMEM --output-format csv -- ./mm_launch_bounds
+      rocprofv3 --kernel-trace --output-format csv -- ./mm_launch_bounds
 
-2. Open the resulting CSV in the ROCprof Compute Viewer.  In the **Kernel Statistics**
-   panel, note the values of:
+   In the resulting CSV, compare the ``VGPR_Count`` and ``Scratch_Size``
+   columns across the three kernels.
 
-   * **VGPRs used** (vector register count allocated per thread)
-   * **SGPRs used** (scalar register count)
-   * **Scratch memory used** (>0 means VGPRs are spilling to DRAM—avoid this)
-   * **Occupancy** (wavefronts per EU achieved at launch)
+2. Collect dynamic occupancy counters:
 
-3. Calculate the theoretical maximum occupancy from the VGPR count using the
+   .. code-block:: bash
+
+      # RDNA3 and CDNA2+
+      rocprofv3 --pmc SQ_WAVES_sum MeanOccupancyPerCU SQ_WAIT_INST_LDS --output-format csv -- ./mm_launch_bounds
+
+      # RDNA4 (SQ_WAIT_INST_LDS not available)
+      rocprofv3 --pmc SQ_WAVES_sum MeanOccupancyPerCU --output-format csv -- ./mm_launch_bounds
+
+      # CDNA (MI100 only — MeanOccupancyPerCU and SQ_WAVES_sum not available)
+      rocprofv3 --pmc SQ_LEVEL_WAVES SQ_WAIT_INST_LDS --output-format csv -- ./mm_launch_bounds
+
+3. Open both CSVs in the ROCprof Compute Viewer.  Note the values of:
+
+   * **VGPR_Count** (vector registers allocated per thread, from the kernel-trace CSV)
+   * **Scratch_Size** (>0 means VGPRs are spilling to DRAM—avoid this)
+   * **MeanOccupancyPerCU** (RDNA and CDNA2+) or **SQ_LEVEL_WAVES** (CDNA MI100):
+     mean active wavefronts per CU, from the PMC CSV
+
+4. Calculate the theoretical maximum occupancy from ``VGPR_Count`` using the
    formula for your architecture (available in the AMD ISA reference).
-4. If the compiler allocated more VGPRs than necessary and occupancy is below
+5. If the compiler allocated more VGPRs than necessary and occupancy is below
    the target, add ``__launch_bounds__`` with a ``min_waves_per_eu`` that
    reflects the desired occupancy.
-5. Re-profile and re-check **Scratch memory used**—if it increases significantly,
-   the compiler was forced to spill and the constraint is too aggressive.
+6. Re-profile and re-check ``Scratch_Size``—if it increases significantly, the
+   compiler was forced to spill and the constraint is too aggressive.
 
 .. note::
 
@@ -713,17 +750,21 @@ What to observe in the ROCprof Compute Viewer
 ---------------------------------------------
 
 +------------------------------+-----------------------------------------------+
-| Panel / counter              | What to look for                              |
+| Counter / column             | What to look for                              |
 +==============================+===============================================+
-| Kernel Statistics → VGPRs /  | Confirm VGPRs decrease and occupancy rises    |
-| Scratch memory / Occupancy   | after adding the annotation; scratch memory   |
-|                              | must remain at zero                           |
+| ``VGPR_Count``               | From ``--kernel-trace`` CSV: should decrease  |
+| (kernel-trace CSV)           | after adding the annotation                   |
 +------------------------------+-----------------------------------------------+
-| ``SQ`` → ``SQ_WAVES``        | Active wavefronts per CU (should increase     |
-|                              | with higher occupancy)                        |
+| ``Scratch_Size``             | From ``--kernel-trace`` CSV: must remain zero |
+| (kernel-trace CSV)           | (non-zero means register spilling to DRAM)    |
 +------------------------------+-----------------------------------------------+
-| ``SQ`` → ``SQ_WAIT_INST_LDS``| Latency-hiding efficiency (stalls fall when   |
-| / ``SQ_WAIT_INST_VMEM``      | more wavefronts are resident)                 |
+| ``MeanOccupancyPerCU``       | From ``--pmc`` CSV: mean active wavefronts    |
+| + ``SQ_WAVES_sum``           | per CU; should rise with fewer VGPRs.  On    |
+| (RDNA, CDNA2+) /             | CDNA MI100 only, use ``SQ_LEVEL_WAVES``       |
+| ``SQ_LEVEL_WAVES`` (CDNA1)   | instead.                                      |
++------------------------------+-----------------------------------------------+
+| ``SQ_WAIT_INST_LDS``         | LDS stall cycles (fall when more wavefronts   |
+| (RDNA3, CDNA)                | are resident).  Not available on RDNA4.       |
 +------------------------------+-----------------------------------------------+
 
 Step 7: Generic kernel

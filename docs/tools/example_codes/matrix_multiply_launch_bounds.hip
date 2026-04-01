@@ -306,8 +306,8 @@ void matrix_multiply_launch_bounds(const float* __restrict__ A,
 constexpr int WAVES_PER_EU_MIN = 2; // tune with rocprof-compute
 constexpr int WAVES_PER_EU_MAX = 4; // tune with rocprof-compute
 
-__global__
 [[clang::amdgpu_waves_per_eu(WAVES_PER_EU_MIN, WAVES_PER_EU_MAX)]]
+__global__
 void matrix_multiply_waves_per_eu(const float* __restrict__ A,
                                   const float* __restrict__ B,
                                   float* __restrict__ C,

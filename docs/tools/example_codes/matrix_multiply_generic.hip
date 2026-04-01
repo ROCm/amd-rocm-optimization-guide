@@ -642,6 +642,10 @@ struct ScalarFMAPolicy
 
 // ---------------------------------------------------------------------------
 // DirectLoadTilePolicy: use __builtin_amdgcn_global_load_lds to bypass VGPRs
+// Supported on CDNA3 (gfx940/941/942) and CDNA4 (gfx950) only.
+// Guard: the __builtin_amdgcn_global_load_lds intrinsic is not available on
+// other architectures and will cause a compile error there.
+#if defined(__gfx942__) || defined(__gfx950__)
 //
 // On CDNA3 and CDNA4, the global_load_lds instruction transfers data from
 // global memory directly into LDS without staging in vector registers.  This
@@ -774,11 +778,11 @@ struct DirectLoadTilePolicy
             float* dst_chunk = &lds_dest[chunk_start];
 
             __builtin_amdgcn_global_load_lds(
-                src_lane,                       // per-lane global address
-                static_cast<void*>(dst_chunk),  // wave-uniform LDS base (→ M0)
-                4,                              // size: 4 bytes per lane
-                0,                              // offset: immediate, 0
-                0);                             // aux: wave scope, temporal
+                const_cast<float*>(src_lane), // per-lane global address
+                dst_chunk,                    // wave-uniform LDS base (→ M0)
+                4,                            // size: 4 bytes per lane
+                0,                            // offset: immediate, 0
+                0);                           // aux: wave scope, temporal
         }
     }
 
@@ -835,6 +839,7 @@ struct DirectLoadTilePolicy
     }
 };
 // [Sphinx direct load policy end]
+#endif // __gfx942__ || __gfx950__
 
 // ---------------------------------------------------------------------------
 // Architecture-specific policy stubs (filled by follow-up PRs)
@@ -997,7 +1002,10 @@ using DoubleBufPolicy = SoftwareDoubleBufferTilePolicy<BLOCK_TILE_M, BLOCK_TILE_
 using ScalarPolicy = ScalarFMAPolicy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
 
 // Direct global→LDS tile policy (CDNA3/CDNA4, bypasses VGPRs during tile load)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) \
+ || defined(__gfx950__)
 using DirectLoadPolicy = DirectLoadTilePolicy<BLOCK_TILE_M, BLOCK_TILE_N, K_TILE_SIZE>;
+#endif
 // [Sphinx policy aliases end]
 
 // ===========================================================================
@@ -1159,6 +1167,8 @@ int main()
     // Available on CDNA3 and CDNA4 only.  The arithmetic is identical to the
     // other variants (full FP32 scalar outer-product), so results match exactly.
     // ------------------------------------------------------------------
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) \
+ || defined(__gfx950__)
     {
         auto launch = [&]()
         {
@@ -1172,6 +1182,7 @@ int main()
         const bool ok = verify_result(h_C, h_A, M, N, K);
         print_metrics("GemmKernel<DirectLoadPolicy, ScalarPolicy>", ok, ms, M, N, K);
     }
+#endif // __gfx940__ || __gfx941__ || __gfx942__ || __gfx950__
 
     // ------------------------------------------------------------------
     // Cleanup

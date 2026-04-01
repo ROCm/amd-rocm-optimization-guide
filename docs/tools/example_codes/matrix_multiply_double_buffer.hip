@@ -84,26 +84,15 @@ constexpr int BLOCK_DIM_Y   = BLOCK_TILE_M / THREAD_TILE_M; // 16
 //
 // SingleBufferTilePolicy:
 //   prologue  → no-op
-//   prefetch  → load tile t+1 into buf[0] synchronously (but "prefetch" is
-//               called with the NEXT index, so we load that index)
-//   acquire   → __syncthreads() (wait for the prefetch just issued)
+//   prefetch  → called with tile_idx = t+1; loads tile t (= tile_idx-1) into
+//               buf[0].  The load must complete before compute begins, which
+//               is enforced by acquire()'s __syncthreads().
+//   acquire   → __syncthreads() (wait for the prefetch load just issued)
 //   release   → __syncthreads() (protect buf[0] before next prefetch)
 //
-//   Wait – for the single-buffer case there is a subtlety: the load must
-//   happen BEFORE acquire so that acquire can wait for it.  We therefore
-//   restructure: prefetch() loads the CURRENT tile (passed index = t+1, but
-//   from the kernel's perspective the current tile needed for iteration t is
-//   tile index t; we reconcile this by passing the upcoming tile index and
-//   inside the policy body loading that index).
-//   Actually the cleanest mapping is:
-//     - prefetch(next_idx) loads tile next_idx for single-buffer
-//       BUT we call it before acquire, and the kernel computes from tile t.
-//   The single-buffer policy therefore loads tile t INSIDE prefetch when
-//   next_idx == t+1, which means it loads tile t+1 one iteration early.
-//   That is exactly the double-buffer pattern without the extra buffer!
-//   In practice the compiler cannot overlap this load with the current
-//   compute because there is only one buffer and __syncthreads is needed in
-//   both acquire and release.  The double-buffer policy provides the second
+//   The compiler cannot overlap the load with the preceding compute because
+//   both operations share the single buffer and are separated by two
+//   __syncthreads() calls.  The double-buffer policy provides the second
 //   buffer that allows real overlap.
 //
 // SoftwareDoubleBufferTilePolicy:
@@ -143,11 +132,10 @@ struct SingleBufferTilePolicy
                                     int /*num_tiles*/)
     {}
 
-    // Load tile `tile_idx` into the single buffer.
-    // Called with tile_idx = next tile (t + 1 from the loop), so the policy
-    // loads the tile that the NEXT iteration will compute from.  The kernel
-    // calls acquire() immediately after, which __syncthreads() and thereby
-    // ensures the tile is visible before compute begins.
+    // Load tile `tile_idx - 1` (the CURRENT tile t) into the single buffer.
+    // The kernel calls prefetch(t + 1), so tile_idx = t + 1.  We load
+    // tile t = tile_idx - 1 here; acquire() then __syncthreads() to ensure
+    // it is visible before compute begins.
     static __device__ void prefetch(SharedStorage&  smem,
                                     const float*    A,
                                     const float*    B,
@@ -159,14 +147,12 @@ struct SingleBufferTilePolicy
                                     int             k,
                                     int             tid,
                                     int             num_threads,
-                                    int             num_tiles)
+                                    int             /*num_tiles*/)
     {
-        // Guard: the last iteration calls prefetch(num_tiles), which is out
-        // of range.  Nothing to load.
-        if(tile_idx >= num_tiles)
-        {
-            return;
-        }
+        // tile_idx = t + 1, so the tile to load is t = tile_idx - 1.
+        // The loop runs t in [0, num_tiles), so tile_idx in [1, num_tiles],
+        // and load_idx in [0, num_tiles - 1] — always in range.
+        const int load_idx = tile_idx - 1;
 
         const int tile_elems_a = BLOCK_TILE_M * K_TILE_SIZE;
         for(int idx = tid; idx < tile_elems_a; idx += num_threads)
@@ -174,7 +160,7 @@ struct SingleBufferTilePolicy
             const int tile_row   = idx / K_TILE_SIZE;
             const int tile_col   = idx % K_TILE_SIZE;
             const int global_row = block_row_start + tile_row;
-            const int global_col = tile_idx * K_TILE_SIZE + tile_col;
+            const int global_col = load_idx * K_TILE_SIZE + tile_col;
             smem.tile_a[tile_row][tile_col] =
                 (global_row < m && global_col < k)
                     ? A[global_row * k + global_col]
@@ -186,7 +172,7 @@ struct SingleBufferTilePolicy
         {
             const int tile_col_idx = idx / K_TILE_SIZE;
             const int tile_k_idx   = idx % K_TILE_SIZE;
-            const int global_row   = tile_idx * K_TILE_SIZE + tile_k_idx;
+            const int global_row   = load_idx * K_TILE_SIZE + tile_k_idx;
             const int global_col   = block_col_start + tile_col_idx;
             smem.tile_b_T[tile_col_idx][tile_k_idx] =
                 (global_row < k && global_col < n)
