@@ -119,13 +119,13 @@ constexpr int BLOCK_THREADS = BLOCK_DIM_X * BLOCK_DIM_Y;    // 256
 // (supported by both CUDA and HIP); amdgpu_waves_per_eu is AMD-specific but
 // more expressive.
 //
-// Profiling guidance (rocprof-compute / ROCprof Compute Viewer)
-// --------------------------------------------------------------
-// Profile the kernel with rocprof-compute and inspect in the Viewer:
-//   - "VGPRs used"          : per-kernel VGPR allocation
-//   - "SGPRs used"          : scalar register count
-//   - "Occupancy (achieved)": wavefronts per CU during execution
-//   - "Scratch memory used" : non-zero indicates register spilling
+// Profiling guidance (rocprofv3)
+// --------------------------------
+// Profile the kernel with rocprofv3 --kernel-trace and inspect the CSV output:
+//   - VGPR_Count    : per-kernel VGPR allocation
+//   - Scratch_Size  : non-zero indicates register spilling
+//   - Wave_Size     : wavefront width (32 or 64)
+//   - LDS_Block_Size: shared memory allocation per block
 //
 // Increase min_waves_per_eu / reduce max_waves_per_eu until the product of
 // "occupancy" and "compute utilisation" is maximised.  A kernel with 4
@@ -266,11 +266,11 @@ __global__ void matrix_multiply_no_hint(const float* __restrict__ A,
 // For 256 threads per block on RDNA (wavefront = 32):
 //   8 wavefronts per block × 1 block = 8 wavefronts per CU minimum.
 //
-// The min_waves_per_eu value below is illustrative.  Profile with rocprof-compute
+// The min_waves_per_eu value below is illustrative.  Profile with rocprofv3
 // to find the value that maximises performance on your target architecture.
 // ---------------------------------------------------------------------------
 // [Sphinx launch bounds kernel start]
-constexpr int MIN_WAVES_PER_EU = 2; // tune this with rocprof-compute
+constexpr int MIN_WAVES_PER_EU = 2; // tune this with rocprofv3
 
 __global__
 __launch_bounds__(BLOCK_THREADS, MIN_WAVES_PER_EU)
@@ -298,22 +298,23 @@ void matrix_multiply_launch_bounds(const float* __restrict__ A,
 // Setting min == max pins occupancy to exactly that value.  Setting a range
 // gives the compiler freedom to choose the best allocation within the range.
 //
-// Use rocprof-compute and the ROCprof Compute Viewer to compare "VGPRs used"
-// and "Scratch memory used" between variants and verify that the chosen range
-// does not introduce register spilling.
+// Use rocprofv3 --kernel-trace to compare VGPR_Count and Scratch_Size between
+// variants and verify that the chosen range does not introduce register spilling.
 // ---------------------------------------------------------------------------
 // [Sphinx amdgpu waves per eu kernel start]
-constexpr int WAVES_PER_EU_MIN = 2; // tune with rocprof-compute
-constexpr int WAVES_PER_EU_MAX = 4; // tune with rocprof-compute
+// tune WAVES_PER_EU_MIN and WAVES_PER_EU_MAX with rocprofv3 --kernel-trace
+// (compare VGPR_Count across variants).
+constexpr int WAVES_PER_EU_MIN = 2;
+constexpr int WAVES_PER_EU_MAX = 4;
 
+__global__ void matrix_multiply_waves_per_eu
 [[clang::amdgpu_waves_per_eu(WAVES_PER_EU_MIN, WAVES_PER_EU_MAX)]]
-__global__
-void matrix_multiply_waves_per_eu(const float* __restrict__ A,
-                                  const float* __restrict__ B,
-                                  float* __restrict__ C,
-                                  int m,
-                                  int n,
-                                  int k)
+(const float* __restrict__ A,
+ const float* __restrict__ B,
+ float* __restrict__ C,
+ int m,
+ int n,
+ int k)
 {
     __shared__ float tile_a[BLOCK_TILE_M][K_TILE_SIZE];
     __shared__ float tile_b_T[BLOCK_TILE_N][K_TILE_SIZE];
