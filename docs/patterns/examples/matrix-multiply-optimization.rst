@@ -1223,4 +1223,3 @@ The following resources provide deeper coverage of the tools and hardware refere
   guide to timeline and counter profiling.
 * AMD GPU architecture guides (ISA references) — VGPR budgets, LDS bank
   geometry, and wavefront scheduling details for each architecture family.
-
