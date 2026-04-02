@@ -222,11 +222,11 @@ to a single bin count using a shared memory tree reduction:
    :start-after: [Sphinx histogram reduce kernel start]
    :end-before: [Sphinx histogram reduce kernel end]
 
-The kernel launches ``num_bins`` blocks of ``block_size`` threads each. Each
-thread accumulates every ``blockDim.x``-th partial block into a register
-accumulator, writes the result to shared memory, and participates in the tree
-reduction. Thread 0 of each block writes the final bin count. The access
-pattern ``partial_histogram[i * num_bins + bin]`` strides by ``num_bins``
+The kernel launches a number of blocks equal to ``num_bins``, with each block
+consisting of ``block_size`` threads. Every thread accumulates data from every
+``blockDim.x``-th partial block into a register accumulator. It then writes the
+result to shared memory and participates in the tree reduction process. The
+access pattern ``partial_histogram[i * num_bins + bin]`` strides by ``num_bins``
 between iterations, so consecutive threads in a warp read consecutive addresses
 so the reads are coalesced.
 
