@@ -907,6 +907,7 @@ qwen
 Qwen
 Radeon
 radeon
+radix
 RAII
 Raja
 RAS

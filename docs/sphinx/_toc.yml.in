@@ -21,6 +21,7 @@ subtrees:
       - file: patterns/examples/highly-parallel-image-gamma-correction
       - file: patterns/examples/fixed-size-kernels-image-gamma-correction
       - file: patterns/examples/reduction
+      - file: patterns/examples/histogram
       - file: patterns/examples/tiling-matrix-multiply
       - file: patterns/examples/tiling-matrix-transpose
 
