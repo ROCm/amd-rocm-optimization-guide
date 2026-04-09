@@ -1,0 +1,625 @@
+.. meta::
+   :description: Reference for CDNA (gfx908, MI100) matrix fused multiply-add intrinsics, covering all __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
+   :keywords: AMD, ROCm, HIP, CDNA, MI100, gfx908, MFMA, matrix cores, intrinsics, __builtin_amdgcn_mfma, matrix multiply-accumulate
+
+.. _cdna-mfma-intrinsics:
+
+********************************************************************************
+CDNA MFMA intrinsics
+********************************************************************************
+
+Matrix Fused Multiply-Add (MFMA) intrinsics let you issue hardware
+matrix multiply-accumulate operations directly from HIP device code on
+first-generation CDNA GPUs (```gfx908``, MI100).  Each MFMA instruction
+multiplies a small :math:`\pmb{A}` fragment by a small :math:`\pmb{B}` fragment
+and accumulates the result into a :math:`\pmb{C}` fragment, all within a single
+wavefront of 64 lanes. The hardware delivers significantly higher throughput
+than an equivalent sequence of scalar fused multiply-add (FMA) instructions.
+
+Architecture availability
+=========================
+
+The intrinsics on this page target CDNA (```gfx908``, MI100) exclusively.
+Equivalent intrinsics for later CDNA generations are documented on their own
+reference pages:
+
+* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (```gfx90a```, MI200 series)
+
+.. _cdna-mfma-accumulator-layout:
+
+Accumulator layout
+==================
+
+Each MFMA instruction computes one or more independent :math:`M \times N`
+output tiles simultaneously across the 64 lanes of a wavefront.  The number
+of independent tiles is called the *block count*.  It depends on how the
+:math:`\pmb{A}` matrix rows are distributed across lane groups:
+
+* **Scalar-input variants** (FP32 :math:`\pmb{A}` and :math:`\pmb{B}`):
+  each K position occupies a separate group of :math:`M` lanes, so
+  :math:`\text{blocks} = \text{wavefront\_size} / (M \times K)`.
+* **Packed-input variants** (FP16, BF16, INT8 :math:`\pmb{A}` and
+  :math:`\pmb{B}`): all K positions are packed into the register bits of
+  the *same* lane group, so
+  :math:`\text{blocks} = \text{wavefront\_size} / M` regardless of
+  :math:`K`.
+
+Each block is independent: the :math:`\pmb{A}`, :math:`\pmb{B}`, and
+:math:`\pmb{C}`/:math:`\pmb{D}` operands of different blocks
+occupy distinct lane and accVGPR positions and compute separate outer products.
+
+The total number of accVGPRs per lane scales with the block count:
+
+.. math::
+
+   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront\_size}}
+
+.. note::
+
+   On CDNA GPUs, the :math:`\pmb{C}` and :math:`\pmb{D}` matrix operands must
+   reside in *accumulation VGPRs* (accVGPRs).  Unlike :math:`\pmb{A}` and
+   :math:`\pmb{B}`, they cannot use standard architecture VGPRs (ArchVGPRs).
+   In HIP device code the transfer to ArchVGPRs happens automatically when 
+   assigning the intrinsic return value to a local variable of the appropriate
+   vector type.
+
+   Each of the 64 wavefront lanes maintains its own private accVGPR file.
+   An accVGPR index always refers to a register within one specific lane's
+   file; the same index in two different lanes denotes two distinct physical
+   registers.
+
+The formulas in the subsections below use the following notation:
+
+* :math:`i` -- zero-based row index within the tile, :math:`0 \le i < M`
+* :math:`j` -- zero-based column index within the tile, :math:`0 \le j < N`
+* :math:`b` -- block index, :math:`0 \le b < \text{blocks}`
+* **lane** -- wavefront lane that holds the element,
+  :math:`0 \le \text{lane} < 64`
+* **accVGPR** -- zero-based index into that lane's *private* accumulator
+  register file; the same index in two different lanes refers to two distinct
+  physical registers
+
+:math:`32 \times 32` layout
+---------------------------
+
+The :math:`32 \times 32` tile shape uses two blocks.  All 32 accVGPRs per
+lane are active: accVGPRs 0---15 belong to block 0, accVGPRs 16---31 to block 1.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/mfma-intrinsics/mfma-layout-32x32.svg
+   :alt: :math:`32 \times 32` MFMA accumulator layout -- accVGPR index per
+         output element, with lane groups colour-coded.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32` **accumulator layout -- 2 blocks.**  Each cell shows the
+   accVGPR index that holds output element :math:`(i, j)` of block 0; block 1
+   adds 16.  Teal cells (rows where :math:`\lfloor i/4 \rfloor` is even) belong
+   to lanes 0---31; grey cells to lanes 32---63.  Column :math:`j` gives the
+   lane offset within the group.
+
+Given output element :math:`(i, j)` in block :math:`b`:
+
+.. math::
+
+   \text{lane}   &= \bigl(32 \cdot \lfloor \frac{i}{4} \rfloor\bigr) \bmod 64 + j \\
+   \text{accVGPR} &= 16 b + 4 \lfloor \frac{i}{8} \rfloor + (i \bmod 4)
+
+Conversely, given a lane :math:`L` and accVGPR index :math:`G`:
+
+.. math::
+
+   i &= \bigl(8 \cdot \lfloor \frac{G}{4} \rfloor\bigr) \bmod 32
+       + 4 \lfloor \frac{L}{32} \rfloor + (G \bmod 4) \\
+   j &= L \bmod 32 \\
+   b &= \lfloor \frac{G}{16} \rfloor
+
+The row-to-lane mapping groups rows in bands of four.  Within block 0:
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Rows
+     - Lanes
+     - accVGPRs
+   * - 0---3
+     - 0---31
+     - 0---3
+   * - 4---7
+     - 32---63
+     - 0---3
+   * - 8---11
+     - 0---31
+     - 4---7
+   * - 12---15
+     - 32---63
+     - 4---7
+   * - 16---19
+     - 0---31
+     - 8---11
+   * - 20---23
+     - 32---63
+     - 8---11
+   * - 24---27
+     - 0---31
+     - 12---15
+   * - 28---31
+     - 32---63
+     - 12---15
+
+Block 1 uses the same lane pattern with accVGPRs 16---31.
+
+Intrinsics with a **1-block** :math:`32 \times 32` result (``v16float`` /
+``v16int``, 16 accVGPRs per lane) use only block 0 of the layout above.
+These variants do not support the ``cbsz`` and ``abid`` modifiers.
+
+:math:`16 \times 16` layout
+---------------------------
+
+The :math:`16 \times 16` tile shape uses four blocks.  The 16 accVGPRs per
+lane are partitioned by block: accVGPRs 0---3 for block 0, 4---7 for block 1,
+8---11 for block 2, and 12---15 for block 3.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/mfma-intrinsics/mfma-layout-16x16.svg
+   :alt: :math:`16 \times 16` MFMA accumulator layout -- accVGPR index per
+         output element, with lane groups colour-coded by block assignment.
+   :align: center
+   :width: 70%
+
+   :math:`16 \times 16` **accumulator layout -- 4 blocks.**  Each cell shows
+   the accVGPR index for block 0; block :math:`k` adds :math:`4k`.  Rows
+   0---3 (teal, lanes 0---15), rows 4---7 (grey, lanes 16---31), rows 8---11
+   (teal, lanes 32---47), rows 12---15 (grey, lanes 48---63).  Column
+   :math:`j` gives the lane offset within the group.
+
+Given output element :math:`(i, j)` in block :math:`b`:
+
+.. math::
+
+   \text{lane}    &= 16 \lfloor \frac{i}{4} \rfloor + j \\
+   \text{accVGPR} &= 4 b + (i \bmod 4)
+
+Conversely, given lane :math:`L` and accVGPR index :math:`G`:
+
+.. math::
+
+   i &= 4 \lfloor \frac{L}{16} \rfloor + (G \bmod 4) \\
+   j &= L \bmod 16 \\
+   b &= \lfloor \frac{G}{4} \rfloor
+
+The row-to-lane mapping (identical for every block):
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Rows
+     - Lanes
+   * - 0---3
+     - 0---15
+   * - 4---7
+     - 16---31
+   * - 8---11
+     - 32---47
+   * - 12---15
+     - 48---63
+
+Intrinsics with a **1-block** :math:`16 \times 16` result (``v4float`` /
+``v4int``, 4 accVGPRs per lane) use only block 0 of the layout above.
+These variants do not support the ``cbsz`` and ``abid`` modifiers.
+
+:math:`4 \times 4` layout
+-------------------------
+
+The :math:`4 \times 4` tile shape uses 16 blocks.  A single wavefront
+simultaneously computes 16 independent :math:`4 \times 4` outer products.
+Each group of 4 consecutive lanes (lanes :math:`4b` through :math:`4b + 3`)
+holds all 16 output elements of block :math:`b` across 4 accVGPRs.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/mfma-intrinsics/mfma-layout-4x4.svg
+   :alt: :math:`4 \times 4` MFMA accumulator layout -- all 16 blocks shown as
+         consecutive groups of 4 lanes across the full wavefront.
+   :align: center
+   :width: 100%
+
+   :math:`4 \times 4` **accumulator layout -- 16 blocks.**  Columns are lanes
+   0---63; each group of 4 consecutive lanes holds one complete
+   :math:`4 \times 4` output tile in accVGPRs 0---3 (rows).  Teal groups are
+   even-numbered blocks, grey groups odd-numbered blocks.
+
+Given output element :math:`(i, j)` in block :math:`b`:
+
+.. math::
+
+   \text{lane}    &= 4 b + j \\
+   \text{accVGPR} &= i
+
+Conversely, given lane :math:`L` and accVGPR index :math:`G`:
+
+.. math::
+
+   i &= G \bmod 4 \\
+   j &= L \bmod 4 \\
+   b &= \lfloor \frac{L}{4} \rfloor
+
+Using MFMA intrinsics as a compute policy
+==========================================
+
+The matrix multiplication tutorial in
+:ref:`matrix-multiply-optimization` uses a ``ComputePolicy`` type
+parameter to separate the multiply-accumulate logic from the rest of the
+kernel.  You can drop an MFMA-based policy into that framework without
+changing the outer kernel.
+
+The example below implements ``MfmaCdnaPolicy`` using
+``v_mfma_f32_32x32x1f32`` -- a :math:`32 \times 32` FP32 intrinsic available
+on all CDNA generations.  Each wavefront computes a single
+:math:`32 \times 32` output tile per ``mma()`` call; two blocks are active,
+giving 32 accVGPRs per lane.
+
+.. rubric:: Policy constants
+
+``v_mfma_f32_32x32x1f32`` takes one FP32 scalar from A and one from B per
+call (K=1), so ``k_step = 1``.  The entire :math:`32 \times 32` tile is owned
+by a single wavefront, so ``thread_tile_m = thread_tile_n = 32`` and
+``effective_lanes = 64``.
+
+.. rubric:: Accumulator layout
+
+The intrinsic returns a ``v32float`` holding 32 accVGPR values --
+16 for block 0 and 16 for block 1.  The ``Accumulator`` struct wraps this
+directly.  The layout formulas from the :ref:`cdna-mfma-accumulator-layout`
+section translate ``(lane, accVGPR)`` back to :math:`(i, j)` coordinates
+during the ``store_c()`` pass.
+
+.. rubric:: Fragment loading
+
+Because K=1, each ``load_a`` call reads a single scalar: the element at
+row ``tile_a_row + (lane mod 32)`` (since 32 :math:`\pmb{A}`-rows map to the
+lower 32
+lanes).  In practice the kernel inner loop increments ``ki`` in steps of
+``k_step = 1``, so each ``load_a``/``load_b`` call loads one element.
+
+.. code-block:: cuda
+
+   // MfmaCdnaPolicy -- ComputePolicy implementation for v_mfma_f32_32x32x1f32.
+   //
+   // Intrinsic signature:
+   //   v32float __builtin_amdgcn_mfma_f32_32x32x1f32(
+   //       float    a,        // one A element (scalar, row in [0,31])
+   //       float    b,        // one B element (scalar, col in [0,31])
+   //       v32float c,        // input accumulator (32 accVGPRs per lane)
+   //       int      cbsz,     // block-size modifier (0 = use all 2 blocks)
+   //       int      abid,     // A-matrix block ID (0 for block 0)
+   //       int      blgp);    // B-matrix lane-group permute (0 = no permute)
+   //
+   // Accumulator layout (block 0, lane L, accVGPR G):
+   //   i = 8·⌊G/4⌋ + 4·⌊L/32⌋ + (G mod 4)
+   //   j = L mod 32
+   // Block 1 adds 16 to G.  Both blocks are stored contiguously in v32float:
+   //   elements [0,15]  → block 0 accVGPRs 0–15
+   //   elements [16,31] → block 1 accVGPRs 0–15 (= accVGPRs 16–31 of the lane)
+   //
+   struct MfmaCdnaPolicy
+   {
+       // ── ComputePolicy constants ──────────────────────────────────────────
+       static constexpr int thread_tile_m  = 32;  // one MFMA tile rows
+       static constexpr int thread_tile_n  = 32;  // one MFMA tile cols
+       static constexpr int effective_lanes = 64; // all lanes contribute
+       static constexpr int k_step          = 1;  // K=1 per intrinsic call
+
+       using elem_a = float;
+       using elem_b = float;
+
+       // ── Accumulator ──────────────────────────────────────────────────────
+       // v32float: HIP vector of 32 floats -- directly maps to 32 accVGPRs.
+       // Must be trivially constructible (zero-init via zero() below).
+       using v32float = float [[clang::ext_vector_type(32)]];
+
+       struct Accumulator
+       {
+           v32float regs;   // 32 accVGPR values (block 0 [0..15], block 1 [16..31])
+       };
+
+       __device__ static void zero(Accumulator& acc)
+       {
+           acc.regs = v32float{};   // zero-initialise all 32 elements
+       }
+
+       // ── thread_tile_offset ────────────────────────────────────────────────
+       // The :math:`32 \times 32` MFMA tile maps to the full 64-lane wavefront.  There is
+       // only one output sub-tile per wavefront, at offset (0, 0) within the
+       // block tile.  thread_row and thread_col are both 0 for every lane.
+       __device__ static void thread_tile_offset(int  /*tid*/,
+                                                  int  /*lane_id*/,
+                                                  int* thread_row,
+                                                  int* thread_col)
+       {
+           *thread_row = 0;
+           *thread_col = 0;
+       }
+
+       // ── Fragment loads ────────────────────────────────────────────────────
+       // load_a: read one FP32 scalar for the current ki from tile_a.
+       //
+       // tile_a is row-major [block_tile_m][k_tile_size].
+       // The MFMA A-operand distributes 32 rows across the lower 32 lanes:
+       //   lane L (in [0,31]) supplies A-row (tile_a_row + L).
+       //   lane L (in [32,63]) mirrors the same 32 rows for the second block.
+       // Indexing: tile_a[tile_a_row + (lane_id mod 32)][ki].
+       __device__ static void load_a(const float* tile_a_ptr,
+                                     int          tile_a_row,
+                                     int          ki,
+                                     int          k_tile_size,
+                                     int          lane_id,
+                                     elem_a     (&frag)[1])
+       {
+           const int row = tile_a_row + (lane_id % 32);
+           frag[0] = tile_a_ptr[row * k_tile_size + ki];
+       }
+
+       // load_b: read one FP32 scalar for the current ki from tile_b_T.
+       //
+       // tile_b_T is column-major [block_tile_n][k_tile_size].
+       // The MFMA B-operand distributes 32 cols across the lower 32 lanes:
+       //   lane L (in [0,31]) supplies B-col (tile_b_col + L).
+       //   lane L (in [32,63]) mirrors the same 32 cols for the second block.
+       // Indexing: tile_b_T[(tile_b_col + (lane_id mod 32))][ki].
+       __device__ static void load_b(const float* tile_b_T_ptr,
+                                     int          tile_b_col,
+                                     int          ki,
+                                     int          k_tile_size,
+                                     int          lane_id,
+                                     elem_b     (&frag)[1])
+       {
+           const int col = tile_b_col + (lane_id % 32);
+           frag[0] = tile_b_T_ptr[col * k_tile_size + ki];
+       }
+
+       // ── mma ───────────────────────────────────────────────────────────────
+       // Issue one v_mfma_f32_32x32x1f32 instruction.
+       // cbsz=0, abid=0, blgp=0: use both blocks, no lane-group permutation.
+       __device__ static void mma(Accumulator&       acc,
+                                  const elem_a     (&a_frag)[1],
+                                  const elem_b     (&b_frag)[1])
+       {
+           acc.regs = __builtin_amdgcn_mfma_f32_32x32x1f32(
+               a_frag[0], b_frag[0], acc.regs,
+               /*cbsz=*/0, /*abid=*/0, /*blgp=*/0);
+       }
+
+       // ── store_c ───────────────────────────────────────────────────────────
+       // Write all 32 accVGPR values to global memory.
+       //
+       // Inverse layout formulas (from the accumulator layout section):
+       //   block b  = G / 16          (G = accVGPR index in [0,31])
+       //   accVGPR  = G mod 16
+       //   i = 8·⌊(G mod 16)/4⌋ + 4·⌊L/32⌋ + ((G mod 16) mod 4)
+       //   j = L mod 32
+       // where L = lane_id.
+       __device__ static void store_c(const Accumulator& acc,
+                                      float*             C,
+                                      int                out_row_base,
+                                      int                out_col_base,
+                                      int                m,
+                                      int                n,
+                                      int                lane_id)
+       {
+           const int L = lane_id;
+           const int j = L % 32;
+
+           #pragma unroll
+           for(int G = 0; G < 32; ++G)
+           {
+               // Recover (i, j) from accVGPR index G and lane L.
+               const int g_local = G % 16;          // accVGPR within block
+               const int i = 8 * (g_local / 4)      // 8-row group
+                           + 4 * (L / 32)            // lane-group offset
+                           + (g_local % 4);          // position within group
+
+               const int r = out_row_base + i;
+               const int c = out_col_base + j;
+               if(r < m && c < n)
+                   C[r * n + c] = acc.regs[G];
+           }
+       }
+   };
+
+.. rubric:: Instantiating the kernel
+
+With ``MfmaCdnaPolicy`` in hand, plug it into the generic kernel alongside
+any ``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n`` are multiples
+of 32 and whose ``k_tile_size`` is a multiple of ``k_step = 1``:
+
+.. code-block:: cuda
+
+   // Block tile 64×64, K-strip 16, single-buffered.
+   using Tile   = SingleBufferTilePolicy<64, 64, 16>;
+   using Compute = MfmaCdnaPolicy;
+
+   // Each block spawns (64/32) × (64/32) = 4 wavefronts.
+   constexpr int threads_per_block = 4 * 64;   // 4 wavefronts × 64 lanes
+
+   matrix_multiply_generic<Tile, Compute>
+       <<<dim3((N + 63) / 64, (M + 63) / 64), threads_per_block>>>
+       (d_A, d_B, d_C, M, N, K);
+
+.. note::
+
+   ``MfmaCdnaPolicy`` requires a CDNA GPU (``gfx908``) Compile with
+   ``--offload-arch=gfx908`` to select the correct architecture.
+   The policy would be guarded by ``__gfx908__`` etc. macros in production code
+   so that a single source file can fall back to ``ScalarFMAPolicy`` on other
+   targets.
+
+Naming convention
+=================
+
+All MFMA intrinsics follow the pattern:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
+
+``out_type``
+    Accumulator element type (``f32`` or ``i32``).
+
+``M``, ``N``, ``K``
+    Tile dimensions in elements.  The instruction computes the
+    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
+    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
+    :math:`M \times N` output tile.  Each instruction processes one K step;
+    the caller loops over K to accumulate a full matrix product.
+
+``in_type``
+    Input element type (``f32``, ``f16``, ``bf16``, or ``i8``).
+
+Register types used in this reference
+======================================
+
+The signatures below use the following type aliases, which you can declare with
+C++ attributes in any HIP translation unit:
+
+.. code-block:: cpp
+
+   using v4float   = float [[clang::ext_vector_type(4)]];
+   using v16float  = float [[clang::ext_vector_type(16)]];
+   using v32float  = float [[clang::ext_vector_type(32)]];
+   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
+   using v4int     = int [[clang::ext_vector_type(4)]];
+   using v16int    = int [[clang::ext_vector_type(16)]];
+   using v32int    = int [[clang::ext_vector_type(32)]];
+   using v2bfloat  = short [[clang::ext_vector_type(2)]]; // bf16 storage
+
+Each type alias maps one-to-one to the corresponding LLVM vector type used in
+the intrinsic definition.  The number in the name is the element count per
+lane; the total VGPR count equals the element count multiplied by the element
+size in 32-bit words.
+
+.. _cdna-mfma-common-parameters:
+
+Common parameters
+=================
+
+Every MFMA intrinsic on this page shares the same trailing three parameters.
+These must be compile-time integer constants.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``cbsz``
+     - int
+     - Control Broadcast Size modifier. Supported by MFMA intrinsics
+       operating on multiple input blocks for :math:`\pmb{A}`. Legal
+       range 0..4, but must not exceed
+       :math:`\log_{2}(\text{input blocks})`. Setting ``cbsz`` informs
+       the instruction to broadcast values of one chosen input block to
+       :math:`2^{cbsz} - 1` neighboring blocks in :math:`\pmb{A}`. The
+       input block is chosen by setting ``abid``. For example, for a
+       16-block :math:`\pmb{A}` matrix, setting ``cbsz`` to ``1``
+       results in blocks 0 and 1 receiving the same input values, blocks
+       2 and 3 receiving the same input values, blocks 4 and 5 receiving
+       the same input values, etc. Setting ``cbsz`` to ``0`` results in
+       no broadcast.
+   * - ``abid``
+     - int
+     - :math:`\pmb{A}`-matrix Broadcast Identifier. Supported by MFMA intrinsics
+       operating on multiple input blocks for :math:`\pmb{A}`. Used
+       together with ``cbsz``; indicates which input block is selected
+       for broadcast to neighboring blocks in :math:`\pmb{A}`. For
+       example, for a 16-block :math:`\pmb{A}` matrix, setting ``cbsz``
+       to ``2`` and ``abid`` to ``1`` broadcasts block 1's values to
+       blocks 0, 2, and 3; block 5's values to blocks 4, 6, and 7; etc.
+   * - ``blgp``
+     - int
+     - :math:`\pmb{B}`-matrix Lane Group Pattern modifier. Allows a
+       constrained set of
+       swizzling operations on :math:`\pmb{B}` data between lanes.
+       Supported values:
+
+       * ``0``: No swizzling; normal matrix layout for :math:`\pmb{B}`.
+       * ``1``: Data from lanes 0---31 is broadcast into lanes 32---63.
+       * ``2``: Data from lanes 32---63 is broadcast into lanes 0---31.
+       * ``3``: Data from all lanes is rotated down by 16 positions:
+         lane 0's data goes to lane 48, lane 16's data goes to lane 0,
+         etc.
+       * ``4``: Data from lanes 0---15 is broadcast into lanes 16---31,
+         32---47, and 48---63.
+       * ``5``: Data from lanes 16---31 is broadcast into lanes 0---15,
+         32---47, and 48---63.
+       * ``6``: Data from lanes 32---47 is broadcast into lanes 0---15,
+         16---31, and 48---63.
+       * ``7``: Data from lanes 48---63 is broadcast into lanes 0---15,
+         16---31, and 32---47.
+
+.. _cdna-mfma-intrinsic-reference:
+
+Intrinsic reference
+===================
+
+
+FP32-accumulate intrinsics
+==========================
+
+These intrinsics accumulate into single-precision (FP32) output
+fragments.  They differ in the data type of the :math:`\pmb{A}` and
+:math:`\pmb{B}` matrix inputs.
+
+FP32 matrix inputs
+------------------
+
+The following intrinsics accept one FP32 element per lane for both
+:math:`\pmb{A}` and :math:`\pmb{B}` inputs and accumulate into FP32 output
+fragments.
+
+.. include:: mfma-ref/f32-32x32x1f32.rst
+.. include:: mfma-ref/f32-16x16x1f32.rst
+.. include:: mfma-ref/f32-4x4x1f32.rst
+.. include:: mfma-ref/f32-32x32x2f32.rst
+.. include:: mfma-ref/f32-16x16x4f32.rst
+
+FP16 matrix inputs
+------------------
+
+The following intrinsics accept four FP16 elements per lane packed into a
+``v4half`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
+and accumulate into FP32 output fragments.
+
+.. include:: mfma-ref/f32-32x32x4f16.rst
+.. include:: mfma-ref/f32-16x16x4f16.rst
+.. include:: mfma-ref/f32-4x4x4f16.rst
+.. include:: mfma-ref/f32-32x32x8f16.rst
+.. include:: mfma-ref/f32-16x16x16f16.rst
+
+BF16 matrix inputs
+------------------
+
+The following intrinsics accept two BF16 elements per lane packed into a
+``v2bfloat`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
+and accumulate into FP32 output fragments.
+
+.. include:: mfma-ref/f32-32x32x2bf16.rst
+.. include:: mfma-ref/f32-16x16x2bf16.rst
+.. include:: mfma-ref/f32-4x4x2bf16.rst
+.. include:: mfma-ref/f32-32x32x4bf16.rst
+.. include:: mfma-ref/f32-16x16x8bf16.rst
+
+INT32-accumulate intrinsics
+===========================
+
+These intrinsics accept four signed 8-bit integer elements per lane packed
+into a single ``int`` register for both :math:`\pmb{A}` and :math:`\pmb{B}`
+inputs, and accumulate into INT32 output fragments.
+
+INT8 matrix inputs
+------------------
+
+.. include:: mfma-ref/i32-32x32x4i8.rst
+.. include:: mfma-ref/i32-16x16x4i8.rst
+.. include:: mfma-ref/i32-4x4x4i8.rst
+.. include:: mfma-ref/i32-32x32x8i8.rst
+.. include:: mfma-ref/i32-16x16x16i8.rst

@@ -30,3 +30,5 @@ subtrees:
       - file: hardware-intrinsics/cross-arch/arithmetic-intrinsics
       - file: hardware-intrinsics/cross-arch/direct-to-lds-intrinsics
       - file: hardware-intrinsics/cross-arch/warp-intrinsics
+      - file: hardware-intrinsics/cdna/cdna-mfma-intrinsics
+      
