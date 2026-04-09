@@ -24,7 +24,7 @@ effect with the ROCm performance analysis stack.
 
 The complete source files for all steps are available at:
 
-* :download:`Step 1 - Naïve <../../tools/example_codes/matrix_multiply_naive.hip>`
+* :download:`Step 1 - Naive <../../tools/example_codes/matrix_multiply_naive.hip>`
 * :download:`Step 2 - LDS tiling <../../tools/example_codes/matrix_multiply_lds.hip>`
 * :download:`Step 3 - Register tiling <../../tools/example_codes/matrix_multiply_register_tiling.hip>`
 * :download:`Step 4 - Double buffering <../../tools/example_codes/matrix_multiply_double_buffer.hip>`
@@ -47,13 +47,13 @@ Before starting this tutorial, ensure the following are in place.
 * ROCm installed and ``amdclang++`` available on ``PATH``.
 * Familiarity with the HIP execution model (grids, blocks, warps) and its
   mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
-* ``rocprofv3`` installed for performance analysis.
+* :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
-.. note::
+.. tip::
 
    Hardware performance counter availability varies by ROCm version, Linux
    kernel version, and system permissions.  A counter that appears in
-   ``rocprofv3 --list-avail`` may still return only zero values on a given
+   ``rocprofv3 --list-avail`` might still return only zero values on a given
    system.  If that happens, the counter is unavailable. Kernel duration
    (``End_Timestamp - Start_Timestamp`` from ``rocprofv3 --kernel-trace``) is
    always available and provides a reliable baseline across all steps and
@@ -75,7 +75,7 @@ A CPU implementation applies three nested loops over *m*, *n*, and *k*,
 performing one multiply-accumulate per iteration — 2 × M × N × K scalar
 operations in total.
 
-A GPU implementation is **embarrassingly parallel** across the output elements.
+A GPU implementation is `embarrassingly parallel <https://en.wikipedia.org/wiki/Embarrassingly_parallel>`_ across the output elements.
 A HIP kernel assigns one thread (or a small tile of threads) to each output
 element, eliminating the *m* and *n* loops entirely and leaving only the
 *k* reduction loop inside each thread.  With :math:`M \times N` output
@@ -97,22 +97,22 @@ For :math:`M = N = K = n` this simplifies to :math:`\frac{n}{6}`.  With
 :math:`n = 4096` that gives roughly **683 FLOPs/byte**, far above the roofline
 ridge point of any current AMD GPU.  GEMM is therefore **compute-bound** in
 principle—but only if data is supplied fast enough to keep the compute units
-busy.  The naïve kernel falls well below the roofline because it is
+busy.  The naive kernel falls well below the roofline because it is
 *memory-bound in practice*: global memory latency stalls dominate.
 
 The optimization steps that follow progressively close the gap between actual
 and theoretical throughput by improving data reuse and instruction-level
 efficiency.
 
-Step 1: Naïve kernel
+Step 1: Naive kernel
 =====================
 
-The naïve kernel assigns one thread per output element.  Each thread reads a
+The naive kernel assigns one thread per output element.  Each thread reads a
 full row of :math:`\pmb{A}` and a full column of :math:`\pmb{B}` directly from
 global memory.
 
 While this maps naturally onto the GPU's parallel execution model, it produces
-severe **cache thrashing**.  Consider any element :math:`A[i][k]`: it is needed
+severe **cache thrashing**.  Consider that any element :math:`A[i][k]` is needed
 by *all N threads* that compute a different output column in the same row, and
 :math:`B[k][j]` is needed by all *M threads* that compute a different output
 row in the same column.  With tens of thousands of threads in flight
@@ -151,14 +151,14 @@ Launch configuration:
 Kernel duration is ``End_Timestamp - Start_Timestamp`` (both in nanoseconds).
 The trace also captures ``VGPR_Count`` and ``Scratch_Size`` for each dispatch.
 
-The ``--kernel-trace`` CSV is sufficient to establish the baseline: the naïve
+The ``--kernel-trace`` CSV is sufficient to establish the baseline: the naive
 kernel's ``End_Timestamp - Start_Timestamp`` will be the slowest of all steps
 because every global memory access is a cache miss.
 
 Step 2: LDS tiling
 ==================
 
-The root cause of the naïve kernel's cache thrashing is that all threads share
+The root cause of the naive kernel's cache thrashing is that all threads share
 a single transparent L2 cache with no way to guarantee that a loaded value
 stays resident until every thread that needs it has read it.  AMD GPUs expose
 **Local Data Share (LDS)** — a low-latency, high-bandwidth on-chip memory that
@@ -215,7 +215,7 @@ takes *k* cycles instead of one).
 Bank mapping is straightforward: consecutive 4-byte words are assigned to
 consecutive banks in round-robin order.  For a 32-bank LDS, word at byte
 address ``a`` maps to bank ``(a / 4) % 32``.  Two threads accessing the
-*same* address are not a conflict — the hardware broadcasts the value to
+*same* address are not in conflict — the hardware broadcasts the value to
 both.
 
 The number of LDS banks varies across AMD GPU architectures:
@@ -260,7 +260,7 @@ regardless of tile size**:
 
 In other words, with FP32 data and the simple inner-product pattern of this
 step, bank conflicts are a non-issue.  The bank mechanism is worth
-understanding now, however, because it becomes a real concern in later steps.
+understanding now, however, because it becomes a real concern later.
 
 **Compile and run:**
 
@@ -290,7 +290,7 @@ What to observe after this step
 | Counter             | What to look for                                       |
 +=====================+========================================================+
 | Kernel duration     | ``End_Timestamp - Start_Timestamp`` should drop        |
-| (kernel-trace CSV)  | significantly vs the naïve kernel, confirming that LDS |
+| (kernel-trace CSV)  | significantly vs the naive kernel, confirming that LDS |
 |                     | data reuse is reducing global memory traffic           |
 +---------------------+--------------------------------------------------------+
 | ``TCP_TCC_READ_REQ  | CDNA only: reduction proportional to ``TILE_SIZE``     |
@@ -511,8 +511,9 @@ the kernel body is identical regardless of the chosen approach.
 
 .. note::
 
-   The LDS footprint doubles with software double buffering (two tile pairs
-   instead of one).  For the parameters in this example
+   The LDS footprint doubles with software double buffering: two copies of the
+   A and B tile buffers are needed instead of one.  For the parameters in this
+   example
    (``BLOCK_TILE_M = BLOCK_TILE_N = 128``, ``K_TILE_SIZE = 16``):
 
    * Single-buffer LDS: 128 × 16 × 4 × 2 = 16 KiB
@@ -546,18 +547,20 @@ To measure LDS stall cycles (RDNA3 and all CDNA):
 What to observe
 ---------------
 
-+---------------------+--------------------------------------------------------+
-| Counter             | What to look for                                       |
-+=====================+========================================================+
-| ``SQ_WAIT_INST_LDS``| Reduction in LDS stall cycles (load latency hidden by  |
-|                     | prefetch).                                             |
-+---------------------+--------------------------------------------------------+
-| Kernel duration     | Should remain similar to Step 3 (prefetch hides        |
-| (kernel-trace CSV)  | latency but does not reduce total data fetched)        |
-+---------------------+--------------------------------------------------------+
-| ``TCP_TCC_READ_REQ  | CDNA only: roughly constant vs Step 3 (same number of |
-| _sum``              | L2-to-HBM reads; only latency is hidden, not traffic) |
-+---------------------+--------------------------------------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - ``SQ_WAIT_INST_LDS``
+     - Reduction in LDS stall cycles (load latency hidden by prefetch).
+   * - Kernel duration (kernel-trace CSV)
+     - Should remain similar to Step 3 (prefetch hides latency but does not
+       reduce total data fetched).
+   * - ``TCP_TCC_READ_REQ_sum``
+     - CDNA only: roughly constant vs Step 3 (same number of L2-to-HBM reads;
+       only latency is hidden, not traffic).
 
 Step 5: Vectorized loads
 ========================
@@ -594,7 +597,7 @@ To put this in context, consider how a single coalesced scalar load of a
 
 On RDNA GPUs, a coalesced scalar ``float`` load already fills exactly one cache
 line — wider vector loads do not reduce cache traffic.  On CDNA and CDNA2 a
-scalar load spans 4 cache lines; on CDNA3 and CDNA4 it spans 2.  In all cases,
+scalar load spans 4 cache lines. On CDNA3 and CDNA4, it spans 2.  In all cases,
 vector loads do not change the number of cache lines accessed; they reduce
 the number of **instructions** the wavefront must issue to move the same
 amount of data.
@@ -652,7 +655,7 @@ pointers:
    Only the A-tile load is vectorized because its elements are contiguous in
    global memory (row-major, stride 1).  The B-tile is loaded column-by-column
    (stride N in global memory), which is not amenable to simple vector loads.
-   Architecture-specific intrinsics (MFMA, WMMA), covered in follow-up sections,
+   Architecture-specific intrinsics (MFMA and WMMA), covered in follow-up sections,
    address this asymmetry.
 
 Vectorized loads and smaller data types
@@ -682,7 +685,7 @@ half a line.
 
 This is why the ``TilePolicy`` parameterizes the vector load width: the
 optimal width depends on both the element type and the target architecture.
-For the FP32 case in this tutorial the benefit is modest, but for the
+For the FP32 case in this tutorial, the benefit is modest, but for the
 low-precision intrinsics introduced in follow-up sections, vectorized loads
 become essential to avoid wasting memory bandwidth.
 
@@ -868,7 +871,7 @@ depth) would have to be applied to every copy independently.
 
 The goal of this step is to factor the kernel so that the **optimized
 orchestration is written once** and architecture-specific intrinsics can be
-**dropped in later as a policy**, touching no kernel code at all.
+**dropped in later as a policy**, without touching any kernel code.
 
 The insight from the preceding steps is that all the work decomposes into
 exactly two independent concerns:
@@ -952,7 +955,7 @@ The key design decisions are:
 | ``mma``, ``store_c``    |                                                    |
 +-------------------------+----------------------------------------------------+
 
-Data type scope: what the policies cover and what they don't
+Data type scope: policy coverage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``elem_a`` and ``elem_b`` parameterize the *register fragment* type and are
@@ -960,7 +963,7 @@ already fully wired through the kernel loop.  A future ``ComputePolicy`` can
 set ``elem_a = __half`` and the float-to-half conversion happens entirely
 inside ``load_a`` / ``load_b``—the kernel body is untouched.
 
-However, two things are **not yet parameterized** and are hardcoded to
+However, two things are not yet parameterized and are hardcoded to
 ``float`` in this file:
 
 * The **LDS storage type** — ``SharedStorage`` in every ``TilePolicy`` holds
@@ -1016,7 +1019,7 @@ Both policy interfaces are validated with C++17 ``static_assert`` traits:
    :start-after: [Sphinx compute policy traits start]
    :end-before: [Sphinx compute policy traits end]
 
-C++17 vs C++20: concept syntax
+C++17 versus C++20: concept syntax
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``static_assert`` approach above is portable to C++17 but requires the
@@ -1221,5 +1224,6 @@ The following resources provide deeper coverage of the tools and hardware refere
 
 * :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
   guide to timeline and counter profiling.
-* AMD GPU architecture guides (ISA references) — VGPR budgets, LDS bank
-  geometry, and wavefront scheduling details for each architecture family.
+* `AMD GPU architecture guides (ISA references) <https://gpuopen.com/amd-gpu-architecture-programming-documentation/>`_
+  — VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
+  architecture family.
