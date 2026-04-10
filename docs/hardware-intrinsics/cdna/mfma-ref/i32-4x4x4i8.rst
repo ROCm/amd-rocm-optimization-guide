@@ -3,7 +3,7 @@
    Include via: .. include:: mfma-ref/i32-4x4x4i8.rst
 
 ``__builtin_amdgcn_mfma_i32_4x4x4i8``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""""""""""""""""""
 
 .. code-block:: cpp
 

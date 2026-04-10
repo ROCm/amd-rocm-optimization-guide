@@ -10,7 +10,7 @@ CDNA MFMA intrinsics
 
 Matrix Fused Multiply-Add (MFMA) intrinsics let you issue hardware
 matrix multiply-accumulate operations directly from HIP device code on
-first-generation CDNA GPUs (```gfx908``, MI100).  Each MFMA instruction
+first-generation CDNA GPUs (``gfx908``, MI100).  Each MFMA instruction
 multiplies a small :math:`\pmb{A}` fragment by a small :math:`\pmb{B}` fragment
 and accumulates the result into a :math:`\pmb{C}` fragment, all within a single
 wavefront of 64 lanes. The hardware delivers significantly higher throughput
@@ -19,11 +19,11 @@ than an equivalent sequence of scalar fused multiply-add (FMA) instructions.
 Architecture availability
 =========================
 
-The intrinsics on this page target CDNA (```gfx908``, MI100) exclusively.
+The intrinsics on this page target CDNA (``gfx908``, MI100) exclusively.
 Equivalent intrinsics for later CDNA generations are documented on their own
 reference pages:
 
-* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (```gfx90a```, MI200 series)
+* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 
 .. _cdna-mfma-accumulator-layout:
 
@@ -37,11 +37,11 @@ of independent tiles is called the *block count*.  It depends on how the
 
 * **Scalar-input variants** (FP32 :math:`\pmb{A}` and :math:`\pmb{B}`):
   each K position occupies a separate group of :math:`M` lanes, so
-  :math:`\text{blocks} = \text{wavefront\_size} / (M \times K)`.
+  :math:`\text{blocks} = \text{wavefront_size} / (M \times K)`.
 * **Packed-input variants** (FP16, BF16, INT8 :math:`\pmb{A}` and
   :math:`\pmb{B}`): all K positions are packed into the register bits of
   the *same* lane group, so
-  :math:`\text{blocks} = \text{wavefront\_size} / M` regardless of
+  :math:`\text{blocks} = \text{wavefront_size} / M` regardless of
   :math:`K`.
 
 Each block is independent: the :math:`\pmb{A}`, :math:`\pmb{B}`, and
@@ -52,7 +52,7 @@ The total number of accVGPRs per lane scales with the block count:
 
 .. math::
 
-   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront\_size}}
+   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront_size}}
 
 .. note::
 
@@ -430,16 +430,15 @@ These must be compile-time integer constants.
 Intrinsic reference
 ===================
 
-
 FP32-accumulate intrinsics
-==========================
+--------------------------
 
 These intrinsics accumulate into single-precision (FP32) output
 fragments.  They differ in the data type of the :math:`\pmb{A}` and
 :math:`\pmb{B}` matrix inputs.
 
 FP32 matrix inputs
-------------------
+^^^^^^^^^^^^^^^^^^
 
 The following intrinsics accept one FP32 element per lane for both
 :math:`\pmb{A}` and :math:`\pmb{B}` inputs and accumulate into FP32 output
@@ -452,7 +451,7 @@ fragments.
 .. include:: mfma-ref/f32-16x16x4f32.rst
 
 FP16 matrix inputs
-------------------
+^^^^^^^^^^^^^^^^^^
 
 The following intrinsics accept four FP16 elements per lane packed into a
 ``v4half`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
@@ -465,7 +464,7 @@ and accumulate into FP32 output fragments.
 .. include:: mfma-ref/f32-16x16x16f16.rst
 
 BF16 matrix inputs
-------------------
+^^^^^^^^^^^^^^^^^^
 
 The following intrinsics accept two BF16 elements per lane packed into a
 ``v2bfloat`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
@@ -478,14 +477,14 @@ and accumulate into FP32 output fragments.
 .. include:: mfma-ref/f32-16x16x8bf16.rst
 
 INT32-accumulate intrinsics
-===========================
+---------------------------
 
 These intrinsics accept four signed 8-bit integer elements per lane packed
 into a single ``int`` register for both :math:`\pmb{A}` and :math:`\pmb{B}`
 inputs, and accumulate into INT32 output fragments.
 
 INT8 matrix inputs
-------------------
+^^^^^^^^^^^^^^^^^^
 
 .. include:: mfma-ref/i32-32x32x4i8.rst
 .. include:: mfma-ref/i32-16x16x4i8.rst

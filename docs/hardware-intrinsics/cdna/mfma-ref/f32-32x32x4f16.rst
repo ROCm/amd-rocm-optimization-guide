@@ -3,7 +3,7 @@
    Include via: .. include:: mfma-ref/f32-32x32x4f16.rst
 
 ``__builtin_amdgcn_mfma_f32_32x32x4f16``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""""""""""""""""""""
 
 .. code-block:: cpp
 
