@@ -194,6 +194,7 @@ CSE
 CSn
 csn
 CSV
+CSVs
 cTDP
 CTest
 CTests
@@ -672,6 +673,7 @@ maxregcount
 MaxText
 maxtext
 mbcnt
+MeanOccupancyPerCU
 MECO
 Megablocks
 megablocks
@@ -860,6 +862,7 @@ PILImage
 PipelineParallel
 pipelining
 pixelated
+PMC
 PnP
 POR
 portably
