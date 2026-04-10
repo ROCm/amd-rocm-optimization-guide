@@ -1,0 +1,59 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_mfma_f64_4x4x4f64 (CDNA2 / gfx90a)
+   Include via: .. include:: mfma-ref/f64-4x4x4f64-cdna2.rst
+   Note: CDNA3 uses different blgp semantics; see f64-4x4x4f64-cdna3.rst
+
+``__builtin_amdgcn_mfma_f64_4x4x4f64``
+""""""""""""""""""""""""""""""""""""""""
+
+.. code-block:: cpp
+
+   double __builtin_amdgcn_mfma_f64_4x4x4f64(
+       double srcA,
+       double srcB,
+       double srcC,
+       int    cbsz,
+       int    abid,
+       int    blgp);
+
+Computes one step of a :math:`4 \times 4` FP64 outer-product accumulation.
+Each instruction processes :math:`K=4` FP64 column elements of :math:`\pmb{A}`
+and :math:`K=4` FP64 row elements of :math:`\pmb{B}`, accumulating into a
+:math:`4 \times 4` FP64 tile. Each lane holds one FP64 output element across
+four input blocks.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - double
+     - One FP64 element of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - double
+     - One FP64 element of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - double
+     - Accumulator input: 1 FP64 element per lane.
+   * - ``cbsz``
+     - int
+     - Reserved. Must be ``0``.
+   * - ``abid``
+     - int
+     - Reserved. Must be ``0``.
+   * - ``blgp``
+     - int
+     - Reserved. Must be ``0``.
+
+**Returns** ``double`` -- updated accumulator
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
+
+.. note::
+
+   Unlike FP32, BF16, and INT8 MFMA instructions, FP64 MFMA instructions
+   cannot co-execute with VALU instructions. To hide execution latency,
+   schedule non-VALU instructions (loads, stores, or branches) around
+   FP64 MFMA operations.
