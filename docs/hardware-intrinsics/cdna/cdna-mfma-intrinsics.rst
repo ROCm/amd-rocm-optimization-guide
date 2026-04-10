@@ -276,181 +276,50 @@ during the ``store_c()`` pass.
 
 Because K=1, each ``load_a`` call reads a single scalar: the element at
 row ``tile_a_row + (lane mod 32)`` (since 32 :math:`\pmb{A}`-rows map to the
-lower 32
-lanes).  In practice the kernel inner loop increments ``ki`` in steps of
-``k_step = 1``, so each ``load_a``/``load_b`` call loads one element.
+lower 32 lanes).  In practice the kernel inner loop increments ``ki`` in
+steps of ``k_step = 1``, so each ``load_a``/``load_b`` call loads one element.
 
-.. code-block:: cuda
-
-   // MfmaCdnaPolicy -- ComputePolicy implementation for v_mfma_f32_32x32x1f32.
-   //
-   // Intrinsic signature:
-   //   v32float __builtin_amdgcn_mfma_f32_32x32x1f32(
-   //       float    a,        // one A element (scalar, row in [0,31])
-   //       float    b,        // one B element (scalar, col in [0,31])
-   //       v32float c,        // input accumulator (32 accVGPRs per lane)
-   //       int      cbsz,     // block-size modifier (0 = use all 2 blocks)
-   //       int      abid,     // A-matrix block ID (0 for block 0)
-   //       int      blgp);    // B-matrix lane-group permute (0 = no permute)
-   //
-   // Accumulator layout (block 0, lane L, accVGPR G):
-   //   i = 8·⌊G/4⌋ + 4·⌊L/32⌋ + (G mod 4)
-   //   j = L mod 32
-   // Block 1 adds 16 to G.  Both blocks are stored contiguously in v32float:
-   //   elements [0,15]  → block 0 accVGPRs 0–15
-   //   elements [16,31] → block 1 accVGPRs 0–15 (= accVGPRs 16–31 of the lane)
-   //
-   struct MfmaCdnaPolicy
-   {
-       // ── ComputePolicy constants ──────────────────────────────────────────
-       static constexpr int thread_tile_m  = 32;  // one MFMA tile rows
-       static constexpr int thread_tile_n  = 32;  // one MFMA tile cols
-       static constexpr int effective_lanes = 64; // all lanes contribute
-       static constexpr int k_step          = 1;  // K=1 per intrinsic call
-
-       using elem_a = float;
-       using elem_b = float;
-
-       // ── Accumulator ──────────────────────────────────────────────────────
-       // v32float: HIP vector of 32 floats -- directly maps to 32 accVGPRs.
-       // Must be trivially constructible (zero-init via zero() below).
-       using v32float = float [[clang::ext_vector_type(32)]];
-
-       struct Accumulator
-       {
-           v32float regs;   // 32 accVGPR values (block 0 [0..15], block 1 [16..31])
-       };
-
-       __device__ static void zero(Accumulator& acc)
-       {
-           acc.regs = v32float{};   // zero-initialise all 32 elements
-       }
-
-       // ── thread_tile_offset ────────────────────────────────────────────────
-       // The :math:`32 \times 32` MFMA tile maps to the full 64-lane wavefront.  There is
-       // only one output sub-tile per wavefront, at offset (0, 0) within the
-       // block tile.  thread_row and thread_col are both 0 for every lane.
-       __device__ static void thread_tile_offset(int  /*tid*/,
-                                                  int  /*lane_id*/,
-                                                  int* thread_row,
-                                                  int* thread_col)
-       {
-           *thread_row = 0;
-           *thread_col = 0;
-       }
-
-       // ── Fragment loads ────────────────────────────────────────────────────
-       // load_a: read one FP32 scalar for the current ki from tile_a.
-       //
-       // tile_a is row-major [block_tile_m][k_tile_size].
-       // The MFMA A-operand distributes 32 rows across the lower 32 lanes:
-       //   lane L (in [0,31]) supplies A-row (tile_a_row + L).
-       //   lane L (in [32,63]) mirrors the same 32 rows for the second block.
-       // Indexing: tile_a[tile_a_row + (lane_id mod 32)][ki].
-       __device__ static void load_a(const float* tile_a_ptr,
-                                     int          tile_a_row,
-                                     int          ki,
-                                     int          k_tile_size,
-                                     int          lane_id,
-                                     elem_a     (&frag)[1])
-       {
-           const int row = tile_a_row + (lane_id % 32);
-           frag[0] = tile_a_ptr[row * k_tile_size + ki];
-       }
-
-       // load_b: read one FP32 scalar for the current ki from tile_b_T.
-       //
-       // tile_b_T is column-major [block_tile_n][k_tile_size].
-       // The MFMA B-operand distributes 32 cols across the lower 32 lanes:
-       //   lane L (in [0,31]) supplies B-col (tile_b_col + L).
-       //   lane L (in [32,63]) mirrors the same 32 cols for the second block.
-       // Indexing: tile_b_T[(tile_b_col + (lane_id mod 32))][ki].
-       __device__ static void load_b(const float* tile_b_T_ptr,
-                                     int          tile_b_col,
-                                     int          ki,
-                                     int          k_tile_size,
-                                     int          lane_id,
-                                     elem_b     (&frag)[1])
-       {
-           const int col = tile_b_col + (lane_id % 32);
-           frag[0] = tile_b_T_ptr[col * k_tile_size + ki];
-       }
-
-       // ── mma ───────────────────────────────────────────────────────────────
-       // Issue one v_mfma_f32_32x32x1f32 instruction.
-       // cbsz=0, abid=0, blgp=0: use both blocks, no lane-group permutation.
-       __device__ static void mma(Accumulator&       acc,
-                                  const elem_a     (&a_frag)[1],
-                                  const elem_b     (&b_frag)[1])
-       {
-           acc.regs = __builtin_amdgcn_mfma_f32_32x32x1f32(
-               a_frag[0], b_frag[0], acc.regs,
-               /*cbsz=*/0, /*abid=*/0, /*blgp=*/0);
-       }
-
-       // ── store_c ───────────────────────────────────────────────────────────
-       // Write all 32 accVGPR values to global memory.
-       //
-       // Inverse layout formulas (from the accumulator layout section):
-       //   block b  = G / 16          (G = accVGPR index in [0,31])
-       //   accVGPR  = G mod 16
-       //   i = 8·⌊(G mod 16)/4⌋ + 4·⌊L/32⌋ + ((G mod 16) mod 4)
-       //   j = L mod 32
-       // where L = lane_id.
-       __device__ static void store_c(const Accumulator& acc,
-                                      float*             C,
-                                      int                out_row_base,
-                                      int                out_col_base,
-                                      int                m,
-                                      int                n,
-                                      int                lane_id)
-       {
-           const int L = lane_id;
-           const int j = L % 32;
-
-           #pragma unroll
-           for(int G = 0; G < 32; ++G)
-           {
-               // Recover (i, j) from accVGPR index G and lane L.
-               const int g_local = G % 16;          // accVGPR within block
-               const int i = 8 * (g_local / 4)      // 8-row group
-                           + 4 * (L / 32)            // lane-group offset
-                           + (g_local % 4);          // position within group
-
-               const int r = out_row_base + i;
-               const int c = out_col_base + j;
-               if(r < m && c < n)
-                   C[r * n + c] = acc.regs[G];
-           }
-       }
-   };
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_mfma.hip
+   :language: cuda
+   :start-after: [Sphinx mfma cdna policy start]
+   :end-before: [Sphinx mfma cdna policy end]
 
 .. rubric:: Instantiating the kernel
 
 With ``MfmaCdnaPolicy`` in hand, plug it into the generic kernel alongside
 any ``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n`` are multiples
-of 32 and whose ``k_tile_size`` is a multiple of ``k_step = 1``:
+of 32 and whose ``k_tile_size`` is a multiple of ``k_step = 1``.  The policy
+aliases and launch configuration from the example file are:
 
-.. code-block:: cuda
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_mfma.hip
+   :language: cuda
+   :start-after: [Sphinx mfma policy aliases start]
+   :end-before: [Sphinx mfma policy aliases end]
 
-   // Block tile 64×64, K-strip 16, single-buffered.
-   using Tile   = SingleBufferTilePolicy<64, 64, 16>;
-   using Compute = MfmaCdnaPolicy;
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_mfma.hip
+   :language: cuda
+   :start-after: [Sphinx mfma launch config start]
+   :end-before: [Sphinx mfma launch config end]
 
-   // Each block spawns (64/32) × (64/32) = 4 wavefronts.
-   constexpr int threads_per_block = 4 * 64;   // 4 wavefronts × 64 lanes
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_mfma.hip
+   :language: cuda
+   :start-after: [Sphinx mfma kernel launch start]
+   :end-before: [Sphinx mfma kernel launch end]
 
-   matrix_multiply_generic<Tile, Compute>
-       <<<dim3((N + 63) / 64, (M + 63) / 64), threads_per_block>>>
-       (d_A, d_B, d_C, M, N, K);
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx908 \
+       matrix_multiply_cdna_mfma.hip -o mm_cdna_mfma
+   ./mm_cdna_mfma
 
 .. note::
 
-   ``MfmaCdnaPolicy`` requires a CDNA GPU (``gfx908``) Compile with
-   ``--offload-arch=gfx908`` to select the correct architecture.
-   The policy would be guarded by ``__gfx908__`` etc. macros in production code
-   so that a single source file can fall back to ``ScalarFMAPolicy`` on other
-   targets.
+   ``MfmaCdnaPolicy`` requires a CDNA GPU (``gfx908``).  Compile with
+   ``--offload-arch=gfx908`` to select the correct architecture.  On other
+   targets the ``#if defined(__gfx908__)`` guard selects ``ScalarFMAPolicy``
+   automatically, so the file compiles without modification.
 
 Naming convention
 =================
