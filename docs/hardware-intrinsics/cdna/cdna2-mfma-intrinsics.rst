@@ -60,17 +60,19 @@ The total number of accVGPRs per lane scales with the block count:
 
 .. note::
 
-   On CDNA GPUs, the :math:`\pmb{C}` and :math:`\pmb{D}` matrix operands must
-   reside in *accumulation VGPRs* (accVGPRs).  Unlike :math:`\pmb{A}` and
-   :math:`\pmb{B}`, they cannot use standard architecture VGPRs (ArchVGPRs).
-   In HIP device code the transfer to ArchVGPRs happens automatically when
-   assigning the intrinsic return value to a local variable of the appropriate
-   vector type.
+   On CDNA2, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
+   :math:`\pmb{C}`, and :math:`\pmb{D}`) can reside in either accumulation
+   VGPRs (accVGPRs) or standard architecture VGPRs (ArchVGPRs).  In HIP
+   device code the compiler selects the appropriate register class
+   automatically.
 
    Each of the 64 wavefront lanes maintains its own private accVGPR file.
    An accVGPR index always refers to a register within one specific lane's
    file; the same index in two different lanes denotes two distinct physical
-   registers.
+   registers.  The layout tables and formulas in the following sections use
+   *accVGPR index* as a logical position label; the actual register class
+   (accVGPR or ArchVGPR) is chosen by the compiler and does not affect the
+   layout.
 
 The formulas in the subsections below use the following notation:
 
