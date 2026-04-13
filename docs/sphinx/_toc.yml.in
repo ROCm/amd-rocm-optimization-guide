@@ -20,7 +20,7 @@ subtrees:
     - entries:
       - file: patterns/examples/reduction
       - file: patterns/examples/histogram
-      - file: patterns/examples/tiling-matrix-multiply
+      - file: patterns/examples/matrix-multiply-optimization
 
 - caption: Hardware intrinsics
   entries:
@@ -28,4 +28,5 @@ subtrees:
     subtrees:
     - entries:
       - file: hardware-intrinsics/cross-arch/arithmetic-intrinsics
+      - file: hardware-intrinsics/cross-arch/direct-to-lds-intrinsics
       - file: hardware-intrinsics/cross-arch/warp-intrinsics

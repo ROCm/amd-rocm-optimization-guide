@@ -160,6 +160,7 @@ compat
 compilable
 completers
 composable
+ComputePolicy
 concretization
 Concretized
 Conda
@@ -193,6 +194,7 @@ CSE
 CSn
 csn
 CSV
+CSVs
 cTDP
 CTest
 CTests
@@ -275,6 +277,7 @@ DF
 DFT
 DGEMM
 DGL
+DLC
 DGLGraph
 dGPU
 dGPUs
@@ -340,6 +343,7 @@ ESXi
 etcd
 etcetera
 ethernet
+eu
 exascale
 executables
 extern
@@ -375,8 +379,9 @@ fortran
 foundationally
 FP
 fp
-fp
-framebuffer
+FLOPs
+FMAs
+fma
 framebuffer
 frontends
 Fuyu
@@ -411,6 +416,7 @@ GGUF
 GiB
 GiB
 GIM
+GLC
 githooks
 GitHub
 github
@@ -518,6 +524,7 @@ ICD
 ICT
 ICV
 IDE
+ij
 IDEs
 iDRAC
 IFWI
@@ -614,6 +621,7 @@ Lapack
 latencies
 latencies
 LCLK
+lds
 LDS
 len
 libc
@@ -665,6 +673,7 @@ maxregcount
 MaxText
 maxtext
 mbcnt
+MeanOccupancyPerCU
 MECO
 Megablocks
 megablocks
@@ -728,6 +737,8 @@ MVFFR
 mvffr
 MyEnvironment
 MyST
+Naïve
+naïve
 namespace
 namespaces
 NaN
@@ -821,6 +832,8 @@ Pallas
 pallas
 PaLM
 PAPI
+parameterizes
+params
 parallelizable
 parallelization
 parallelized
@@ -849,6 +862,7 @@ PILImage
 PipelineParallel
 pipelining
 pixelated
+PMC
 PnP
 POR
 portably
@@ -925,6 +939,7 @@ Raja
 RAS
 RCCL
 rccl
+RCV
 RDC
 rdc
 RDC's
@@ -966,6 +981,7 @@ RMW
 RNN
 RNNs
 roadmap
+roofline
 ROC
 roc
 rocAL
@@ -989,6 +1005,7 @@ rocLIB
 ROCm
 rocm
 ROCm's
+ROCprof
 ROCmCC
 rocminfo
 rocMLIR
@@ -1041,6 +1058,7 @@ SALU
 SAXPY
 SBIOS
 SCA
+ScalarFMAPolicy
 scalability
 scalable
 scalarizing
@@ -1082,13 +1100,17 @@ simd
 SIMDs
 SIMT
 sinewave
+SingleBufferTilePolicy
 sinf
+sizeof
 SKU
 SKUs
 Skylake
 sL
 SLES
 sles
+SLC
+Slurm
 SLURM
 Slurm
 sm
@@ -1097,6 +1119,7 @@ SMFMA
 SMI
 smi
 SMT
+SoftwareDoubleBufferTilePolicy
 Softmax
 softmax
 SOMA
@@ -1159,6 +1182,7 @@ tensorfloat
 TensorFlow
 TensorParallel
 TensorRT
+TilePolicy
 texel
 texels
 TF
@@ -1195,6 +1219,9 @@ torchtext
 torchtitan
 TorchVision
 torchvision
+Theia
+tradeoff
+TP
 TotalView
 TP
 TPS

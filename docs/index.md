@@ -28,13 +28,14 @@ and multi-GPU programming.
 
   * {doc}`./patterns/examples/reduction`
   * {doc}`./patterns/examples/histogram`
-  * {doc}`./patterns/examples/tiling-matrix-multiply`
+  * {doc}`./patterns/examples/matrix-multiply-optimization`
 
 **Hardware intrinsics**
 
 * {doc}`./hardware-intrinsics/introduction`
 
   * {doc}`./hardware-intrinsics/cross-arch/arithmetic-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/direct-to-lds-intrinsics`
   * {doc}`./hardware-intrinsics/cross-arch/warp-intrinsics`
 
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
