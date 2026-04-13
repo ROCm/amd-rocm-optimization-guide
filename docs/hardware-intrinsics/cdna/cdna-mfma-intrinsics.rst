@@ -24,6 +24,7 @@ Equivalent intrinsics for later CDNA generations are documented on their own
 reference pages:
 
 * :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
+* :ref:`cdna3-dense-mfma-intrinsics` -- CDNA3 (``gfx942``, MI300 series)
 
 .. _cdna-mfma-accumulator-layout:
 

@@ -642,7 +642,7 @@ struct ScalarFMAPolicy
 
 // ---------------------------------------------------------------------------
 // DirectLoadTilePolicy: use __builtin_amdgcn_global_load_lds to bypass VGPRs
-// Supported on CDNA3 (gfx940/941/942) and CDNA4 (gfx950) only.
+// Supported on CDNA3 (gfx942) and CDNA4 (gfx950) only.
 // Guard: the __builtin_amdgcn_global_load_lds intrinsic is not available on
 // other architectures and will cause a compile error there.
 #if defined(__gfx942__) || defined(__gfx950__)
@@ -848,14 +848,14 @@ struct DirectLoadTilePolicy
 //
 // Selecting a ComputePolicy at compile time based on device ISA:
 //
-//   gfx90a / gfx940 / gfx941 / gfx942   →  MFMAPolicy<float,float>   (CDNA2/3)
+//   gfx90a / gfx942   →  MFMAPolicy<float,float>   (CDNA2/3)
 //   gfx1100 / gfx1101                   →  WMMAPolicy<__half,float>  (RDNA3)
 //   gfx1200 / gfx1201                   →  RDNA4WMMAPolicy (relaxed lane rules)
 //   fallback (all others)               →  ScalarFMAPolicy
 //
 // Usage pattern (not yet compiled; shown for documentation):
 //
-// #if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+// #if defined(__gfx90a__) || defined(__gfx942__)
 //   using DefaultComputePolicy = MFMAPolicy</* … */>;
 // #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
 //   using DefaultComputePolicy = WMMAPolicy</* … */>;
@@ -1002,8 +1002,7 @@ using DoubleBufPolicy = SoftwareDoubleBufferTilePolicy<BLOCK_TILE_M, BLOCK_TILE_
 using ScalarPolicy = ScalarFMAPolicy<THREAD_TILE_M, THREAD_TILE_N, BLOCK_DIM_X>;
 
 // Direct global→LDS tile policy (CDNA3/CDNA4, bypasses VGPRs during tile load)
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) \
- || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
 using DirectLoadPolicy = DirectLoadTilePolicy<BLOCK_TILE_M, BLOCK_TILE_N, K_TILE_SIZE>;
 #endif
 // [Sphinx policy aliases end]
@@ -1167,8 +1166,7 @@ int main()
     // Available on CDNA3 and CDNA4 only.  The arithmetic is identical to the
     // other variants (full FP32 scalar outer-product), so results match exactly.
     // ------------------------------------------------------------------
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) \
- || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__)
     {
         auto launch = [&]()
         {
@@ -1182,7 +1180,7 @@ int main()
         const bool ok = verify_result(h_C, h_A, M, N, K);
         print_metrics("GemmKernel<DirectLoadPolicy, ScalarPolicy>", ok, ms, M, N, K);
     }
-#endif // __gfx940__ || __gfx941__ || __gfx942__ || __gfx950__
+#endif // __gfx942__ || __gfx950__
 
     // ------------------------------------------------------------------
     // Cleanup
