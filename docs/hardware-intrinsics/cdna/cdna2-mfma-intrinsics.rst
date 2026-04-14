@@ -727,6 +727,14 @@ and :math:`\pmb{B}` inputs and accumulate into FP64 output fragments held
 in ``v4double`` registers. FP64 MFMA operations use IEEE round-to-nearest-even
 rather than round-to-zero for partial products.
 
+.. note::
+
+   FP64 MFMA intrinsics do not support the ``blgp`` lane-group pattern
+   modifier.  Pass ``blgp = 0`` for all FP64 variants; any other value
+   is reserved.  Additionally, FP64 MFMA instructions cannot co-execute
+   with VALU instructions.  Schedule non-VALU instructions (loads, stores,
+   or branches) around FP64 MFMA operations to hide execution latency.
+
 FP64 matrix inputs
 ^^^^^^^^^^^^^^^^^^
 
