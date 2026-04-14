@@ -39,17 +39,17 @@ operates on two input blocks.
      - Accumulator input: 32 FP32 elements per lane.
    * - ``cbsz``
      - int
-     - Control Broadcast Size modifier, see :ref:`cdna2-mfma-common-parameters`.
+     - Control Broadcast Size modifier, see :ref:`cdna-mfma-common-parameters`.
        Legal range: 0..1
    * - ``abid``
      - int
      - :math:`\pmb{A}`-matrix Broadcast Identifier,
-       see :ref:`cdna2-mfma-common-parameters`.
+       see :ref:`cdna-mfma-common-parameters`.
        Legal range: 0..1
    * - ``blgp``
      - int
      - :math:`\pmb{B}`-matrix Lane Group Pattern modifier, see
-       :ref:`cdna2-mfma-common-parameters`.
+       :ref:`cdna-mfma-common-parameters`.
 
 **Returns** ``v32float`` -- updated accumulator
 (:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
