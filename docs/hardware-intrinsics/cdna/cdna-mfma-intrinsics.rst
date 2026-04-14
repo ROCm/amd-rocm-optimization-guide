@@ -365,65 +365,11 @@ the intrinsic definition.  The number in the name is the element count per
 lane; the total VGPR count equals the element count multiplied by the element
 size in 32-bit words.
 
-.. _cdna-mfma-common-parameters:
-
 Common parameters
 =================
 
-Every MFMA intrinsic on this page shares the same trailing three parameters.
-These must be compile-time integer constants.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``cbsz``
-     - int
-     - Control Broadcast Size modifier. Supported by MFMA intrinsics
-       operating on multiple input blocks for :math:`\pmb{A}`. Legal
-       range 0..4, but must not exceed
-       :math:`\log_{2}(\text{input blocks})`. Setting ``cbsz`` informs
-       the instruction to broadcast values of one chosen input block to
-       :math:`2^{cbsz} - 1` neighboring blocks in :math:`\pmb{A}`. The
-       input block is chosen by setting ``abid``. For example, for a
-       16-block :math:`\pmb{A}` matrix, setting ``cbsz`` to ``1``
-       results in blocks 0 and 1 receiving the same input values, blocks
-       2 and 3 receiving the same input values, blocks 4 and 5 receiving
-       the same input values, etc. Setting ``cbsz`` to ``0`` results in
-       no broadcast.
-   * - ``abid``
-     - int
-     - :math:`\pmb{A}`-matrix Broadcast Identifier. Supported by MFMA intrinsics
-       operating on multiple input blocks for :math:`\pmb{A}`. Used
-       together with ``cbsz``; indicates which input block is selected
-       for broadcast to neighboring blocks in :math:`\pmb{A}`. For
-       example, for a 16-block :math:`\pmb{A}` matrix, setting ``cbsz``
-       to ``2`` and ``abid`` to ``1`` broadcasts block 1's values to
-       blocks 0, 2, and 3; block 5's values to blocks 4, 6, and 7; etc.
-   * - ``blgp``
-     - int
-     - :math:`\pmb{B}`-matrix Lane Group Pattern modifier. Allows a
-       constrained set of
-       swizzling operations on :math:`\pmb{B}` data between lanes.
-       Supported values:
-
-       * ``0``: No swizzling; normal matrix layout for :math:`\pmb{B}`.
-       * ``1``: Data from lanes 0---31 is broadcast into lanes 32---63.
-       * ``2``: Data from lanes 32---63 is broadcast into lanes 0---31.
-       * ``3``: Data from all lanes is rotated down by 16 positions:
-         lane 0's data goes to lane 48, lane 16's data goes to lane 0,
-         etc.
-       * ``4``: Data from lanes 0---15 is broadcast into lanes 16---31,
-         32---47, and 48---63.
-       * ``5``: Data from lanes 16---31 is broadcast into lanes 0---15,
-         32---47, and 48---63.
-       * ``6``: Data from lanes 32---47 is broadcast into lanes 0---15,
-         16---31, and 48---63.
-       * ``7``: Data from lanes 48---63 is broadcast into lanes 0---15,
-         16---31, and 32---47.
+See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
+``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
 
 .. _cdna-mfma-instruction-throughput:
 
