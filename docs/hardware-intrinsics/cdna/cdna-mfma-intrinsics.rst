@@ -431,8 +431,8 @@ Instruction throughput
 ======================
 
 The cycle count below is the value used to compute theoretical peak
-throughput: :math:`\text{peak (TOPS)} = \text{ops per instruction} /
-\text{cycle count} \times \text{frequency (THz)}`.  Instructions that
+throughput: :math:`\text{peak throughput} = \text{ops per instruction} /
+\text{cycle count} \times \text{clock frequency}`.  Instructions that
 support VALU co-execution allow the compiler to overlap matrix and vector
 work; the VALU co-execution cycle count gives the number of VALU cycles
 available during the MFMA latency window.  A value of 0 means VALU
