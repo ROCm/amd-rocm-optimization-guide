@@ -425,6 +425,108 @@ These must be compile-time integer constants.
        * ``7``: Data from lanes 48---63 is broadcast into lanes 0---15,
          16---31, and 32---47.
 
+.. _cdna-mfma-instruction-throughput:
+
+Instruction throughput
+======================
+
+The cycle count below is the value used to compute theoretical peak
+throughput: :math:`\text{peak (TOPS)} = \text{ops per instruction} /
+\text{cycle count} \times \text{frequency (THz)}`.  Instructions that
+support VALU co-execution allow the compiler to overlap matrix and vector
+work; the VALU co-execution cycle count gives the number of VALU cycles
+available during the MFMA latency window.  A value of 0 means VALU
+co-execution is not supported.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Intrinsic
+     - Ops
+     - Cycle count
+     - VALU co-execution cycles
+   * - ``__builtin_amdgcn_mfma_f32_32x32x1f32``
+     - 4096
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x1f32``
+     - 2048
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_f32_4x4x1f32``
+     - 512
+     - 8
+     - 0
+   * - ``__builtin_amdgcn_mfma_f32_32x32x2f32``
+     - 4096
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x4f32``
+     - 2048
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_f32_32x32x4f16``
+     - 16384
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x4f16``
+     - 8192
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_f32_4x4x4f16``
+     - 2048
+     - 8
+     - 0
+   * - ``__builtin_amdgcn_mfma_f32_32x32x8f16``
+     - 16384
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x16f16``
+     - 8192
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_f32_32x32x2bf16``
+     - 8192
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x2bf16``
+     - 4096
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_f32_4x4x2bf16``
+     - 1024
+     - 8
+     - 0
+   * - ``__builtin_amdgcn_mfma_f32_32x32x4bf16``
+     - 8192
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_f32_16x16x8bf16``
+     - 4096
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_i32_32x32x4i8``
+     - 16384
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_i32_16x16x4i8``
+     - 8192
+     - 32
+     - 24
+   * - ``__builtin_amdgcn_mfma_i32_4x4x4i8``
+     - 2048
+     - 8
+     - 0
+   * - ``__builtin_amdgcn_mfma_i32_32x32x8i8``
+     - 16384
+     - 64
+     - 56
+   * - ``__builtin_amdgcn_mfma_i32_16x16x16i8``
+     - 8192
+     - 32
+     - 24
+
 .. _cdna-mfma-intrinsic-reference:
 
 Intrinsic reference
