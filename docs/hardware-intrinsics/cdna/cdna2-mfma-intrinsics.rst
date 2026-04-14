@@ -494,8 +494,8 @@ All MFMA intrinsics follow the pattern:
     Input element type (``f32``, ``f64``, ``f16``, ``bf16``, or ``i8``).
 
 ``_1k`` (optional)
-    High-precision suffix, present on the BF16 variants that use
-    IEEE round-to-nearest-even rather than round-to-zero for partial products.
+    Suffix present on BF16 variants that deliver 1024 Flops/cycle/CU peak
+    throughput, twice the 512 Flops/cycle/CU of the non-``_1k`` BF16 variants.
 
 Register types used in this reference
 ======================================
@@ -632,8 +632,7 @@ and accumulate into FP32 output fragments.
 .. include:: mfma-ref/f32-32x32x4bf16.rst
 .. include:: mfma-ref/f32-16x16x8bf16.rst
 
-The following high-precision variants (``_1k`` suffix) use IEEE
-round-to-nearest-even for partial products instead of round-to-zero.
+The following variants carry the ``_1k`` suffix.
 
 .. include:: mfma-ref/f32-32x32x4bf16-1k.rst
 .. include:: mfma-ref/f32-16x16x4bf16-1k.rst
@@ -647,7 +646,8 @@ FP64-accumulate intrinsics
 CDNA2 introduces native double-precision (FP64) matrix accumulation.
 These intrinsics accept one FP64 element per lane for both :math:`\pmb{A}`
 and :math:`\pmb{B}` inputs and accumulate into FP64 output fragments held
-in ``v4double`` registers.
+in ``v4double`` registers. FP64 MFMA operations use IEEE round-to-nearest-even
+rather than round-to-zero for partial products.
 
 FP64 matrix inputs
 ^^^^^^^^^^^^^^^^^^

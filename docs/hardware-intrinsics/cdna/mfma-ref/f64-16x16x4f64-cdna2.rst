@@ -21,7 +21,8 @@ Each instruction processes :math:`K=4` FP64 column elements of :math:`\pmb{A}`
 and :math:`K=4` FP64 row elements of :math:`\pmb{B}`, accumulating into a
 :math:`16 \times 16` FP64 tile held across 4 accVGPRs per lane (8 physical
 accVGPRs, since each FP64 value occupies two 32-bit registers). This intrinsic
-operates on a single input block.
+operates on a single input block.  Partial products use IEEE
+round-to-nearest-even rather than round-to-zero.
 
 .. list-table::
    :header-rows: 1

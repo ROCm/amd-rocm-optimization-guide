@@ -19,8 +19,7 @@ Computes one step of a :math:`16 \times 16` FP32 outer-product accumulation.
 Each instruction processes :math:`K=4` BF16 column elements of :math:`\pmb{A}`
 and :math:`K=4` BF16 row elements of :math:`\pmb{B}`, accumulating into a
 :math:`16 \times 16` FP32 tile held across 16 accVGPRs per lane. This intrinsic
-operates on four input blocks and uses IEEE round-to-nearest-even for partial
-products.
+operates on four input blocks.
 
 .. list-table::
    :header-rows: 1

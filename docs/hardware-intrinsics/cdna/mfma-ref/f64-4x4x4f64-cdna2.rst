@@ -20,7 +20,8 @@ Computes one step of a :math:`4 \times 4` FP64 outer-product accumulation.
 Each instruction processes :math:`K=4` FP64 column elements of :math:`\pmb{A}`
 and :math:`K=4` FP64 row elements of :math:`\pmb{B}`, accumulating into a
 :math:`4 \times 4` FP64 tile. Each lane holds one FP64 output element across
-four input blocks.
+four input blocks.  Partial products use IEEE round-to-nearest-even rather than
+round-to-zero.
 
 .. list-table::
    :header-rows: 1
