@@ -42,12 +42,12 @@ Both :math:`\pmb{A}` and :math:`\pmb{B}` use the BF8 (E5M2) format: eight
      - Accumulator input: 16 FP32 elements per lane.
    * - ``cbsz``
      - int
-     - Control Broadcast Size modifier, see :ref:`cdna3-dense-mfma-common-parameters`.
+     - Control Broadcast Size modifier, see :ref:`cdna-mfma-common-parameters`.
        Must be ``0``.
    * - ``abid``
      - int
      - :math:`\pmb{A}`-matrix Broadcast Identifier,
-       see :ref:`cdna3-dense-mfma-common-parameters`.
+       see :ref:`cdna-mfma-common-parameters`.
        Must be ``0``.
    * - ``blgp``
      - int
