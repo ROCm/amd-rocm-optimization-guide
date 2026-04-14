@@ -38,8 +38,8 @@ feature, which is enabled automatically when compiling for ``gfx1200`` or
 
 .. code-block:: bash
 
-   amdclang++ --offload-arch=gfx1200 ...   # RX 9070 XT
-   amdclang++ --offload-arch=gfx1201 ...   # RX 9070
+   amdclang++ --offload-arch=gfx1201 ...   # RX 9070 XT
+   amdclang++ --offload-arch=gfx1200 ...   # RX 9070
 
 .. _rdna4-swmmac-accumulator-layout:
 
@@ -110,16 +110,15 @@ C++ attributes in any HIP translation unit:
 
 .. code-block:: cpp
 
-   using v2int   = int     [[clang::ext_vector_type(2)]];
-   using v4int   = int     [[clang::ext_vector_type(4)]];
-   using v8int   = int     [[clang::ext_vector_type(8)]];
-   using v8float = float   [[clang::ext_vector_type(8)]];
-   using v8half  = _Float16 [[clang::ext_vector_type(8)]];
+   typedef int      v2int    __attribute__((ext_vector_type(2)));
+   typedef int      v4int    __attribute__((ext_vector_type(4)));
+   typedef int      v8int    __attribute__((ext_vector_type(8)));
+   typedef float    v8float  __attribute__((ext_vector_type(8)));
    // BF16 is stored as short for gfx1200/gfx1201 SWMMAC inputs:
-   using v8short  = short  [[clang::ext_vector_type(8)]];
-   using v16short = short  [[clang::ext_vector_type(16)]];
-   using v8fp16   = __fp16 [[clang::ext_vector_type(8)]];
-   using v16fp16  = __fp16 [[clang::ext_vector_type(16)]];
+   typedef short    v8short  __attribute__((ext_vector_type(8)));
+   typedef short    v16short __attribute__((ext_vector_type(16)));
+   typedef __fp16   v8fp16   __attribute__((ext_vector_type(8)));
+   typedef __fp16   v16fp16  __attribute__((ext_vector_type(16)));
 
 .. note::
 
@@ -623,19 +622,19 @@ multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 32``.
 .. code-block:: bash
 
    # RX 9070 XT
-   amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
        matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
    ./mm_rdna4_swmmac
 
    # RX 9070
-   amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
        matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
    ./mm_rdna4_swmmac
 
 .. note::
 
-   ``SwmmacRdna4F16Policy`` requires an RDNA 4 GPU (``gfx1200`` or
-   ``gfx1201``). The ``#if defined(__gfx1200__) || defined(__gfx1201__)`` guard
+   ``SwmmacRdna4F16Policy`` requires an RDNA 4 GPU (``gfx1201`` RX 9070 XT or
+   ``gfx1200`` RX 9070). The ``#if defined(__gfx1200__) || defined(__gfx1201__)`` guard
    in the example file falls back to ``ScalarFMASPolicy`` on other targets, so
    the file compiles without modification.
 

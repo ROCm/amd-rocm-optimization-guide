@@ -41,9 +41,9 @@
 // half-precision element types and a pre-sparsified A matrix.
 //
 // Architecture: RDNA 4 (gfx1200, gfx1201) only.
-// Compile with: amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
+// Compile with: amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
 //                   matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
-//          or:  amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
+//          or:  amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
 //                   matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
 //
 // The code is guarded by a preprocessor check so that it compiles on other
@@ -156,16 +156,22 @@ __device__ inline void cooperative_load_tile_a_sparse(
                 : __fp16(0.0f);
     }
 
-    // Load sparsity index: one int per 8 compressed elements (16 dense positions)
-    // Each int covers 8 compressed K-positions (2 bits each).
-    const int index_cols = k_tile_sparse / 8; // ints per row in this strip
+    // Load sparsity index: one int per 16 compressed elements (32 dense positions).
+    // Each 32-bit int encodes 8 blocks-of-4, with a 4-bit code per block:
+    //   bits[15:0]  -- 4 codes (8 compressed K-positions) for lane group 0
+    //   bits[31:16] -- 4 codes (8 compressed K-positions) for lane group 1
+    // All 32 lanes in the same output row load the same int; the hardware
+    // selects the appropriate half based on lane group (lane_id / 16).
+    const int index_cols = k_tile_sparse / 16; // 1 int per row per K-tile
     const int idx_elems  = block_tile_m * index_cols;
     for(int idx = tid; idx < idx_elems; idx += num_threads)
     {
-        const int tile_row   = idx / index_cols;
-        const int tile_icol  = idx % index_cols;
-        const int global_row = block_row_start + tile_row;
+        const int tile_row    = idx / index_cols;
+        const int tile_icol   = idx % index_cols;
+        const int global_row  = block_row_start + tile_row;
         const int global_icol = t * index_cols + tile_icol;
+        // Host sparsify_2_4 uses row stride k_sparse/8 ints (= K_DENSE/16).
+        // global_icol = tile index t (one int per K-tile).
         dest_idx[tile_row * index_cols + tile_icol] =
             (global_row < m && global_icol < k_sparse / 8)
                 ? A_index[global_row * (k_sparse / 8) + global_icol]
@@ -185,6 +191,7 @@ __device__ inline void cooperative_load_tile_b_T(
     int           tid,
     int           num_threads)
 {
+    // Store as tile_b_T[n][k] so lane L (n = L%16) reads contiguous K-elements.
     const int tile_elems = block_tile_n * k_tile_dense;
     for(int idx = tid; idx < tile_elems; idx += num_threads)
     {
@@ -221,8 +228,8 @@ struct SingleBufferTilePolicyH
     struct SharedStorage
     {
         __fp16 tile_a[BlockTileM_][KTileSparse_];
-        int    tile_idx[BlockTileM_][KTileSparse_ / 8];
-        __fp16 tile_b_T[BlockTileN_][KTileSparse_ * 2]; // dense B
+        int    tile_idx[BlockTileM_][KTileSparse_ / 16]; // 1 int per row per tile
+        __fp16 tile_b_T[BlockTileN_][KTileSparse_ * 2]; // dense B, N-major (transposed)
     };
 
     __device__ static void prologue(SharedStorage& /*smem*/,
@@ -264,27 +271,38 @@ struct SingleBufferTilePolicyH
 // Uses __builtin_amdgcn_swmmac_f32_16x16x32_f16_w32 to compute one 16x16
 // FP32 output tile per wave32 wavefront. A is sparse (2:4), B is dense.
 //
-// Accumulator layout (16x16 tile, wave32):
-//   Each lane holds 8 FP32 values in VGPRs 0-7.
-//   Given lane L (0-31) and VGPR g (0-7):
-//     row i = (g % 2) * 8 + L / 4    (varies: see GFX12 ISA)
-//     col j = (g / 2) * 4 + L % 4
-//   Exact mapping: row = (L / 16) * 8 + (g & 1) * 4 + (L % 4)
-//                  col = ((L / 4) % 4) + (g / 2) * 4 -- see GFX12 ISA doc.
+// Accumulator layout (16x16 tile, wave32) -- confirmed by AMD Matrix
+// Instruction Calculator (v_swmmac_f32_16x16x32_f16_w32):
+//   Lane L, VGPR g (0-7):
+//     row = (L / 16) * 8 + g
+//     col = L % 16
+//   Lanes 0-15 hold rows 0-7; lanes 16-31 hold rows 8-15.
+//   Each lane holds one column across all 8 rows it owns.
 //
-// Fragment distribution (wave32, 16x16x32 sparse):
-//   srcA: v8fp16 -- 8 compressed FP16 per lane (= 16 dense K-positions)
-//   srcB: v16fp16 -- 16 dense FP16 per lane
-//   index: int -- 2 bits per compressed element, packed 16 per int
+// A fragment distribution (wave32, 16x16x32 sparse, K_DENSE=32, K_SPARSE=16):
+//   Lane L covers A-row = L % 16. Compressed k-positions are non-contiguous:
+//     Lanes 0-15:  VGPR0-1 = compressed k {0-3}  (dense k  0- 7)
+//                  VGPR2-3 = compressed k {8-11}  (dense k 16-23)
+//     Lanes 16-31: VGPR0-1 = compressed k {4-7}  (dense k  8-15)
+//                  VGPR2-3 = compressed k {12-15} (dense k 24-31)
+//
+// B fragment distribution (wave32, 16x16x32 dense):
+//   Lane L covers B-column = tile_col_base + L % 16. K-positions are non-contiguous:
+//     Lanes 0-15:  VGPR0-3 = B[0..7][col]   VGPR4-7 = B[16..23][col]
+//     Lanes 16-31: VGPR0-3 = B[8..15][col]  VGPR4-7 = B[24..31][col]
+//
+// Index register: one int per lane (bits[15:0] used), 4 × 4-bit groups
+// encoding the 2:4 sparsity pattern for the full 32-dense-K tile.
 // ===========================================================================
 
-#if defined(__gfx1200__) || defined(__gfx1201__)
 // [Sphinx swmmac rdna4 policy start]
 
-// Vector type aliases required by the intrinsic
-using v8fp16  = __fp16 [[clang::ext_vector_type(8)]];
-using v16fp16 = __fp16 [[clang::ext_vector_type(16)]];
-using v8float = float  [[clang::ext_vector_type(8)]];
+// Vector type aliases required by the intrinsic.
+// Use the __attribute__ form; [[clang::ext_vector_type]] is not supported
+// for __fp16 in HIP device code.
+typedef __fp16 v8fp16  __attribute__((ext_vector_type(8)));
+typedef __fp16 v16fp16 __attribute__((ext_vector_type(16)));
+typedef float  v8float __attribute__((ext_vector_type(8)));
 
 struct SwmmacRdna4F16Policy
 {
@@ -338,12 +356,15 @@ struct SwmmacRdna4F16Policy
     //
     // The SWMMAC instruction requires srcA as v8fp16 (8 compressed elements)
     // and srcB as v16fp16 (16 dense elements). The index register is a scalar
-    // int containing 16 two-bit position codes.
+    // int containing 16 two-bit position codes (bits[15:0] used).
     //
-    // For a 16×16 tile in a wave32, lanes are split into two groups of 16:
-    //   lanes 0-15:  rows 0-7  (each lane covers one row, 8 compressed K-pos)
-    //   lanes 16-31: rows 8-15
-    // Lane L within a group provides data for A-row (tile_a_row + L % 16).
+    // Lane L covers A-row = tile_a_row + L % 16. The 8 compressed elements
+    // are loaded from non-contiguous positions within the row (AMD Matrix
+    // Instruction Calculator layout for v_swmmac_f32_16x16x32_f16_w32):
+    //   Lanes 0-15:  elements[0-3] = compressed k {0-3}  (dense k  0- 7)
+    //                elements[4-7] = compressed k {8-11}  (dense k 16-23)
+    //   Lanes 16-31: elements[0-3] = compressed k {4-7}  (dense k  8-15)
+    //                elements[4-7] = compressed k {12-15} (dense k 24-31)
 
     // Compressed A fragment: 8 FP16 elements per lane.
     // Stores both the FP16 data and the matching index int.
@@ -360,32 +381,55 @@ struct SwmmacRdna4F16Policy
                                             int           lane_id)
     {
         AFragment frag;
-        const int row      = tile_a_row + (lane_id % 16);
-        // ki_sparse = 0: one SWMMAC call covers the whole k_tile_sparse=16
-        // Each lane loads 8 consecutive compressed FP16 values.
+        const int row       = tile_a_row + (lane_id % 16);
+        const int lane_grp  = lane_id / 16; // 0 for lanes 0-15, 1 for lanes 16-31
+        // Lower 4 compressed elements: lanes 0-15 use k {0-3}, lanes 16-31 use k {4-7}.
+        const int k_lo      = lane_grp * 4;
+        // Upper 4 compressed elements: lanes 0-15 use k {8-11}, lanes 16-31 use k {12-15}.
+        const int k_hi      = 8 + lane_grp * 4;
         const __fp16* row_ptr = tile_a_ptr + row * k_tile_sparse;
         #pragma unroll
-        for(int e = 0; e < 8; ++e)
-            frag.data[e] = row_ptr[e];
-        // One index int covers 8 compressed positions (16 bits of 2-bit codes).
-        frag.index = tile_idx_ptr[row * (k_tile_sparse / 8)];
+        for(int e = 0; e < 4; ++e)
+            frag.data[e]     = row_ptr[k_lo + e];
+        #pragma unroll
+        for(int e = 0; e < 4; ++e)
+            frag.data[4 + e] = row_ptr[k_hi + e];
+        // One int per row per K-tile (bits[15:0] = 4 × 4-bit groups).
+        // All lanes in the same output row load the same int; hardware uses
+        // lane_id / 16 to select the appropriate 8-bit half.
+        frag.index = tile_idx_ptr[row * (k_tile_sparse / 16)];
         return frag;
     }
 
     // Dense B fragment: 16 FP16 elements per lane.
+    // tile_b_T is stored N-major: tile_b_T[n][k], stride = k_tile_dense (=32).
+    //
+    // SWMMAC srcB layout (wave32, 16x16x32, AMD Matrix Instruction Calculator):
+    //   Lane L covers one B-column: n = tile_b_col + L % 16.
+    //   The 16 k-positions are non-contiguous within that column:
+    //     Lanes 0-15:  elements[0-7] = B[0..7][n]   (k  0- 7)
+    //                  elements[8-15]= B[16..23][n]  (k 16-23)
+    //     Lanes 16-31: elements[0-7] = B[8..15][n]  (k  8-15)
+    //                  elements[8-15]= B[24..31][n]  (k 24-31)
     __device__ static v16fp16 load_b_frag(const __fp16* tile_b_T_ptr,
                                           int           tile_b_col,
                                           int           k_tile_dense,
                                           int           lane_id)
     {
         v16fp16 frag;
-        // Each lane provides B-column (tile_b_col + lane_id % 16) across all
-        // 16 (dense) K-positions in the tile strip.
-        const int col = tile_b_col + (lane_id % 16);
-        const __fp16* col_ptr = tile_b_T_ptr + col * k_tile_dense;
+        const int n        = tile_b_col + (lane_id % 16);
+        const int lane_grp = lane_id / 16; // 0 for lanes 0-15, 1 for lanes 16-31
+        // Lower 8 k-positions: lanes 0-15 use k {0-7}, lanes 16-31 use k {8-15}.
+        const int k_lo     = lane_grp * 8;
+        // Upper 8 k-positions: lanes 0-15 use k {16-23}, lanes 16-31 use k {24-31}.
+        const int k_hi     = 16 + lane_grp * 8;
+        const __fp16* col_ptr = tile_b_T_ptr + n * k_tile_dense;
         #pragma unroll
-        for(int e = 0; e < 16; ++e)
-            frag[e] = col_ptr[e];
+        for(int e = 0; e < 8; ++e)
+            frag[e]     = col_ptr[k_lo + e];
+        #pragma unroll
+        for(int e = 0; e < 8; ++e)
+            frag[8 + e] = col_ptr[k_hi + e];
         return frag;
     }
 
@@ -402,11 +446,10 @@ struct SwmmacRdna4F16Policy
     // ── store_c ───────────────────────────────────────────────────────────────
     // Scatter the 8 accumulator values to their global-memory positions.
     //
-    // GFX12 SWMMAC 16x16 wave32 layout (from AMD ISA reference):
-    //   Lane L (0-31), VGPR g (0-7):
-    //     row i = (L / 16) * 8 + (g % 2) + (L % 16 / 4) * 2
-    //     col j = (L % 4) + (g / 2) * 4
-    // This gives a complete, non-overlapping tiling of the 16x16 output.
+    // SWMMAC 16x16x32 wave32 output layout (AMD Matrix Instruction Calculator):
+    //   Lane L, VGPR g (0-7):
+    //     row = (L / 16) * 8 + g
+    //     col = L % 16
     __device__ static void store_c(const Accumulator& acc,
                                    float*             C,
                                    int                out_row_base,
@@ -415,117 +458,27 @@ struct SwmmacRdna4F16Policy
                                    int                n,
                                    int                lane_id)
     {
-        const int L        = lane_id; // 0-31
-        const int row_base = (L / 16) * 8 + ((L % 16) / 4) * 2;
-        const int col_base = (L % 4);
+        const int col = lane_id % 16;
 
         #pragma unroll
         for(int g = 0; g < 8; ++g)
         {
-            const int i = row_base + (g % 2);
-            const int j = col_base + (g / 2) * 4;
-            const int r = out_row_base + i;
-            const int c = out_col_base + j;
+            const int r = out_row_base + (lane_id / 16) * 8 + g;
+            const int c = out_col_base + col;
             if(r < m && c < n)
                 C[r * n + c] = acc.regs[g];
         }
     }
 };
 // [Sphinx swmmac rdna4 policy end]
-#endif // __gfx1200__ || __gfx1201__
 
 // ===========================================================================
-// Section 5: ScalarFMASPolicy -- portable FP32 fallback for non-RDNA4 targets
-// ===========================================================================
-
-template<int ThreadTileM_, int ThreadTileN_, int BlockDimX_>
-struct ScalarFMASPolicy
-{
-    static constexpr int thread_tile_m   = ThreadTileM_;
-    static constexpr int thread_tile_n   = ThreadTileN_;
-    static constexpr int effective_lanes = 64;
-    static constexpr int k_step          = 1;
-
-    using elem_a = float;
-    using elem_b = float;
-
-    struct Accumulator
-    {
-        float data[ThreadTileM_][ThreadTileN_];
-    };
-
-    __device__ static void zero(Accumulator& acc)
-    {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-                acc.data[i][j] = 0.0f;
-    }
-
-    __device__ static void thread_tile_offset(int tid, int /*lane_id*/,
-                                              int* thread_row, int* thread_col)
-    {
-        const int tx = tid % BlockDimX_;
-        const int ty = tid / BlockDimX_;
-        *thread_row  = ty * ThreadTileM_;
-        *thread_col  = tx * ThreadTileN_;
-    }
-
-    __device__ static void load_a(const float* tile_a_ptr, int tile_a_row,
-                                  int ki, int k_tile_size, int /*lane_id*/,
-                                  elem_a (&frag)[ThreadTileM_])
-    {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            frag[i] = tile_a_ptr[(tile_a_row + i) * k_tile_size + ki];
-    }
-
-    __device__ static void load_b(const float* tile_b_T_ptr, int tile_b_col,
-                                  int ki, int k_tile_size, int /*lane_id*/,
-                                  elem_b (&frag)[ThreadTileN_])
-    {
-        #pragma unroll
-        for(int j = 0; j < ThreadTileN_; ++j)
-            frag[j] = tile_b_T_ptr[(tile_b_col + j) * k_tile_size + ki];
-    }
-
-    __device__ static void mma(Accumulator&       acc,
-                               const elem_a     (&a_frag)[ThreadTileM_],
-                               const elem_b     (&b_frag)[ThreadTileN_])
-    {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-                acc.data[i][j] += a_frag[i] * b_frag[j];
-    }
-
-    __device__ static void store_c(const Accumulator& acc, float* C,
-                                   int out_row_base, int out_col_base,
-                                   int m, int n, int /*lane_id*/)
-    {
-        #pragma unroll
-        for(int i = 0; i < ThreadTileM_; ++i)
-            #pragma unroll
-            for(int j = 0; j < ThreadTileN_; ++j)
-            {
-                const int r = out_row_base + i;
-                const int c = out_col_base + j;
-                if(r < m && c < n)
-                    C[r * n + c] = acc.data[i][j];
-            }
-    }
-};
-
-// ===========================================================================
-// Section 6: SWMMAC kernel (RDNA 4 specific)
+// Section 5: SWMMAC kernel
 //
 // Unlike the generic kernel, this kernel takes separate sparse A, index, and
 // dense B pointers. The TilePolicy loads both A and the index register.
 // ===========================================================================
 
-#if defined(__gfx1200__) || defined(__gfx1201__)
 template<typename TilePolicy>
 __global__
 __launch_bounds__(
@@ -584,7 +537,6 @@ void matrix_multiply_swmmac(const __fp16* __restrict__ A_sparse,
                                    block_col_start + thread_col,
                                    m, n, lane_id);
 }
-#endif // __gfx1200__ || __gfx1201__
 
 // ===========================================================================
 // Section 7: Policy aliases and launch configuration
@@ -593,22 +545,15 @@ void matrix_multiply_swmmac(const __fp16* __restrict__ A_sparse,
 // [Sphinx swmmac policy aliases start]
 // TilePolicy: 32×32 block tile, 16-element sparse K-strip (= 32 dense).
 // SwmmacRdna4F16Policy: one 16×16 tile per wave32 wavefront.
-#if defined(__gfx1200__) || defined(__gfx1201__)
 using SwmmacTilePolicy = SingleBufferTilePolicyH<32, 32, 16>;
-#endif
 // [Sphinx swmmac policy aliases end]
 
 // [Sphinx swmmac launch config start]
 // Block tile: 32×32 (2×2 wavefronts, each computing a 16×16 SWMMAC tile).
 // Threads per block: 2 × 2 wavefronts × 32 lanes = 128.
-constexpr int BLOCK_TILE_M = 32;
-constexpr int BLOCK_TILE_N = 32;
-
-#if defined(__gfx1200__) || defined(__gfx1201__)
+constexpr int BLOCK_TILE_M      = 32;
+constexpr int BLOCK_TILE_N      = 32;
 constexpr int THREADS_PER_BLOCK = 128; // 4 wave32 wavefronts × 32 lanes
-#else
-constexpr int THREADS_PER_BLOCK = 64;  // 1 wave64 wavefront (fallback)
-#endif
 // [Sphinx swmmac launch config end]
 
 // ===========================================================================
@@ -680,22 +625,26 @@ float time_kernel_ms(KernelLaunch launch, int warmup_runs, int timing_runs)
 }
 
 // Verify: C ≈ A_dense × B (expand sparse A back to dense for reference).
+// stride_n is the full column count used as the row stride in C and B
+// (may differ from n when verifying a sub-block of a larger matrix).
 bool verify_result(const std::vector<float>&   C,
                    const std::vector<__fp16>&  A_dense,
                    const std::vector<__fp16>&  B,
                    int m, int n, int k_dense,
+                   int stride_n = -1,
                    float tolerance = 0.5f) // FP16 accumulation allows slack
 {
+    if(stride_n < 0) stride_n = n;
     for(int i = 0; i < m; ++i)
         for(int j = 0; j < n; ++j)
         {
             float ref = 0.0f;
             for(int kk = 0; kk < k_dense; ++kk)
-                ref += float(A_dense[i * k_dense + kk]) * float(B[kk * n + j]);
-            if(std::fabs(C[i * n + j] - ref) > tolerance * (1.0f + std::fabs(ref)))
+                ref += float(A_dense[i * k_dense + kk]) * float(B[kk * stride_n + j]);
+            if(std::fabs(C[i * stride_n + j] - ref) > tolerance * (1.0f + std::fabs(ref)))
             {
                 std::cerr << "Mismatch at [" << i << "][" << j << "]: "
-                          << "expected " << ref << ", got " << C[i * n + j] << "\n";
+                          << "expected " << ref << ", got " << C[i * stride_n + j] << "\n";
                 return false;
             }
         }
@@ -771,7 +720,6 @@ int main()
                     (M + BLOCK_TILE_M - 1) / BLOCK_TILE_M);
     const dim3 block(THREADS_PER_BLOCK);
 
-#if defined(__gfx1200__) || defined(__gfx1201__)
     auto launch = [&]()
     {
         matrix_multiply_swmmac<SwmmacTilePolicy>
@@ -779,10 +727,6 @@ int main()
                               d_B, d_C, M, N, K_SPARSE);
         HIP_CHECK(hipGetLastError());
     };
-#else
-    // Fallback: not shown; use dense FP32 scalar kernel on non-RDNA4 targets.
-    auto launch = [&]() {};
-#endif
     // [Sphinx swmmac kernel launch end]
 
     const float ms = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
@@ -790,21 +734,17 @@ int main()
                         hipMemcpyDeviceToHost));
 
     // Only verify a small sub-block to keep host verification fast.
+    // Pass the full row-stride matrices and the actual column count N so that
+    // verify_result indexes C[i*N+j] and B[kk*N+j] correctly.
     const int check_m = std::min(M, 64);
     const int check_n = std::min(N, 64);
     std::vector<float>  h_C_sub(h_C.begin(), h_C.begin() + check_m * N);
     std::vector<__fp16> h_A_sub(h_A_dense.begin(),
                                 h_A_dense.begin() + check_m * K_DENSE);
     const bool ok = verify_result(h_C_sub, h_A_sub, h_B,
-                                  check_m, check_n, K_DENSE);
+                                  check_m, check_n, K_DENSE, N);
 
-#if defined(__gfx1200__)
-    print_metrics("SwmmacRdna4F16Policy [gfx1200]", ok, ms, M, N, K_DENSE);
-#elif defined(__gfx1201__)
-    print_metrics("SwmmacRdna4F16Policy [gfx1201]", ok, ms, M, N, K_DENSE);
-#else
-    std::cout << "Non-RDNA4 target: SWMMAC kernel not compiled.\n";
-#endif
+    print_metrics("SwmmacRdna4F16Policy", ok, ms, M, N, K_DENSE);
 
     HIP_CHECK(hipFree(d_A_sparse));
     HIP_CHECK(hipFree(d_A_index));
