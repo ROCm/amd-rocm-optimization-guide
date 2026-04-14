@@ -57,7 +57,7 @@ between matrix elements and lane/VGPR positions for each operand.
 
       Each lane holds 8 FP32 output elements across VGPRs 0–7.
 
-      .. figure:: ../../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-d-16x16.svg
+      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-d-16x16.svg
          :alt: 16×16 SWMMAC D accumulator layout. Rows 0–7 (teal) are held by
                lanes 0–15; rows 8–15 (grey) by lanes 16–31. Each cell shows
                the VGPR index g (0–7) that holds element (i, j). Column j
@@ -85,7 +85,7 @@ between matrix elements and lane/VGPR positions for each operand.
       covering one row of the sparse :math:`\pmb{A}` matrix.
       The compressed-K positions are non-contiguous across the two lane groups.
 
-      .. figure:: ../../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-a-16x16x32.svg
+      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-a-16x16x32.svg
          :alt: 16×16×32 SWMMAC srcA sparse fragment layout. Teal columns
                (compressed K 0–3 and 8–11) are held by lane group 0 (lanes
                0–15); grey columns (compressed K 4–7 and 12–15) by lane group
@@ -122,7 +122,7 @@ between matrix elements and lane/VGPR positions for each operand.
       covering one column of the dense :math:`\pmb{B}` matrix.
       The K-row positions are non-contiguous across the two lane groups.
 
-      .. figure:: ../../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-b-16x16x32.svg
+      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-b-16x16x32.svg
          :alt: 16×16×32 SWMMAC srcB dense fragment layout. Teal rows (K 0–7
                and K 16–23) are held by lane group 0 (lanes 0–15); grey rows
                (K 8–15 and K 24–31) by lane group 1 (lanes 16–31). Each cell
