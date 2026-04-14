@@ -620,69 +620,149 @@ Instruction throughput
 ======================
 
 The cycle count below is the value used to compute theoretical peak
-throughput: :math:`\text{peak (TFLOPS)} = \text{ops per instruction} /
-\text{cycle count} \times \text{frequency (THz)}`.
+throughput: :math:`\text{peak throughput} =
+\frac{\text{ops per instruction}}{\text{cycle count}} \times
+\text{clock frequency}`.  Instructions that support VALU co-execution allow
+the compiler to overlap matrix and vector work; the VALU co-execution cycle
+count gives the number of VALU cycles available during the MFMA latency
+window.  A value of 0 means VALU co-execution is not supported.
 
 .. list-table::
    :header-rows: 1
    :widths: auto
 
    * - Intrinsic
+     - Ops
      - Cycle count
+     - VALU co-execution cycles
    * - ``__builtin_amdgcn_mfma_f32_32x32x1f32``
+     - 4096
      - 64
+     - 0
    * - ``__builtin_amdgcn_mfma_f32_16x16x1f32``
+     - 2048
      - 32
+     - 0
    * - ``__builtin_amdgcn_mfma_f32_4x4x1f32``
+     - 512
      - 8
+     - 0
    * - ``__builtin_amdgcn_mfma_f32_32x32x2f32``
+     - 4096
      - 64
+     - 0
    * - ``__builtin_amdgcn_mfma_f32_16x16x4f32``
+     - 2048
      - 32
+     - 0
    * - ``__builtin_amdgcn_mfma_f32_32x32x4f16``
+     - 16384
      - 64
+     - 60
    * - ``__builtin_amdgcn_mfma_f32_16x16x4f16``
+     - 8192
      - 32
+     - 28
    * - ``__builtin_amdgcn_mfma_f32_4x4x4f16``
+     - 2048
      - 8
+     - 4
    * - ``__builtin_amdgcn_mfma_f32_32x32x8f16``
+     - 16384
      - 32
+     - 28
    * - ``__builtin_amdgcn_mfma_f32_16x16x16f16``
+     - 8192
      - 16
-   * - ``__builtin_amdgcn_mfma_f32_32x32x4_xf32``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f32_16x16x8_xf32``
-     - 16
-   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8``
-     - 16
-   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8``
-     - 16
-   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8``
-     - 16
-   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8``
-     - 16
-   * - ``__builtin_amdgcn_mfma_f64_16x16x4f64``
-     - 32
-   * - ``__builtin_amdgcn_mfma_f64_4x4x4f64``
-     - 16
-   * - ``__builtin_amdgcn_mfma_i32_32x32x4i8``
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_32x32x4bf16_1k``
+     - 16384
      - 64
-   * - ``__builtin_amdgcn_mfma_i32_16x16x4i8``
+     - 60
+   * - ``__builtin_amdgcn_mfma_f32_16x16x4bf16_1k``
+     - 8192
      - 32
-   * - ``__builtin_amdgcn_mfma_i32_4x4x4i8``
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_4x4x4bf16_1k``
+     - 2048
      - 8
-   * - ``__builtin_amdgcn_mfma_i32_32x32x16i8``
+     - 4
+   * - ``__builtin_amdgcn_mfma_f32_32x32x8bf16_1k``
+     - 16384
      - 32
-   * - ``__builtin_amdgcn_mfma_i32_16x16x32i8``
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_16x16x16bf16_1k``
+     - 8192
      - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_32x32x4_xf32``
+     - 8192
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_16x16x8_xf32``
+     - 4096
+     - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8``
+     - 32768
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8``
+     - 32768
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8``
+     - 32768
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8``
+     - 32768
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8``
+     - 16384
+     - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8``
+     - 16384
+     - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8``
+     - 16384
+     - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8``
+     - 16384
+     - 16
+     - 12
+   * - ``__builtin_amdgcn_mfma_f64_16x16x4f64``
+     - 2048
+     - 32
+     - 0
+   * - ``__builtin_amdgcn_mfma_f64_4x4x4f64``
+     - 512
+     - 16
+     - 0
+   * - ``__builtin_amdgcn_mfma_i32_32x32x4i8``
+     - 16384
+     - 64
+     - 60
+   * - ``__builtin_amdgcn_mfma_i32_16x16x4i8``
+     - 8192
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_i32_4x4x4i8``
+     - 2048
+     - 8
+     - 4
+   * - ``__builtin_amdgcn_mfma_i32_32x32x16_i8``
+     - 32768
+     - 32
+     - 28
+   * - ``__builtin_amdgcn_mfma_i32_16x16x32_i8``
+     - 16384
+     - 16
+     - 12
 
 .. _cdna3-dense-mfma-intrinsic-reference:
 
@@ -721,6 +801,20 @@ and accumulate into FP32 output fragments.
 .. include:: mfma-ref/f32-4x4x4f16.rst
 .. include:: mfma-ref/f32-32x32x8f16.rst
 .. include:: mfma-ref/f32-16x16x16f16.rst
+
+BF16 matrix inputs
+^^^^^^^^^^^^^^^^^^
+
+CDNA3 supports only the ``_1k`` BF16 variants.  These intrinsics accept
+four BF16 elements per lane packed into a ``v4bfloat`` register for both
+:math:`\pmb{A}` and :math:`\pmb{B}` inputs, and accumulate into FP32
+output fragments.
+
+.. include:: mfma-ref/f32-32x32x4bf16-1k.rst
+.. include:: mfma-ref/f32-16x16x4bf16-1k.rst
+.. include:: mfma-ref/f32-4x4x4bf16-1k.rst
+.. include:: mfma-ref/f32-32x32x8bf16-1k.rst
+.. include:: mfma-ref/f32-16x16x16bf16-1k.rst
 
 XF32 matrix inputs
 ^^^^^^^^^^^^^^^^^^
