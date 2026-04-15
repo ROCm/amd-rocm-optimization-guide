@@ -98,30 +98,172 @@ Accumulator layout
 ==================
 
 Every SMFMAC instruction computes a single independent :math:`M \times N`
-output tile (block count = 1).  The output layout matches the 1-block
-:math:`16 \times 16` or :math:`32 \times 32` layout of the corresponding
-dense MFMA instruction.
+output tile (block count = 1).  The accumulator (:math:`\pmb{C}` /
+:math:`\pmb{D}`) layout across wavefront lanes and VGPRs is identical to
+the 1-block layout of the corresponding dense MFMA tile shape.
 
-For :math:`16 \times 16` output tiles, the accumulator occupies 4 VGPRs per
-lane.  Given output element :math:`(i, j)`:
+.. note::
+
+   On CDNA3, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
+   :math:`\pmb{C}`, and :math:`\pmb{D}`) can reside in either accumulation
+   VGPRs (accVGPRs) or standard architecture VGPRs (ArchVGPRs).  In HIP
+   device code the compiler selects the appropriate register class
+   automatically.  The layout tables and formulas below use *VGPR index* as
+   a logical position label; the actual register class does not affect the
+   layout.
+
+The formulas in the subsections below use the following notation:
+
+* :math:`i` -- zero-based row index within the tile, :math:`0 \le i < M`
+* :math:`j` -- zero-based column index within the tile, :math:`0 \le j < N`
+* **lane** -- wavefront lane that holds the element,
+  :math:`0 \le \text{lane} < 64`
+* **VGPR** -- zero-based index into that lane's accumulator register file
+
+:math:`16 \times 16` layout
+----------------------------
+
+The :math:`16 \times 16` output tile occupies 4 VGPRs per lane (``v4float``
+or ``v4int``).  The following diagrams show the VGPR index for each output
+element; the two diagrams correspond to the two K depths available for the
+:math:`16 \times 16` tile shape.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32.svg
+   :alt: :math:`16 \times 16`, K=32 SMFMAC accumulator layout -- VGPR index
+         per output element, with lane groups colour-coded.
+   :align: center
+   :width: 70%
+
+   :math:`16 \times 16`, **K=32 accumulator layout.**  Each cell shows the
+   VGPR index that holds output element :math:`(i, j)`.  Rows 0---3 (teal,
+   lanes 0---15), rows 4---7 (grey, lanes 16---31), rows 8---11 (teal,
+   lanes 32---47), rows 12---15 (grey, lanes 48---63).  Column :math:`j`
+   gives the lane offset within the group.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x64.svg
+   :alt: :math:`16 \times 16`, K=64 SMFMAC accumulator layout -- VGPR index
+         per output element, with lane groups colour-coded.
+   :align: center
+   :width: 70%
+
+   :math:`16 \times 16`, **K=64 accumulator layout.**  The output layout is
+   identical to K=32; only the :math:`\pmb{A}` and :math:`\pmb{B}` input
+   fragment sizes differ.
+
+Given output element :math:`(i, j)`:
 
 .. math::
 
    \text{lane}    &= 16 \lfloor \frac{i}{4} \rfloor + j \\
    \text{VGPR}    &= i \bmod 4
 
-For :math:`32 \times 32` output tiles, the accumulator occupies 16 VGPRs per
-lane.  Given output element :math:`(i, j)`:
+Conversely, given lane :math:`L` and VGPR index :math:`G`:
+
+.. math::
+
+   i &= 4 \lfloor \frac{L}{16} \rfloor + (G \bmod 4) \\
+   j &= L \bmod 16
+
+The row-to-lane mapping:
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Rows
+     - Lanes
+     - VGPRs
+   * - 0---3
+     - 0---15
+     - 0---3
+   * - 4---7
+     - 16---31
+     - 0---3
+   * - 8---11
+     - 32---47
+     - 0---3
+   * - 12---15
+     - 48---63
+     - 0---3
+
+:math:`32 \times 32` layout
+----------------------------
+
+The :math:`32 \times 32` output tile occupies 16 VGPRs per lane
+(``v16float`` or ``v16int``).  The following diagrams show the VGPR index
+for each output element; the two diagrams correspond to the two K depths
+available for the :math:`32 \times 32` tile shape.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16.svg
+   :alt: :math:`32 \times 32`, K=16 SMFMAC accumulator layout -- VGPR index
+         per output element, with lane groups colour-coded.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32`, **K=16 accumulator layout.**  Each cell shows the
+   VGPR index that holds output element :math:`(i, j)`.  Teal cells (rows
+   where :math:`\lfloor i/4 \rfloor` is even) belong to lanes 0---31; grey
+   cells to lanes 32---63.  Column :math:`j` gives the lane offset within
+   the group.
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x32.svg
+   :alt: :math:`32 \times 32`, K=32 SMFMAC accumulator layout -- VGPR index
+         per output element, with lane groups colour-coded.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32`, **K=32 accumulator layout.**  The output layout is
+   identical to K=16; only the :math:`\pmb{A}` and :math:`\pmb{B}` input
+   fragment sizes differ.
+
+Given output element :math:`(i, j)`:
 
 .. math::
 
    \text{lane}   &= \bigl(32 \cdot \lfloor \frac{i}{4} \rfloor\bigr) \bmod 64 + j \\
    \text{VGPR}   &= 4 \lfloor \frac{i}{8} \rfloor + (i \bmod 4)
 
-For the full accumulator layout tables, lane-to-element mappings, and
-diagrams, see the :math:`16 \times 16` and :math:`32 \times 32` layout
-sections of :ref:`cdna2-mfma-accumulator-layout`.  The SMFMAC layouts are
-identical to the 1-block dense MFMA layouts documented there.
+Conversely, given lane :math:`L` and VGPR index :math:`G`:
+
+.. math::
+
+   i &= \bigl(8 \cdot \lfloor \frac{G}{4} \rfloor\bigr) \bmod 32
+       + 4 \lfloor \frac{L}{32} \rfloor + (G \bmod 4) \\
+   j &= L \bmod 32
+
+The row-to-lane mapping:
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Rows
+     - Lanes
+     - VGPRs
+   * - 0---3
+     - 0---31
+     - 0---3
+   * - 4---7
+     - 32---63
+     - 0---3
+   * - 8---11
+     - 0---31
+     - 4---7
+   * - 12---15
+     - 32---63
+     - 4---7
+   * - 16---19
+     - 0---31
+     - 8---11
+   * - 20---23
+     - 32---63
+     - 8---11
+   * - 24---27
+     - 0---31
+     - 12---15
+   * - 28---31
+     - 32---63
+     - 12---15
 
 Register types used in this reference
 =====================================
