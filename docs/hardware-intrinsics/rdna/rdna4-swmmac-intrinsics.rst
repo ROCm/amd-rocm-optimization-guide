@@ -98,101 +98,102 @@ computed by one wave32 wavefront. The 32 lanes split into two groups of 16;
 each group owns half the output rows. The diagrams below show the mapping
 between matrix elements and lane or VGPR positions for each operand.
 
-.. tab-set::
+D accumulator (srcC / output)
+---------------------------------
 
-   .. tab-item:: D accumulator (srcC / output)
+Each lane holds 8 FP32 output elements across VGPRs 0--7.
 
-      Each lane holds 8 FP32 output elements across VGPRs 0--7.
+.. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-d-16x16.svg
+   :alt: 16×16 SWMMAC D accumulator layout. Rows 0–7 (teal) are held by
+         lanes 0–15; rows 8–15 (grey) by lanes 16–31. Each cell shows
+         the VGPR index g (0–7) that holds element (i, j). Column j
+         equals lane % 16.
+   :align: center
+   :width: 80%
 
-      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-d-16x16.svg
-         :alt: 16×16 SWMMAC D accumulator layout. Rows 0–7 (teal) are held by
-               lanes 0–15; rows 8–15 (grey) by lanes 16–31. Each cell shows
-               the VGPR index g (0–7) that holds element (i, j). Column j
-               equals lane % 16.
-         :align: center
-         :width: 80%
+Given lane :math:`L` and VGPR :math:`g`, the output element position is:
 
-      Given lane :math:`L` and VGPR :math:`g`, the output element position is:
+.. math::
 
-      .. math::
+   i &= \left\lfloor \frac{L}{16} \right\rfloor \cdot 8 + g \\
+   j &= L \bmod 16
 
-         i &= \left\lfloor \frac{L}{16} \right\rfloor \cdot 8 + g \\
-         j &= L \bmod 16
+Inversely, output element :math:`(i, j)` is stored in:
 
-      Inversely, output element :math:`(i, j)` is stored in:
+.. math::
 
-      .. math::
+   \text{lane} &= \left\lfloor \frac{i}{8} \right\rfloor \cdot 16 + j \\
+   \text{VGPR} &= i \bmod 8
 
-         \text{lane} &= \left\lfloor \frac{i}{8} \right\rfloor \cdot 16 + j \\
-         \text{VGPR} &= i \bmod 8
+srcA (sparse, FP16/BF16)
+--------------------------
 
-   .. tab-item:: srcA (sparse, FP16/BF16)
+Each lane holds 8 compressed FP16 values (``v8fp16``, 4 VGPRs × 2 FP16)
+covering one row of the sparse :math:`\pmb{A}` matrix. The compressed-K
+positions are non-contiguous across the two lane groups.
 
-      Each lane holds 8 compressed FP16 values (``v8fp16``, 4 VGPRs × 2 FP16)
-      covering one row of the sparse :math:`\pmb{A}` matrix.
-      The compressed-K positions are non-contiguous across the two lane groups.
+.. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-a-16x16x32.svg
+   :alt: 16×16×32 SWMMAC srcA sparse fragment layout. Teal columns
+         (compressed K 0–3 and 8–11) are held by lane group 0 (lanes
+         0–15); grey columns (compressed K 4–7 and 12–15) by lane group
+         1 (lanes 16–31). Each cell shows the VGPR index (0–3).
+   :align: center
+   :width: 80%
 
-      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-a-16x16x32.svg
-         :alt: 16×16×32 SWMMAC srcA sparse fragment layout. Teal columns
-               (compressed K 0–3 and 8–11) are held by lane group 0 (lanes
-               0–15); grey columns (compressed K 4–7 and 12–15) by lane group
-               1 (lanes 16–31). Each cell shows the VGPR index (0–3).
-         :align: center
-         :width: 80%
+Lane :math:`L` covers matrix row :math:`L \bmod 16`. The 8 compressed
+elements are distributed across VGPRs as follows:
 
-      Lane :math:`L` covers matrix row :math:`L \bmod 16`. The 8 compressed
-      elements are distributed across VGPRs as follows:
+.. list-table::
+   :header-rows: 1
+   :widths: auto
 
-      .. list-table::
-         :header-rows: 1
-         :widths: auto
+   * - Lane group
+     - VGPR 0
+     - VGPR 1
+     - VGPR 2
+     - VGPR 3
+   * - 0 (lanes 0--15)
+     - compressed K {0, 1}
+     - compressed K {2, 3}
+     - compressed K {8, 9}
+     - compressed K {10, 11}
+   * - 1 (lanes 16--31)
+     - compressed K {4, 5}
+     - compressed K {6, 7}
+     - compressed K {12, 13}
+     - compressed K {14, 15}
 
-         * - Lane group
-           - VGPR 0
-           - VGPR 1
-           - VGPR 2
-           - VGPR 3
-         * - 0 (lanes 0--15)
-           - compressed K {0, 1}
-           - compressed K {2, 3}
-           - compressed K {8, 9}
-           - compressed K {10, 11}
-         * - 1 (lanes 16--31)
-           - compressed K {4, 5}
-           - compressed K {6, 7}
-           - compressed K {12, 13}
-           - compressed K {14, 15}
+srcB (dense, FP16/BF16)
+------------------------
 
-   .. tab-item:: srcB (dense, FP16/BF16)
+Each lane holds 16 dense FP16 values (``v16fp16``, 8 VGPRs × 2 FP16)
+covering one column of the dense :math:`\pmb{B}` matrix. The K-row positions
+are non-contiguous across the two lane groups.
 
-      Each lane holds 16 dense FP16 values (``v16fp16``, 8 VGPRs × 2 FP16)
-      covering one column of the dense :math:`\pmb{B}` matrix.
-      The K-row positions are non-contiguous across the two lane groups.
+.. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-b-16x16x32.svg
+   :alt: 16×16×32 SWMMAC srcB dense fragment layout. Teal rows (K 0–7
+         and K 16–23) are held by lane group 0 (lanes 0–15); grey rows
+         (K 8–15 and K 24–31) by lane group 1 (lanes 16–31). Each cell
+         shows the VGPR index (0–7).
+   :align: center
+   :width: 80%
 
-      .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-b-16x16x32.svg
-         :alt: 16×16×32 SWMMAC srcB dense fragment layout. Teal rows (K 0–7
-               and K 16–23) are held by lane group 0 (lanes 0–15); grey rows
-               (K 8–15 and K 24–31) by lane group 1 (lanes 16–31). Each cell
-               shows the VGPR index (0–7).
-         :align: center
-         :width: 80%
+Lane :math:`L` covers matrix column :math:`L \bmod 16`. The 16 dense
+K rows are distributed across VGPRs as follows:
 
-      Lane :math:`L` covers matrix column :math:`L \bmod 16`. The 16 dense
-      K rows are distributed across VGPRs as follows:
+.. list-table::
+   :header-rows: 1
+   :widths: auto
 
-      .. list-table::
-         :header-rows: 1
-         :widths: auto
-
-         * - Lane group
-           - VGPRs 0--3
-           - VGPRs 4--7
-         * - 0 (lanes 0--15)
-           - K rows 0--7
-           - K rows 16--23
-         * - 1 (lanes 16--31)
-           - K rows 8--15
-           - K rows 24--31
+   * - Lane group
+     - VGPRs 0--3
+     - VGPRs 4--7
+   * - 0 (lanes 0--15)
+     - K rows 0--7
+     - K rows 16--23
+   * - 1 (lanes 16--31)
+     - K rows 8--15
+     - K rows 24--31
 
 The notation used in the rest of this page:
 
