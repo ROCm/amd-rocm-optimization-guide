@@ -1,36 +1,41 @@
 .. meta::
-   :description: Reference for CDNA2 (gfx90a, MI200) matrix fused multiply-add intrinsics, covering all supported __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
-   :keywords: CDNA2, gfx90a, MI200, MFMA, matrix core, HIP intrinsics, FP32, FP64, BF16, INT8, accumulator, __builtin_amdgcn_mfma
+   :description: Reference for CDNA4 (gfx950, MI350 series) matrix fused multiply-add intrinsics, covering all supported __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
+   :keywords: CDNA4, gfx950, MI350, MFMA, matrix core, HIP intrinsics, FP32, FP16, BF16, FP64, FP8, BF8, FP6, FP4, INT8, accumulator, mfma_scale, __builtin_amdgcn_mfma
 
-.. _cdna2-mfma-intrinsics:
+.. _cdna4-dense-mfma-intrinsics:
 
 ********************************************************************************
-CDNA2 MFMA intrinsics
+CDNA4 dense MFMA intrinsics
 ********************************************************************************
 
 Matrix Fused Multiply-Add (MFMA) intrinsics let you issue hardware
 matrix multiply-accumulate operations directly from HIP device code on
-CDNA2 GPUs (``gfx90a``, MI200 series).  Each MFMA instruction
-multiplies a small :math:`\pmb{A}` fragment by a small :math:`\pmb{B}` fragment
-and accumulates the result into a :math:`\pmb{C}` fragment, all within a single
-wavefront of 64 lanes.  The hardware delivers significantly higher throughput
-than an equivalent sequence of scalar fused multiply-add (FMA) instructions.
+CDNA4 GPUs (``gfx950``, MI350 series). Each MFMA instruction multiplies a small
+:math:`\pmb{A}` fragment by a small :math:`\pmb{B}` fragment and accumulates the
+result into a :math:`\pmb{C}` fragment, all within a single wavefront of 64
+lanes. The hardware delivers significantly higher throughput than an equivalent
+sequence of scalar fused multiply-add (FMA) instructions.
 
-CDNA2 supports the same FP32, FP16, BF16, and INT8 shapes as the first CDNA
-generation and adds native FP64 accumulation and high-precision BF16 variants.
+CDNA4 retains FP32, FP16, BF16, INT8, FP64, FP8, and BF8 shapes from CDNA3
+and adds wider-K single-block variants for FP16, BF16, and INT8, plus a new
+class of scaled sub-byte intrinsics (``mfma_scale_*``) that support FP8, BF8,
+FP6 (E2M3 and E3M2), and FP4 (E2M1) input formats with per-block scaling.
+The eXtended Float32 (XF32) input format available on CDNA3 is not supported
+on CDNA4. See the intrinsic reference below for the complete list of supported
+shapes and formats.
 
 Architecture availability
 =========================
 
-The intrinsics on this page target CDNA2 (``gfx90a``, MI200 series) exclusively.
+The intrinsics on this page target CDNA4 (``gfx950``, MI350 series) exclusively.
 Equivalent intrinsics for other CDNA generations are documented on their own
 reference pages:
 
 * :ref:`cdna-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
+* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 * :ref:`cdna3-dense-mfma-intrinsics` -- CDNA3 (``gfx942``, MI300 series)
-* :ref:`cdna4-dense-mfma-intrinsics` -- CDNA4 (``gfx950``, MI350 series)
 
-.. _cdna2-mfma-accumulator-layout:
+.. _cdna4-dense-mfma-accumulator-layout:
 
 Accumulator layout
 ==================
@@ -43,11 +48,11 @@ of independent tiles is called the *block count*.  It depends on how the
 * **Scalar-input variants** (FP32 or FP64 :math:`\pmb{A}` and
   :math:`\pmb{B}`): each K position occupies a separate group of :math:`M`
   lanes, so
-  :math:`\text{blocks} = \frac{\text{wavefront size}}{M \times K}`.
-* **Packed-input variants** (FP16, BF16, INT8 :math:`\pmb{A}` and
-  :math:`\pmb{B}`): all K positions are packed into the register bits of
-  the *same* lane group, so
-  :math:`\text{blocks} = \frac{\text{wavefront size}}{M}` regardless of
+  :math:`\text{blocks} = \text{wavefront_size} / (M \times K)`.
+* **Packed-input variants** (FP16, BF16, XF32, INT8, FP8, BF8
+  :math:`\pmb{A}` and :math:`\pmb{B}`): all K positions are packed into the
+  register bits of the *same* lane group, so
+  :math:`\text{blocks} = \text{wavefront_size} / M` regardless of
   :math:`K`.
 
 Each block is independent: the :math:`\pmb{A}`, :math:`\pmb{B}`, and
@@ -58,13 +63,13 @@ The total number of accVGPRs per lane scales with the block count:
 
 .. math::
 
-   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront size}}
+   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront_size}}
 
 .. note::
 
-   On CDNA2, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
+   On CDNA4, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
    :math:`\pmb{C}`, and :math:`\pmb{D}`) can reside in either accumulation
-   VGPRs (accVGPRs) or standard architecture VGPRs (archVGPRs).  In HIP
+   VGPRs (accVGPRs) or standard architecture VGPRs (ArchVGPRs).  In HIP
    device code the compiler selects the appropriate register class
    automatically.
 
@@ -73,7 +78,7 @@ The total number of accVGPRs per lane scales with the block count:
    file; the same index in two different lanes denotes two distinct physical
    registers.  The layout tables and formulas in the following sections use
    *accVGPR index* as a logical position label; the actual register class
-   (accVGPR or archVGPR) is chosen by the compiler and does not affect the
+   (accVGPR or ArchVGPR) is chosen by the compiler and does not affect the
    layout.
 
 The formulas in the subsections below use the following notation:
@@ -333,7 +338,7 @@ Given output element :math:`(i, j)` in block :math:`b`:
 
 .. math::
 
-   \text{lane} = 16 i + 4 b + j
+   \text{lane} &= 16 i + 4 b + j
 
 Conversely, given lane :math:`L`:
 
@@ -392,68 +397,70 @@ parameter to separate the multiply-accumulate logic from the rest of the
 kernel.  You can drop an MFMA-based policy into that framework without
 changing the outer kernel.
 
-The example below implements ``MfmaCdna2F64Policy`` using
-``v_mfma_f64_16x16x4f64`` -- a :math:`16 \times 16` FP64 intrinsic
-available on CDNA2 (``gfx90a``, MI200 series).  Each wavefront computes a
-single :math:`16 \times 16` output tile; one block is active, giving 4
-FP64 accVGPR pairs (8 physical accVGPRs) per lane.
+The example below implements ``MfmaCdna4F16Policy`` using
+``v_mfma_f32_16x16x32_f16`` -- a :math:`16 \times 16` FP16 intrinsic
+available on CDNA4 (``gfx950``, MI350 series).  Each wavefront computes
+a single :math:`16 \times 16` output tile; one block is active, giving 4
+FP32 accVGPRs per lane.
 
 .. rubric:: Policy constants
 
-``v_mfma_f64_16x16x4f64`` consumes four K-positions per call (K=4), so
-``k_step = 4``.  The 64 lanes are partitioned into four groups of 16, each
-group providing one of the four K-position inputs for both :math:`\pmb{A}`
-and :math:`\pmb{B}`.  The entire :math:`16 \times 16` tile belongs to one
-wavefront, so ``thread_tile_m = thread_tile_n = 16`` and
-``effective_lanes = 64``.
+``v_mfma_f32_16x16x32_f16`` consumes 32 K-positions per call (K=32), so
+``k_step = 32``.  Each lane provides eight FP16 values (``v8half``) for
+:math:`\pmb{A}` and eight for :math:`\pmb{B}`; the 64 lanes partition
+into four groups of 16, each group covering eight K-positions.  The
+entire :math:`16 \times 16` tile belongs to one wavefront, so
+``thread_tile_m = thread_tile_n = 16`` and ``effective_lanes = 64``.
 
 .. rubric:: Accumulator layout
 
-The intrinsic returns a ``v4double`` holding 4 FP64 values -- one for each
-accVGPR pair.  The ``Accumulator`` struct wraps this directly.  The layout
-formulas from the :ref:`cdna2-mfma-accumulator-layout` section translate
-``(lane, accVGPR pair)`` back to :math:`(i, j)` coordinates during the
-``store_c()`` pass.
+The intrinsic returns a ``v4float`` holding 4 FP32 values -- one for each
+accVGPR.  The ``Accumulator`` struct wraps this directly.  The layout
+formulas from the :ref:`cdna4-dense-mfma-accumulator-layout` section
+translate ``(lane, accVGPR)`` back to :math:`(i, j)` coordinates during
+the ``store_c()`` pass.
 
 .. rubric:: Fragment loading
 
-Because K=4, each ``load_a`` call reads a single scalar double.  The 64
-lanes split into four groups of 16 by ``lane_id / 16``; group :math:`g`
-provides data for K-position ``ki + g``.  Within each group, the lane
-offset ``lane_id mod 16`` selects one of the 16 :math:`\pmb{A}`-rows (or
-:math:`\pmb{B}`-columns).
+Because each lane provides eight FP16 values for K=32, each ``load_a``
+call reads eight consecutive scalars.  Lane group :math:`g = \lfloor
+\text{lane\_id} / 16 \rfloor` covers K-positions ``ki + 8g`` through
+``ki + 8g + 7``; within the group, lane offset ``lane_id mod 16`` selects
+one of the 16 :math:`\pmb{A}`-rows (or :math:`\pmb{B}`-columns).  The
+``mma()`` method packs the eight values into a ``v8half`` before issuing
+the instruction.
 
 .. note::
 
    The all-modifier-zero constraint means ``cbsz``, ``abid``, and ``blgp``
-   must all be passed as ``0``.  ``v_mfma_f64_16x16x4f64`` does not support
-   the ``cbsz``/``abid`` broadcast mechanism or the ``blgp`` lane-group
-   pattern modifier.  Additionally, the instruction cannot co-execute with
-   VALU instructions in the same wavefront.
+   must all be passed as ``0``.  ``v_mfma_f32_16x16x32_f16`` is
+   single-block only and does not support the ``cbsz``/``abid`` broadcast
+   mechanism or the ``blgp`` lane-group pattern modifier.
 
-.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna2_mfma.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
    :language: cuda
-   :start-after: [Sphinx mfma cdna2 policy start]
-   :end-before: [Sphinx mfma cdna2 policy end]
+   :start-after: [Sphinx mfma cdna4 policy start]
+   :end-before: [Sphinx mfma cdna4 policy end]
 
 .. rubric:: Instantiating the kernel
 
-With ``MfmaCdna2F64Policy`` in hand, plug it into the generic kernel
-alongside a ``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n`` are
-multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 4``.
-The policy aliases and launch configuration from the example file are:
+With ``MfmaCdna4F16Policy`` in hand, plug it into the generic kernel
+alongside a ``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n``
+are multiples of 16 and whose ``k_tile_size`` is a multiple of
+``k_step = 32``.  The policy aliases and launch configuration from the
+example file are:
 
-.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna2_mfma.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
    :language: cuda
    :start-after: [Sphinx mfma policy aliases start]
    :end-before: [Sphinx mfma policy aliases end]
 
-.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna2_mfma.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
    :language: cuda
    :start-after: [Sphinx mfma launch config start]
    :end-before: [Sphinx mfma launch config end]
 
-.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna2_mfma.hip
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
    :language: cuda
    :start-after: [Sphinx mfma kernel launch start]
    :end-before: [Sphinx mfma kernel launch end]
@@ -462,16 +469,17 @@ The policy aliases and launch configuration from the example file are:
 
 .. code-block:: bash
 
-   amdclang++ -O3 -std=c++17 --offload-arch=gfx90a \
-       matrix_multiply_cdna2_mfma.hip -o mm_cdna2_mfma
-   ./mm_cdna2_mfma
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx950 \
+       matrix_multiply_cdna4_mfma.hip -o mm_cdna4_mfma
+   ./mm_cdna4_mfma
 
 .. note::
 
-   ``MfmaCdna2F64Policy`` requires a CDNA2 GPU (``gfx90a``).  Compile with
-   ``--offload-arch=gfx90a`` to select the correct architecture.  On other
-   targets the ``#if defined(__gfx90a__)`` guard selects ``ScalarFMADPolicy``
-   automatically, so the file compiles without modification.
+   ``MfmaCdna4F16Policy`` requires a CDNA4 GPU (``gfx950``).
+   Compile with ``--offload-arch=gfx950`` to select the correct
+   architecture.  On other targets the ``#if defined(__gfx950__)`` guard
+   selects ``ScalarFMAPolicy`` automatically, so the file compiles without
+   modification.
 
 Naming convention
 =================
@@ -480,7 +488,14 @@ All MFMA intrinsics follow the pattern:
 
 .. code-block:: text
 
-   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>[_1k]
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
+
+For FP8 and BF8 intrinsics, where the :math:`\pmb{A}` and :math:`\pmb{B}`
+input types may differ, the pattern is:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K>_<typeA>_<typeB>
 
 ``out_type``
     Accumulator element type (``f32``, ``f64``, or ``i32``).
@@ -493,11 +508,21 @@ All MFMA intrinsics follow the pattern:
     the caller loops over K to accumulate a full matrix product.
 
 ``in_type``
-    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, or ``i8``).
+    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, ``i8``,
+    or ``xf32``).
 
-``_1k`` (optional)
-    Suffix present on BF16 variants that deliver 1024 Flops/cycle/CU peak
-    throughput, twice the 512 Flops/cycle/CU of the non-``_1k`` BF16 variants.
+``typeA``, ``typeB``
+    For FP8 and BF8 intrinsics: the element type of the :math:`\pmb{A}` and
+    :math:`\pmb{B}` matrices respectively.  Each is one of ``fp8`` (E4M3
+    format) or ``bf8`` (E5M2 format).
+
+.. note::
+
+   CDNA4 renames several underlying ISA instructions to include an explicit
+   block count (for example, ``v_mfma_f32_32x32x1f32`` becomes
+   ``v_mfma_f32_32x32x1_2b_f32`` in the CDNA4 ISA).  The HIP intrinsic
+   names (``__builtin_amdgcn_mfma_*``) are unchanged; the rename is
+   transparent to HIP device code.
 
 Register types used in this reference
 ======================================
@@ -511,19 +536,29 @@ C++ attributes in any HIP translation unit:
    using v16float  = float [[clang::ext_vector_type(16)]];
    using v32float  = float [[clang::ext_vector_type(32)]];
    using v4half    = _Float16 [[clang::ext_vector_type(4)]];
+   using v8half    = _Float16 [[clang::ext_vector_type(8)]];
    using v4int     = int [[clang::ext_vector_type(4)]];
+   using v6int     = int [[clang::ext_vector_type(6)]];        // FP6 scale inputs
+   using v8int     = int [[clang::ext_vector_type(8)]];        // FP8/BF8 scale inputs
    using v16int    = int [[clang::ext_vector_type(16)]];
    using v32int    = int [[clang::ext_vector_type(32)]];
-   using v2bfloat  = short [[clang::ext_vector_type(2)]];  // bf16 storage
-   using v4bfloat  = short [[clang::ext_vector_type(4)]];  // bf16 storage
+   using v2bfloat  = short [[clang::ext_vector_type(2)]];      // bf16 storage
+   using v4bfloat  = short [[clang::ext_vector_type(4)]];      // bf16 storage
+   using v8bfloat  = short [[clang::ext_vector_type(8)]];      // wider-K BF16
    using v4double  = double [[clang::ext_vector_type(4)]];
+
+FP8 and BF8 operands passed to the standard (non-scale) MFMA intrinsics use a
+64-bit integer (``long long``) that packs eight 8-bit values per lane. The
+scaled sub-byte intrinsics (``mfma_scale_*``) use ``v4int``, ``v6int``, or
+``v8int`` depending on the selected format; see the per-intrinsic reference for
+details.
 
 Each type alias maps one-to-one to the corresponding LLVM vector type used in
 the intrinsic definition.  The number in the name is the element count per
 lane; the total VGPR count equals the element count multiplied by the element
 size in 32-bit words.
 
-.. _cdna2-mfma-common-parameters:
+.. _cdna4-dense-mfma-common-parameters:
 
 Common parameters
 =================
@@ -531,7 +566,7 @@ Common parameters
 See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
 ``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
 
-.. _cdna2-mfma-instruction-throughput:
+.. _cdna4-dense-mfma-throughput:
 
 Instruction throughput
 ======================
@@ -539,10 +574,7 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  Instructions that support VALU co-execution allow the
-compiler to overlap matrix and vector work; the VALU co-execution cycle count
-gives the number of VALU cycles available during the MFMA latency window.  A
-value of 0 means VALU co-execution is not supported.
+\text{clock frequency}`.
 
 .. list-table::
    :header-rows: 1
@@ -551,117 +583,122 @@ value of 0 means VALU co-execution is not supported.
    * - Intrinsic
      - Ops
      - Cycle count
-     - VALU co-execution cycles
    * - ``__builtin_amdgcn_mfma_f32_32x32x1f32``
      - 4096
      - 64
-     - 60
    * - ``__builtin_amdgcn_mfma_f32_16x16x1f32``
      - 2048
      - 32
-     - 28
    * - ``__builtin_amdgcn_mfma_f32_4x4x1f32``
      - 512
      - 8
-     - 4
    * - ``__builtin_amdgcn_mfma_f32_32x32x2f32``
      - 4096
      - 64
-     - 60
    * - ``__builtin_amdgcn_mfma_f32_16x16x4f32``
      - 2048
      - 32
-     - 28
    * - ``__builtin_amdgcn_mfma_f32_32x32x4f16``
      - 16384
      - 64
-     - 60
    * - ``__builtin_amdgcn_mfma_f32_16x16x4f16``
      - 8192
      - 32
-     - 28
    * - ``__builtin_amdgcn_mfma_f32_4x4x4f16``
      - 2048
      - 8
-     - 4
    * - ``__builtin_amdgcn_mfma_f32_32x32x8f16``
      - 16384
-     - 64
-     - 60
+     - 32
    * - ``__builtin_amdgcn_mfma_f32_16x16x16f16``
      - 8192
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_f16``
+     - 32768
      - 32
-     - 28
-   * - ``__builtin_amdgcn_mfma_f32_32x32x2bf16``
-     - 8192
-     - 64
-     - 60
-   * - ``__builtin_amdgcn_mfma_f32_16x16x2bf16``
-     - 4096
-     - 32
-     - 28
-   * - ``__builtin_amdgcn_mfma_f32_4x4x2bf16``
-     - 1024
-     - 8
-     - 4
-   * - ``__builtin_amdgcn_mfma_f32_32x32x4bf16``
-     - 8192
-     - 64
-     - 60
-   * - ``__builtin_amdgcn_mfma_f32_16x16x8bf16``
-     - 4096
-     - 32
-     - 28
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_f16``
+     - 16384
+     - 16
    * - ``__builtin_amdgcn_mfma_f32_32x32x4bf16_1k``
      - 16384
      - 64
-     - 60
    * - ``__builtin_amdgcn_mfma_f32_16x16x4bf16_1k``
      - 8192
      - 32
-     - 28
    * - ``__builtin_amdgcn_mfma_f32_4x4x4bf16_1k``
      - 2048
      - 8
-     - 4
    * - ``__builtin_amdgcn_mfma_f32_32x32x8bf16_1k``
      - 16384
-     - 64
-     - 60
+     - 32
    * - ``__builtin_amdgcn_mfma_f32_16x16x16bf16_1k``
      - 8192
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf16``
+     - 32768
      - 32
-     - 28
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf16``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8``
+     - 32768
+     - 32
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8``
+     - 32768
+     - 32
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8``
+     - 32768
+     - 32
+   * - ``__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8``
+     - 32768
+     - 32
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4``
+     - 131072
+     - 32 (FP4/FP6), 64 (FP8/BF8)
+   * - ``__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4``
+     - 65536
+     - 16 (FP4/FP6), 32 (FP8/BF8)
    * - ``__builtin_amdgcn_mfma_f64_16x16x4f64``
      - 2048
-     - 32
-     - 0
+     - 64
    * - ``__builtin_amdgcn_mfma_f64_4x4x4f64``
      - 512
-     - 16
-     - 0
+     - 32
    * - ``__builtin_amdgcn_mfma_i32_32x32x4i8``
      - 16384
      - 64
-     - 60
    * - ``__builtin_amdgcn_mfma_i32_16x16x4i8``
      - 8192
      - 32
-     - 28
    * - ``__builtin_amdgcn_mfma_i32_4x4x4i8``
      - 2048
      - 8
-     - 4
-   * - ``__builtin_amdgcn_mfma_i32_32x32x8i8``
-     - 16384
-     - 64
-     - 60
-   * - ``__builtin_amdgcn_mfma_i32_16x16x16i8``
-     - 8192
+   * - ``__builtin_amdgcn_mfma_i32_32x32x16_i8``
+     - 32768
      - 32
-     - 28
+   * - ``__builtin_amdgcn_mfma_i32_16x16x32_i8``
+     - 16384
+     - 16
+   * - ``__builtin_amdgcn_mfma_i32_32x32x32_i8``
+     - 65536
+     - 32
+   * - ``__builtin_amdgcn_mfma_i32_16x16x64_i8``
+     - 32768
+     - 16
 
-.. _cdna2-mfma-intrinsic-reference:
+.. _cdna4-dense-mfma-intrinsic-reference:
 
 Intrinsic reference
 ===================
@@ -689,9 +726,11 @@ fragments.
 FP16 matrix inputs
 ^^^^^^^^^^^^^^^^^^
 
-The following intrinsics accept four FP16 elements per lane packed into a
-``v4half`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
-and accumulate into FP32 output fragments.
+CDNA4 supports two FP16 intrinsic families that differ in K step and block
+count.
+
+The narrow-K multi-block variants accept four FP16 elements per lane packed into
+a ``v4half`` register:
 
 .. include:: mfma-ref/f32-32x32x4f16.rst
 .. include:: mfma-ref/f32-16x16x4f16.rst
@@ -699,20 +738,20 @@ and accumulate into FP32 output fragments.
 .. include:: mfma-ref/f32-32x32x8f16.rst
 .. include:: mfma-ref/f32-16x16x16f16.rst
 
+The wider-K single-block variants accept eight FP16 elements per lane packed
+into a ``v8half`` register:
+
+.. include:: mfma-ref/f32-32x32x16-f16.rst
+.. include:: mfma-ref/f32-16x16x32-f16.rst
+
 BF16 matrix inputs
 ^^^^^^^^^^^^^^^^^^
 
-The following intrinsics accept two BF16 elements per lane packed into a
-``v2bfloat`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
-and accumulate into FP32 output fragments.
+CDNA4 supports two BF16 intrinsic families that differ in K step and block
+count.
 
-.. include:: mfma-ref/f32-32x32x2bf16.rst
-.. include:: mfma-ref/f32-16x16x2bf16.rst
-.. include:: mfma-ref/f32-4x4x2bf16.rst
-.. include:: mfma-ref/f32-32x32x4bf16.rst
-.. include:: mfma-ref/f32-16x16x8bf16.rst
-
-The following variants carry the ``_1k`` suffix.
+The narrow-K ``_1k`` multi-block variants, inherited from CDNA3, accept four
+BF16 elements per lane packed into a ``v4bfloat`` register:
 
 .. include:: mfma-ref/f32-32x32x4bf16-1k.rst
 .. include:: mfma-ref/f32-16x16x4bf16-1k.rst
@@ -720,22 +759,46 @@ The following variants carry the ``_1k`` suffix.
 .. include:: mfma-ref/f32-32x32x8bf16-1k.rst
 .. include:: mfma-ref/f32-16x16x16bf16-1k.rst
 
+The wider-K single-block variants accept eight BF16 elements per lane packed
+into a ``v8bfloat`` register:
+
+.. include:: mfma-ref/f32-32x32x16-bf16.rst
+.. include:: mfma-ref/f32-16x16x32-bf16.rst
+
+FP8 and BF8 matrix inputs
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics accept eight 8-bit floating-point values per lane
+packed into a ``long long`` register.  Two 8-bit formats are supported:
+
+* **FP8** (``fp8``): E4M3 format (1 sign, 4 exponent, 3 mantissa bits).
+* **BF8** (``bf8``): E5M2 format (1 sign, 5 exponent, 2 mantissa bits).
+
+The :math:`\pmb{A}` and :math:`\pmb{B}` matrices may use different formats,
+giving four combinations per tile shape.
+
+.. include:: mfma-ref/f32-32x32x16fp8-fp8.rst
+.. include:: mfma-ref/f32-32x32x16fp8-bf8.rst
+.. include:: mfma-ref/f32-32x32x16bf8-fp8.rst
+.. include:: mfma-ref/f32-32x32x16bf8-bf8.rst
+.. include:: mfma-ref/f32-16x16x32fp8-fp8.rst
+.. include:: mfma-ref/f32-16x16x32fp8-bf8.rst
+.. include:: mfma-ref/f32-16x16x32bf8-fp8.rst
+.. include:: mfma-ref/f32-16x16x32bf8-bf8.rst
+
 FP64-accumulate intrinsics
 --------------------------
 
-CDNA2 introduces native double-precision (FP64) matrix accumulation.
-These intrinsics accept one FP64 element per lane for both :math:`\pmb{A}`
-and :math:`\pmb{B}` inputs and accumulate into FP64 output fragments held
-in ``v4double`` registers. FP64 MFMA operations use IEEE round-to-nearest-even
-rather than round-to-zero for partial products.
+CDNA4 retains native double-precision (FP64) matrix accumulation from
+CDNA3.  These intrinsics accept one FP64 element per lane for both
+:math:`\pmb{A}` and :math:`\pmb{B}` inputs and accumulate into FP64 output
+fragments held in ``v4double`` registers.
 
 .. note::
 
-   FP64 MFMA intrinsics do not support the ``blgp`` lane-group pattern
-   modifier.  Pass ``blgp = 0`` for all FP64 variants; any other value
-   is reserved.  Additionally, FP64 MFMA instructions cannot co-execute
-   with VALU instructions.  Schedule non-VALU instructions (loads, stores,
-   or branches) around FP64 MFMA operations to hide execution latency.
+   On CDNA4, the ``blgp`` parameter of FP64 intrinsics is repurposed as a
+   3-bit source negation modifier rather than a lane-group pattern selector.
+   See the :ref:`cdna4-dense-mfma-common-parameters` section for details.
 
 FP64 matrix inputs
 ^^^^^^^^^^^^^^^^^^
@@ -744,21 +807,53 @@ The following intrinsics accept one FP64 element per lane for both
 :math:`\pmb{A}` and :math:`\pmb{B}` inputs and accumulate into FP64 output
 fragments.
 
-.. include:: mfma-ref/f64-16x16x4f64-cdna2.rst
-.. include:: mfma-ref/f64-4x4x4f64-cdna2.rst
+.. include:: mfma-ref/f64-16x16x4f64-cdna3.rst
+.. include:: mfma-ref/f64-4x4x4f64-cdna3.rst
 
 INT32-accumulate intrinsics
 ---------------------------
 
-These intrinsics accept four signed 8-bit integer elements per lane packed
-into a single ``int`` register for both :math:`\pmb{A}` and :math:`\pmb{B}`
-inputs, and accumulate into INT32 output fragments.
+These intrinsics accumulate into signed 32-bit integer (INT32) output
+fragments.
 
 INT8 matrix inputs
 ^^^^^^^^^^^^^^^^^^
 
+The following intrinsics accept four signed 8-bit integer elements per lane
+packed into a single ``int`` register for both :math:`\pmb{A}` and
+:math:`\pmb{B}` inputs.
+
 .. include:: mfma-ref/i32-32x32x4i8.rst
 .. include:: mfma-ref/i32-16x16x4i8.rst
 .. include:: mfma-ref/i32-4x4x4i8.rst
-.. include:: mfma-ref/i32-32x32x8i8.rst
-.. include:: mfma-ref/i32-16x16x16i8.rst
+
+The following wider-K variants accept eight signed 8-bit integer elements
+per lane packed into a ``long long`` register:
+
+.. include:: mfma-ref/i32-32x32x16i8.rst
+.. include:: mfma-ref/i32-16x16x32i8.rst
+
+The following CDNA4 wider-K single-block variants accept 16 signed 8-bit integer
+elements per lane packed into a ``v4int`` (four 32-bit words) register:
+
+.. include:: mfma-ref/i32-32x32x32-i8.rst
+.. include:: mfma-ref/i32-16x16x64-i8.rst
+
+Mixed-precision with scaling
+----------------------------
+
+CDNA4 introduces scaled sub-byte matrix intrinsics (``mfma_scale_*``) that
+support FP8 (E4M3), BF8 (E5M2), FP6 (E2M3), FP6 (E3M2), and FP4 (E2M1)
+input formats with per-block scaling.  Unlike the standard MFMA intrinsics,
+the ``cbsz`` and ``blgp`` parameters select the **input format** for
+:math:`\pmb{A}` and :math:`\pmb{B}` respectively rather than acting as
+broadcast or lane-group-pattern modifiers.  The vector type of ``srcA`` and
+``srcB`` must match the selected format: ``v8int`` for 8-bit formats, ``v6int``
+for 6-bit formats, and ``v4int`` for 4-bit formats.
+
+Each instruction also accepts a pair of per-block scale values loaded with
+``v_mfma_ld_scale_b32``.  The 2-bit ``op_sel_a`` and ``op_sel_b`` immediates
+select which quarter of the scale register applies to each output block.
+
+.. include:: mfma-ref/f32-32x32x64-f8f6f4-scale.rst
+.. include:: mfma-ref/f32-16x16x128-f8f6f4-scale.rst

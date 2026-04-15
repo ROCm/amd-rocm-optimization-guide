@@ -25,6 +25,7 @@ reference pages:
 
 * :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 * :ref:`cdna3-dense-mfma-intrinsics` -- CDNA3 (``gfx942``, MI300 series)
+* :ref:`cdna4-dense-mfma-intrinsics` -- CDNA4 (``gfx950``, MI350 series)
 
 .. _cdna-mfma-accumulator-layout:
 
