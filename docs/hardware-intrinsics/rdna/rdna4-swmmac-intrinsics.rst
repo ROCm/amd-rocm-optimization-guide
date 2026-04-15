@@ -32,8 +32,8 @@ feature, which is enabled automatically when compiling for ``gfx1200`` or
 
 .. code-block:: bash
 
-   amdclang++ --offload-arch=gfx1201 ...   # RX 9070 XT
-   amdclang++ --offload-arch=gfx1200 ...   # RX 9070
+   amdclang++ --offload-arch=gfx1201 ...
+   amdclang++ --offload-arch=gfx1200 ...
 
 Naming convention
 =================
@@ -329,20 +329,18 @@ multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 32``.
 
 .. code-block:: bash
 
-   # RX 9070 XT
    amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
        matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
    ./mm_rdna4_swmmac
 
-   # RX 9070
    amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
        matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
    ./mm_rdna4_swmmac
 
 .. note::
 
-   ``SwmmacRdna4F16Policy`` requires an RDNA 4 GPU (``gfx1201`` RX 9070 XT or
-   ``gfx1200`` RX 9070). The ``#if defined(__gfx1200__) || defined(__gfx1201__)``
+   ``SwmmacRdna4F16Policy`` requires an RDNA 4 GPU (``gfx1200`` or ``gfx1201``).
+   The ``#if defined(__gfx1200__) || defined(__gfx1201__)``
    guard in the example file falls back to ``ScalarFMASPolicy`` on other targets,
    so the file compiles without modification.
 
