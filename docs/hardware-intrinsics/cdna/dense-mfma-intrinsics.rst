@@ -16,4 +16,4 @@ with data. Select a CDNA generation below for the corresponding intrinsic
 reference and common parameter documentation.
 
 * :doc:`CDNA MFMA intrinsics <cdna-mfma-intrinsics>`
-* :doc:`MFMA common parameters <mfma-common-parameters>`
+* :doc:`Dense MFMA common parameters <mfma-common-parameters>`

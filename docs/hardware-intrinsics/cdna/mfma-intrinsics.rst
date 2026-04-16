@@ -17,5 +17,6 @@ architectures (AMD Instinct GPUs). Coverage is organized first by operand
 density -- dense or sparse -- and then by CDNA generation.
 
 * :doc:`Dense MFMA intrinsics <dense-mfma-intrinsics>`
+  * :doc:`CDNA MFMA intrinsics <cdna-mfma-intrinsics>`
+  * :doc:`Dense MFMA common parameters <mfma-common-parameters>`
 * :doc:`Sparse MFMA intrinsics <sparse-mfma-intrinsics>`
-
