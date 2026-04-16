@@ -20,8 +20,10 @@ Architecture availability
 =========================
 
 The intrinsics on this page target CDNA (``gfx908``, MI100) exclusively.
-Equivalent intrinsics for later CDNA generations will be documented on their own
-reference pages.
+Equivalent intrinsics for later CDNA generations are documented on their own
+reference pages:
+
+* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 
 .. _cdna-mfma-accumulator-layout:
 
