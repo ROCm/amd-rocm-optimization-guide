@@ -133,7 +133,7 @@ covering one row of the sparse :math:`\pmb{A}` matrix. The compressed-K
 positions are non-contiguous across the two lane groups.
 
 .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-a-16x16x32.svg
-   :alt: 16×16×32 SWMMAC srcA sparse fragment layout. Teal columns
+   :alt: 16×16×32 SWMMAC srcA sparse fragment layout. Rose columns
          (compressed K 0–3 and 8–11) are held by lane group 0 (lanes
          0–15); grey columns (compressed K 4–7 and 12–15) by lane group
          1 (lanes 16–31). Each cell shows the VGPR index (0–3).
@@ -171,7 +171,7 @@ covering one column of the dense :math:`\pmb{B}` matrix. The K-row positions
 are non-contiguous across the two lane groups.
 
 .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-b-16x16x32.svg
-   :alt: 16×16×32 SWMMAC srcB dense fragment layout. Teal rows (K 0–7
+   :alt: 16×16×32 SWMMAC srcB dense fragment layout. Rose rows (K 0–7
          and K 16–23) are held by lane group 0 (lanes 0–15); grey rows
          (K 8–15 and K 24–31) by lane group 1 (lanes 16–31). Each cell
          shows the VGPR index (0–7).
@@ -210,15 +210,14 @@ C++ attributes in any HIP translation unit:
 
 .. code-block:: cpp
 
-   typedef int      v2int    __attribute__((ext_vector_type(2)));
-   typedef int      v4int    __attribute__((ext_vector_type(4)));
-   typedef int      v8int    __attribute__((ext_vector_type(8)));
-   typedef float    v8float  __attribute__((ext_vector_type(8)));
-   // BF16 is stored as short for gfx1200/gfx1201 SWMMAC inputs:
-   typedef short    v8short  __attribute__((ext_vector_type(8)));
-   typedef short    v16short __attribute__((ext_vector_type(16)));
-   typedef __fp16   v8fp16   __attribute__((ext_vector_type(8)));
-   typedef __fp16   v16fp16  __attribute__((ext_vector_type(16)));
+   using v2int    = int    [[clang::ext_vector_type(2)]];
+   using v4int    = int    [[clang::ext_vector_type(4)]];
+   using v8int    = int    [[clang::ext_vector_type(8)]];
+   using v8float  = float  [[clang::ext_vector_type(8)]];
+   using v8short  = short  [[clang::ext_vector_type(8)]];   // BF16 storage
+   using v16short = short  [[clang::ext_vector_type(16)]];  // BF16 storage
+   using v8fp16   = __fp16 [[clang::ext_vector_type(8)]];
+   using v16fp16  = __fp16 [[clang::ext_vector_type(16)]];
 
 Each type alias maps one-to-one to the corresponding LLVM vector type used in
 the intrinsic definition. The number in the name is the element count per lane.

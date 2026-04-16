@@ -6,7 +6,7 @@
 // The 8 compressed FP16 elements (v8fp16, 4 VGPRs × 2 FP16) are loaded
 // from NON-CONTIGUOUS compressed-K positions:
 //
-//   Lane group 0 (lanes  0–15, teal):
+//   Lane group 0 (lanes  0–15, rose):
 //     VGPR 0 → compressed K {0, 1}    VGPR 2 → compressed K { 8,  9}
 //     VGPR 1 → compressed K {2, 3}    VGPR 3 → compressed K {10, 11}
 //
@@ -21,7 +21,7 @@
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
 // ── Palette ───────────────────────────────────────────────────────────────
-#let teal-light = rgb("#cceef5")   // lane group 0 (lanes  0–15)
+#let rose-light = rgb("#f5cccd")   // lane group 0 (lanes  0–15)
 #let grey       = rgb("#bfbfbf")   // lane group 1 (lanes 16–31)
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
@@ -34,7 +34,7 @@
 
 // ── Column classification functions ───────────────────────────────────────
 // Lane group that owns compressed-K column c (0–15):
-//   group 0 (teal): c ∈ {0-3, 8-11}   group 1 (grey): c ∈ {4-7, 12-15}
+//   group 0 (rose): c ∈ {0-3, 8-11}   group 1 (grey): c ∈ {4-7, 12-15}
 #let a-grp(c) = if c < 4 or (c >= 8 and c < 12) { 0 } else { 1 }
 
 // VGPR index (0–3) for compressed-K column c:
@@ -49,7 +49,7 @@
 
 // ── Single cell: row i, compressed-K column c ─────────────────────────────
 #let a-cell(i, c) = {
-  let bg  = if a-grp(c) == 0 { teal-light } else { grey }
+  let bg  = if a-grp(c) == 0 { rose-light } else { grey }
   // Vertical major rule at the left edge of each 4-column band (except col 0)
   let lft = if c == 4 or c == 8 or c == 12 { rule-major } else { none }
   rect(
@@ -77,7 +77,7 @@
   column-gutter: gap,
   ..range(16).map(c => {
     let g   = a-grp(c)
-    let bg  = if g == 0 { teal-light } else { grey }
+    let bg  = if g == 0 { rose-light } else { grey }
     let lft = if c == 4 or c == 8 or c == 12 { rule-major } else { none }
     if c == 0 or c == 4 or c == 8 or c == 12 {
       // Emit a box that spans the 4-column band

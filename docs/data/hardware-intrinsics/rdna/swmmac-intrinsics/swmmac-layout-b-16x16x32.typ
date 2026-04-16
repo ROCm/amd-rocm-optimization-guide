@@ -6,7 +6,7 @@
 // The 16 dense FP16 elements (v16fp16, 8 VGPRs × 2 FP16) are loaded
 // from NON-CONTIGUOUS K-rows:
 //
-//   Lane group 0 (lanes  0–15, teal):
+//   Lane group 0 (lanes  0–15, rose):
 //     VGPRs 0–3 → K rows  0– 7    VGPRs 4–7 → K rows 16–23
 //
 //   Lane group 1 (lanes 16–31, grey):
@@ -22,7 +22,7 @@
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
 // ── Palette ───────────────────────────────────────────────────────────────
-#let teal-light = rgb("#cceef5")   // lane group 0 (lanes  0–15)
+#let rose-light = rgb("#f5cccd")   // lane group 0 (lanes  0–15)
 #let grey       = rgb("#bfbfbf")   // lane group 1 (lanes 16–31)
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
@@ -35,7 +35,7 @@
 
 // ── Row classification functions ──────────────────────────────────────────
 // Lane group that covers K-row k:
-//   group 0 (teal): k ∈ { 0– 7, 16–23}
+//   group 0 (rose): k ∈ { 0– 7, 16–23}
 //   group 1 (grey): k ∈ { 8–15, 24–31}
 #let b-grp(k) = if k < 8 or (k >= 16 and k < 24) { 0 } else { 1 }
 
@@ -56,7 +56,7 @@
 
 // ── Single cell: K-row k, N-column j ──────────────────────────────────────
 #let b-cell(k, j) = {
-  let bg = if b-grp(k) == 0 { teal-light } else { grey }
+  let bg = if b-grp(k) == 0 { rose-light } else { grey }
   rect(
     width: sz, height: sz, fill: bg,
     stroke: (top: b-top-rule(k), bottom: none, left: none, right: none),
@@ -99,7 +99,7 @@
       let vlast = vbase + 3
       let swatch = box(
         width: 6pt, height: 6pt,
-        fill: if g == 0 { teal-light } else { grey },
+        fill: if g == 0 { rose-light } else { grey },
         stroke: 0.3pt + dimmed,
       )
       box(

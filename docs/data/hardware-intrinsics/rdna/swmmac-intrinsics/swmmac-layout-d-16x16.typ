@@ -1,7 +1,7 @@
 // 16×16 SWMMAC D/C accumulator layout (RDNA 4, wave32)
 //
 // Visual encoding
-//   Teal cells → rows  0– 7 (lanes  0–15)
+//   Rose cells → rows  0– 7 (lanes  0–15)
 //   Grey cells → rows  8–15 (lanes 16–31)
 //   Cell value → VGPR index g (0–7)
 //   Column j   → matrix column = lane % 16
@@ -19,7 +19,7 @@
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
 // ── Palette ───────────────────────────────────────────────────────────────
-#let teal-light = rgb("#cceef5")   // lanes  0–15 (rows 0–7)
+#let rose-light = rgb("#f5cccd")   // lanes  0–15 (rows 0–7)
 #let grey       = rgb("#bfbfbf")   // lanes 16–31 (rows 8–15)
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
@@ -33,13 +33,13 @@
 // ── Layout functions ──────────────────────────────────────────────────────
 // VGPR index: position within the lane's 8-element output vector
 #let vgpr(i) = calc.rem(i, 8)
-// Lane group: 0 → teal (rows 0–7), 1 → grey (rows 8–15)
+// Lane group: 0 → rose (rows 0–7), 1 → grey (rows 8–15)
 #let lane-grp(i) = calc.floor(i / 8)
 
 // ── Single cell ───────────────────────────────────────────────────────────
 #let d-cell(i, j) = {
   let g  = vgpr(i)
-  let bg = if lane-grp(i) == 0 { teal-light } else { grey }
+  let bg = if lane-grp(i) == 0 { rose-light } else { grey }
   let top-rule = if i == 8 { rule-major } else { none }
   rect(
     width: sz, height: sz, fill: bg,
@@ -82,7 +82,7 @@
       let row1 = row0 + 7
       let swatch = box(
         width: 6pt, height: 6pt,
-        fill: if g == 0 { teal-light } else { grey },
+        fill: if g == 0 { rose-light } else { grey },
         stroke: 0.3pt + dimmed,
       )
       box(
