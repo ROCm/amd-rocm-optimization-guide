@@ -1,6 +1,6 @@
 .. meta::
-   :description: Reference for sparse matrix fused multiply-accumulate (SMFMAC) intrinsics on AMD Instinct accelerators, covering 4:2 structured sparsity with FP16, BF16, INT8, and FP8 data types on CDNA3 GPUs.
-   :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA3, gfx940, gfx942, MI300
+   :description: Reference for sparse matrix fused multiply-accumulate (SMFMAC) intrinsics on AMD Instinct accelerators, covering 4:2 structured sparsity with FP16, BF16, INT8, and FP8 data types on CDNA3 and CDNA4 GPUs.
+   :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA3, CDNA4, gfx940, gfx942, gfx950, MI300, MI350
 
 .. _sparse-mfma-intrinsics:
 
@@ -11,7 +11,8 @@ Sparse MFMA intrinsics
 Sparse Matrix Fused Multiply-Accumulate (SMFMAC) intrinsics let you issue
 hardware matrix multiply-accumulate operations that exploit 4:2 structured
 sparsity directly from HIP device code on CDNA3 GPUs (``gfx940``, ``gfx942``,
-MI300 series) and CDNA4 GPUs (``gfx950``).  Each SMFMAC instruction multiplies a compressed
+MI300 series) and CDNA4 GPUs (``gfx950``, MI350 series).  Each SMFMAC
+instruction multiplies a compressed
 :math:`\pmb{A}` fragment by a dense :math:`\pmb{B}` fragment and accumulates
 the result into a :math:`\pmb{D}` fragment, all within a single wavefront of
 64 lanes.  Because the :math:`\pmb{A}` operand is stored in compressed form,
@@ -22,23 +23,15 @@ the multiply.
 
 CDNA3 supports SMFMAC intrinsics with FP16, BF16, and INT8 inputs, plus
 FP8 (E4M3) and BF8 (E5M2) variants in all four A×B type combinations.
-CDNA4 (``gfx950``) adds doubled-K variants in all data types.
+CDNA4 adds doubled-K variants in all data types.
 
 Architecture availability
 =========================
 
-The intrinsics on this page target CDNA3 (``gfx940``, ``gfx942``, MI300
-series) and CDNA4 (``gfx950``).  The FP16, BF16, and INT8 SMFMAC variants
-at the base K depths are available on all CDNA3 GPUs.  The FP8 and BF8
-variants require ``gfx942`` or later.  Doubled-K variants in all data types
-are available on ``gfx950`` only; these are noted in the individual
-intrinsic reference entries.
-
-For dense (non-sparse) MFMA intrinsics, see the per-generation reference
-pages:
-
-* :ref:`cdna-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
-* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
+The FP16, BF16, and INT8 SMFMAC variants at the base K depths are available
+on ``gfx940`` and ``gfx942``.  The FP8 and BF8 variants require ``gfx942``
+or later.  Doubled-K variants in all data types are available on ``gfx950``
+only; these are noted in the individual intrinsic reference entries.
 
 Naming convention
 =================
@@ -63,11 +56,21 @@ All SMFMAC intrinsics follow the pattern:
     Input element type of the :math:`\pmb{A}` matrix (``f16``, ``bf16``,
     ``i8``, ``fp8``, or ``bf8``).
 
-``in_type_b`` (optional)
-    Input element type of the :math:`\pmb{B}` matrix.  Present only when
-    :math:`\pmb{A}` and :math:`\pmb{B}` use different types (FP8/BF8
-    mixed-type variants).  Omitted when :math:`\pmb{A}` and :math:`\pmb{B}`
-    share the same type.
+``in_type_b`` (FP8/BF8 variants only)
+    Input element type of the :math:`\pmb{B}` matrix.  Always present for
+    FP8 and BF8 variants to disambiguate the four possible A×B type
+    combinations (``fp8_fp8``, ``fp8_bf8``, ``bf8_fp8``, ``bf8_bf8``).
+    Omitted for FP16, BF16, and INT8 variants where :math:`\pmb{A}` and
+    :math:`\pmb{B}` always share the same type.
+
+For example:
+
+* ``__builtin_amdgcn_smfmac_f32_16x16x32_f16`` -- a :math:`16 \times 16`
+  sparse MMA with :math:`K=32` that multiplies FP16 :math:`\pmb{A}` by
+  FP16 :math:`\pmb{B}` and accumulates into FP32.
+* ``__builtin_amdgcn_smfmac_f32_16x16x64_fp8_bf8`` -- a :math:`16 \times 16`
+  sparse MMA with :math:`K=64` that multiplies FP8 :math:`\pmb{A}` by
+  BF8 :math:`\pmb{B}` and accumulates into FP32.
 
 Structured sparsity (4:2 pattern)
 =================================
