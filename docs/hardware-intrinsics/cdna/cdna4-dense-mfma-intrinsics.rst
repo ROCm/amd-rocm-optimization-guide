@@ -698,6 +698,12 @@ throughput: :math:`\text{peak throughput} =
      - 32768
      - 16
 
+.. seealso::
+
+   :ref:`cdna4-mfma-lds-intrinsics` -- Transpose load intrinsics that load
+   operands directly from LDS into the per-lane fragment layout expected by
+   the intrinsics below, without a software shuffle step.
+
 .. _cdna4-dense-mfma-intrinsic-reference:
 
 Intrinsic reference

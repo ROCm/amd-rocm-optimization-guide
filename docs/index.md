@@ -47,6 +47,7 @@ and multi-GPU programming.
       * {doc}`./hardware-intrinsics/cdna/cdna-sparse-mfma-intrinsics`
       * {doc}`./hardware-intrinsics/cdna/cdna3-sparse-mfma-intrinsics`
       * {doc}`./hardware-intrinsics/cdna/cdna4-sparse-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna4-mfma-lds-intrinsics`
     * {doc}`./hardware-intrinsics/cdna/mfma-common-parameters`
   * {doc}`./hardware-intrinsics/rdna/rdna4-swmmac-intrinsics`
 
