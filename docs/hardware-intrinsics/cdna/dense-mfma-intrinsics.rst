@@ -19,3 +19,4 @@ reference. For trailing parameter documentation, see
 * :doc:`CDNA MFMA intrinsics <cdna-mfma-intrinsics>`
 * :doc:`CDNA2 MFMA intrinsics <cdna2-mfma-intrinsics>`
 * :doc:`CDNA3 dense MFMA intrinsics <cdna3-dense-mfma-intrinsics>`
+* :doc:`CDNA4 dense MFMA intrinsics <cdna4-dense-mfma-intrinsics>`
