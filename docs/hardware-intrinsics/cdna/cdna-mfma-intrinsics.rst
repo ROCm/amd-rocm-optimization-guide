@@ -20,10 +20,8 @@ Architecture availability
 =========================
 
 The intrinsics on this page target CDNA (``gfx908``, MI100) exclusively.
-Equivalent intrinsics for later CDNA generations are documented on their own
-reference pages:
-
-* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
+Equivalent intrinsics for later CDNA generations will be documented on their own
+reference pages.
 
 .. _cdna-mfma-accumulator-layout:
 
@@ -37,11 +35,11 @@ of independent tiles is called the *block count*.  It depends on how the
 
 * **Scalar-input variants** (FP32 :math:`\pmb{A}` and :math:`\pmb{B}`):
   each K position occupies a separate group of :math:`M` lanes, so
-  :math:`\text{blocks} = \text{wavefront_size} / (M \times K)`.
+  :math:`\text{blocks} = \frac{\text{wavefront size}}{M \times K}`.
 * **Packed-input variants** (FP16, BF16, INT8 :math:`\pmb{A}` and
   :math:`\pmb{B}`): all K positions are packed into the register bits of
   the *same* lane group, so
-  :math:`\text{blocks} = \text{wavefront_size} / M` regardless of
+  :math:`\text{blocks} = \frac{\text{wavefront size}}{M}` regardless of
   :math:`K`.
 
 Each block is independent: the :math:`\pmb{A}`, :math:`\pmb{B}`, and
@@ -52,14 +50,14 @@ The total number of accVGPRs per lane scales with the block count:
 
 .. math::
 
-   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront_size}}
+   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront size}}
 
 .. note::
 
    On CDNA GPUs, the :math:`\pmb{C}` and :math:`\pmb{D}` matrix operands must
    reside in *accumulation VGPRs* (accVGPRs).  Unlike :math:`\pmb{A}` and
-   :math:`\pmb{B}`, they cannot use standard architecture VGPRs (ArchVGPRs).
-   In HIP device code the transfer to ArchVGPRs happens automatically when 
+   :math:`\pmb{B}`, they cannot use standard architecture VGPRs (archVGPRs).
+   In HIP device code the transfer to archVGPRs happens automatically when 
    assigning the intrinsic return value to a local variable of the appropriate
    vector type.
 
@@ -93,9 +91,9 @@ lane are active: accVGPRs 0---15 belong to block 0, accVGPRs 16---31 to block 1.
 
    :math:`32 \times 32` **accumulator layout -- 2 blocks.**  Each cell shows the
    accVGPR index that holds output element :math:`(i, j)` of block 0; block 1
-   adds 16.  Teal cells (rows where :math:`\lfloor i/4 \rfloor` is even) belong
-   to lanes 0---31; grey cells to lanes 32---63.  Column :math:`j` gives the
-   lane offset within the group.
+   adds 16.  Teal cells (rows where :math:`\lfloor \frac{i}{4} \rfloor` is even)
+   belong to lanes 0---31; grey cells to lanes 32---63.  Column :math:`j` gives
+   the lane offset within the group.
 
 Given output element :math:`(i, j)` in block :math:`b`:
 
