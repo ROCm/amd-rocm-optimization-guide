@@ -257,7 +257,6 @@ struct SingleBufferTilePolicyF
 //     lane L, elem 1: A[tile_a_row + lane_id%16][ki + 2*(lane_id/16) + 1]
 // ===========================================================================
 
-#if defined(__gfx942__)
 // [Sphinx mfma cdna3 policy start]
 struct MfmaCdna3XF32Policy
 {
@@ -266,6 +265,8 @@ struct MfmaCdna3XF32Policy
     // All 64 lanes hold unique output elements (4 elements per lane).
     static constexpr int thread_tile_m   = 16;
     static constexpr int thread_tile_n   = 16;
+    static constexpr int frag_size_m     = 2;
+    static constexpr int frag_size_n     = 2;
     static constexpr int effective_lanes = 64;
     // v_mfma_f32_16x16x8_xf32 consumes 8 K-positions per call (k_step=8).
     // Each lane provides two FP32 values (v2float) for A and two for B.
@@ -365,12 +366,14 @@ struct MfmaCdna3XF32Policy
                                const elem_a     (&a_frag)[2],
                                const elem_b     (&b_frag)[2])
     {
+#if defined(__gfx942__)
         using v2float = float [[clang::ext_vector_type(2)]];
         const v2float a_vec = {a_frag[0], a_frag[1]};
         const v2float b_vec = {b_frag[0], b_frag[1]};
         acc.regs = __builtin_amdgcn_mfma_f32_16x16x8_xf32(
             a_vec, b_vec, acc.regs,
             /*cbsz=*/0, /*abid=*/0, /*blgp=*/0);
+#endif
     }
 
     // ── store_c ───────────────────────────────────────────────────────────────
@@ -402,7 +405,6 @@ struct MfmaCdna3XF32Policy
     }
 };
 // [Sphinx mfma cdna3 policy end]
-#endif // __gfx942__
 
 // ===========================================================================
 // Section 5: ScalarFMAPolicy -- portable FP32 fallback for non-CDNA3 targets
@@ -414,6 +416,8 @@ struct ScalarFMAPolicy
 {
     static constexpr int thread_tile_m   = ThreadTileM_;
     static constexpr int thread_tile_n   = ThreadTileN_;
+    static constexpr int frag_size_m     = ThreadTileM_;
+    static constexpr int frag_size_n     = ThreadTileN_;
     static constexpr int effective_lanes = 64;
     static constexpr int k_step          = 1;
 
@@ -560,8 +564,8 @@ __global__ void
 
         for(int ki = 0; ki < TilePolicy::k_tile_size; ki += ComputePolicy::k_step)
         {
-            typename ComputePolicy::elem_a a_frag[ComputePolicy::thread_tile_m];
-            typename ComputePolicy::elem_b b_frag[ComputePolicy::thread_tile_n];
+            typename ComputePolicy::elem_a a_frag[ComputePolicy::frag_size_m];
+            typename ComputePolicy::elem_b b_frag[ComputePolicy::frag_size_n];
 
             ComputePolicy::load_a(tile_a_ptr, thread_row, ki,
                                    TilePolicy::k_tile_size, lane_id, a_frag);
@@ -597,36 +601,24 @@ __global__ void
 // [Sphinx mfma policy aliases start]
 // TilePolicy: 32x32 block tile, 8-element K-strip, single-buffered.
 using MfmaTilePolicy = SingleBufferTilePolicyF<32, 32, 8>;
-
-#if defined(__gfx942__)
-// CDNA3 (MI300): use the XF32 MFMA ComputePolicy with v_mfma_f32_16x16x8_xf32.
-using ActiveComputePolicy = MfmaCdna3XF32Policy;
-#else
-// Other targets: fall back to portable scalar FP32 outer-product.
-// Block dims: 8x8 threads per block (8x8 thread tiles in a 32x32 block tile).
-using ActiveComputePolicy = ScalarFMAPolicy<8, 8, 8>;
-#endif
 // [Sphinx mfma policy aliases end]
 
 // [Sphinx mfma launch config start]
-// Launch parameters for the MFMA kernel on CDNA3 (gfx942):
+// Launch parameters:
 //
+// CDNA3 (gfx942): 2x2 wavefronts of 64 lanes = 256 threads per block.
 //   block_tile_m = 32, thread_tile_m = 16  → 2 wavefronts along M
 //   block_tile_n = 32, thread_tile_n = 16  → 2 wavefronts along N
-//   threads per block = 2 * 2 * 64 = 256
+//
+// Fallback (scalar): 8x8 thread tiles in a 32x32 block → 16 threads per block,
+//   padded to one full wavefront of 64.
+//
+// The kernel to launch and its thread count are selected at runtime based on
+// the device architecture string returned by hipGetDeviceProperties.
 //
 // Grid: one block per 32x32 output tile.
-constexpr int BLOCK_TILE_M  = 32;
-constexpr int BLOCK_TILE_N  = 32;
-
-// CDNA3 (gfx942): 2x2 wavefronts of 64 lanes = 256 threads per block.
-// Fallback (scalar): 8x8 thread tiles in a 32x32 block → 16 threads per block,
-//                    padded to one full wavefront of 64.
-#if defined(__gfx942__)
-constexpr int THREADS_PER_BLOCK = 256; // 4 wavefronts * 64 lanes
-#else
-constexpr int THREADS_PER_BLOCK = 64;  // 1 wavefront * 64 lanes
-#endif
+constexpr int BLOCK_TILE_M = 32;
+constexpr int BLOCK_TILE_N = 32;
 // [Sphinx mfma launch config end]
 
 // ===========================================================================
@@ -709,12 +701,16 @@ int main()
 {
     hipDeviceProp_t props{};
     HIP_CHECK(hipGetDeviceProperties(&props, 0));
+    const bool is_gfx942 =
+        std::string(props.gcnArchName).rfind("gfx942", 0) == 0;
+    const int threads_per_block = is_gfx942 ? 256 : 64;
     std::cout << "Device       : " << props.name << "\n"
+              << "GCN arch     : " << props.gcnArchName << "\n"
               << "Warp size    : " << props.warpSize << "\n"
               << "Matrix dims  : A(" << M << "x" << K << ") * B(" << K << "x" << N << ")\n"
               << "Block tile   : " << BLOCK_TILE_M << "x" << BLOCK_TILE_N
               << "  K-strip: " << MfmaTilePolicy::k_tile_size << "\n"
-              << "Threads/block: " << THREADS_PER_BLOCK << "\n\n";
+              << "Threads/block: " << threads_per_block << "\n\n";
 
     std::vector<float> h_A(M * K);
     std::vector<float> h_B(K * N, 0.0f);
@@ -740,27 +736,37 @@ int main()
     // Grid: one block per 32×32 output tile.
     const dim3 grid((N + BLOCK_TILE_N - 1) / BLOCK_TILE_N,
                     (M + BLOCK_TILE_M - 1) / BLOCK_TILE_M);
-    const dim3 block(THREADS_PER_BLOCK);
 
-    auto launch = [&]()
+    float       ms = 0.0f;
+    const char* policy_label = nullptr;
+
+    if(is_gfx942)
     {
-        matrix_multiply_generic<MfmaTilePolicy, ActiveComputePolicy>
-            <<<grid, block>>>(d_A, d_B, d_C, M, N, K);
-        HIP_CHECK(hipGetLastError());
-    };
+        auto launch = [&]()
+        {
+            matrix_multiply_generic<MfmaTilePolicy, MfmaCdna3XF32Policy>
+                <<<grid, dim3(256)>>>(d_A, d_B, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+        ms           = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
+        policy_label = "GemmKernel<MfmaTilePolicy, MfmaCdna3XF32Policy> [gfx942]";
+    }
+    else
+    {
+        auto launch = [&]()
+        {
+            matrix_multiply_generic<MfmaTilePolicy, ScalarFMAPolicy<8, 8, 8>>
+                <<<grid, dim3(64)>>>(d_A, d_B, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+        ms           = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
+        policy_label = "GemmKernel<MfmaTilePolicy, ScalarFMAPolicy> [fallback]";
+    }
     // [Sphinx mfma kernel launch end]
 
-    const float ms = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
     HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N, hipMemcpyDeviceToHost));
     const bool ok = verify_result(h_C, h_A, M, N, K);
-
-#if defined(__gfx942__)
-    print_metrics("GemmKernel<MfmaTilePolicy, MfmaCdna3XF32Policy> [gfx942]",
-                  ok, ms, M, N, K);
-#else
-    print_metrics("GemmKernel<MfmaTilePolicy, ScalarFMAPolicy> [fallback]",
-                  ok, ms, M, N, K);
-#endif
+    print_metrics(policy_label, ok, ms, M, N, K);
 
     HIP_CHECK(hipFree(d_A));
     HIP_CHECK(hipFree(d_B));
