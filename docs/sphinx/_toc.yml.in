@@ -30,5 +30,12 @@ subtrees:
       - file: hardware-intrinsics/cross-arch/arithmetic-intrinsics
       - file: hardware-intrinsics/cross-arch/direct-to-lds-intrinsics
       - file: hardware-intrinsics/cross-arch/warp-intrinsics
-      - file: hardware-intrinsics/cdna/cdna-mfma-intrinsics
-      - file: hardware-intrinsics/cdna/mfma-common-parameters
+      - file: hardware-intrinsics/cdna/mfma-intrinsics
+        subtrees:
+        - entries:
+          - file: hardware-intrinsics/cdna/dense-mfma-intrinsics
+            subtrees:
+            - entries:
+              - file: hardware-intrinsics/cdna/cdna-mfma-intrinsics
+              - file: hardware-intrinsics/cdna/mfma-common-parameters
+          - file: hardware-intrinsics/cdna/sparse-mfma-intrinsics

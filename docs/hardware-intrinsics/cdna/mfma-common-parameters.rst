@@ -5,7 +5,7 @@
 .. _cdna-mfma-common-parameters:
 
 ********************************************************************************
-MFMA common parameters
+Dense MFMA common parameters
 ********************************************************************************
 
 Every ``__builtin_amdgcn_mfma_*`` intrinsic across all CDNA generations shares
