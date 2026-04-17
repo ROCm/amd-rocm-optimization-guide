@@ -24,7 +24,7 @@
 #let rule-minor = none                      // between lane-group bands — colour contrast suffices
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
-#let sz  = 14pt    // cell side
+#let sz  = 18pt    // cell side
 #let gap = 0pt     // no gap — colour contrast provides separation
 
 // ── Layout functions ──────────────────────────────────────────────────────
@@ -41,7 +41,7 @@
     width: sz, height: sz, fill: bg,
     stroke: (top: top-rule, bottom: none, left: none, right: none),
     align(center + horizon,
-      text(size: 6pt, weight: "bold", fill: ink)[#r]
+      text(size: 9pt, weight: "bold", fill: ink)[#r]
     )
   )
 }
@@ -60,13 +60,13 @@
   columns: (sz,) * 32,
   column-gutter: gap,
   ..range(32).map(j =>
-    align(center, text(size: 6pt, fill: dimmed)[#j])
+    align(center, text(size: 9pt, fill: dimmed)[#j])
   )
 )
 
 // ── Left margin: one label per 4-row band ─────────────────────────────────
 // At each band start: row index i on the left, lane range + swatch on the right.
-#let margin-w = 80pt
+#let margin-w = 105pt
 #let margin-grid = grid(
   rows: (sz,) * 32,
   ..range(32).map(i => {
@@ -76,22 +76,22 @@
       let base = if g == 0 { 0 } else { 32 }
       let last = base + 31
       let swatch = box(
-        width: 6pt, height: 6pt,
+        width: 7pt, height: 7pt,
         fill: if g == 0 { warm } else { cool },
         stroke: 0.3pt + dimmed,
       )
       box(
-        height: sz,
+        width: margin-w, height: sz,
         align(right + horizon,
           grid(
-            columns: (auto, 8pt, auto, 4pt, auto),
+            columns: (24pt, 4pt, 60pt, 4pt, 9pt),
             // row index
-            align(right + horizon, text(size: 6pt, style: "italic", fill: dimmed)[i=#i]),
+            align(right + horizon, text(size: 9pt, style: "italic", fill: dimmed)[i=#i]),
             [],
             // lane range
-            align(right + horizon, text(size: 6pt, fill: dimmed)[lanes #base–#last]),
+            align(right + horizon, text(size: 9pt, fill: dimmed)[lanes #base–#last]),
             [],
-            align(horizon, swatch),
+            align(center + horizon, swatch),
           )
         )
       )
@@ -113,15 +113,15 @@
     dir: ttb, spacing: 6pt,
     // Column index row
     grid(
-      columns: (margin-w, 4pt, auto),
+      columns: (margin-w, 10pt, auto),
       // label above margin: italic "i"
-      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
       [],
       col-header,
     ),
     // Main body: margin + data
     grid(
-      columns: (margin-w, 4pt, auto),
+      columns: (margin-w, 10pt, auto),
       margin-grid,
       [],
       data-grid,

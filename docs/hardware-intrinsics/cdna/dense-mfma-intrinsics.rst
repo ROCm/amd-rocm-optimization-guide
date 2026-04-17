@@ -17,3 +17,4 @@ reference. For trailing parameter documentation, see
 :doc:`Common MFMA parameters <mfma-common-parameters>`.
 
 * :doc:`CDNA MFMA intrinsics <cdna-mfma-intrinsics>`
+* :doc:`CDNA2 MFMA intrinsics <cdna2-mfma-intrinsics>`
