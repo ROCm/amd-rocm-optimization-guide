@@ -350,6 +350,7 @@ ethernet
 eu
 exascale
 executables
+eXtended
 extern
 failover
 fas
@@ -1353,6 +1354,8 @@ xcc
 XCD
 XCDs
 Xeon
+XF
+xf
 XGBoost
 XGBoost's
 XGMI
