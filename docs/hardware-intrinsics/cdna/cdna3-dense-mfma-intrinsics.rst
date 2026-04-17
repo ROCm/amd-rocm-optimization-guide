@@ -45,11 +45,11 @@ of independent tiles is called the *block count*.  It depends on how the
 * **Scalar-input variants** (FP32 or FP64 :math:`\pmb{A}` and
   :math:`\pmb{B}`): each K position occupies a separate group of :math:`M`
   lanes, so
-  :math:`\text{blocks} = \text{wavefront_size} / (M \times K)`.
+  :math:`\text{blocks} = \frac{\text{wavefront size}}{M \times K}`.
 * **Packed-input variants** (FP16, BF16, XF32, INT8, FP8, BF8
   :math:`\pmb{A}` and :math:`\pmb{B}`): all K positions are packed into the
   register bits of the *same* lane group, so
-  :math:`\text{blocks} = \text{wavefront_size} / M` regardless of
+  :math:`\text{blocks} = \frac{\text{wavefront size}}{M}` regardless of
   :math:`K`.
 
 Each block is independent: the :math:`\pmb{A}`, :math:`\pmb{B}`, and
@@ -60,13 +60,13 @@ The total number of accVGPRs per lane scales with the block count:
 
 .. math::
 
-   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront_size}}
+   \text{accVGPRs per lane} = \text{blocks} \times \frac{M \times N}{\text{wavefront size}}
 
 .. note::
 
    On CDNA3, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
    :math:`\pmb{C}`, and :math:`\pmb{D}`) can reside in either accumulation
-   VGPRs (accVGPRs) or standard architecture VGPRs (ArchVGPRs).  In HIP
+   VGPRs (accVGPRs) or standard architecture VGPRs (archVGPRs).  In HIP
    device code the compiler selects the appropriate register class
    automatically.
 
@@ -75,7 +75,7 @@ The total number of accVGPRs per lane scales with the block count:
    file; the same index in two different lanes denotes two distinct physical
    registers.  The layout tables and formulas in the following sections use
    *accVGPR index* as a logical position label; the actual register class
-   (accVGPR or ArchVGPR) is chosen by the compiler and does not affect the
+   (accVGPR or archVGPR) is chosen by the compiler and does not affect the
    layout.
 
 The formulas in the subsections below use the following notation:
@@ -335,7 +335,7 @@ Given output element :math:`(i, j)` in block :math:`b`:
 
 .. math::
 
-   \text{lane} &= 16 i + 4 b + j
+   \text{lane} = 16 i + 4 b + j
 
 Conversely, given lane :math:`L`:
 
