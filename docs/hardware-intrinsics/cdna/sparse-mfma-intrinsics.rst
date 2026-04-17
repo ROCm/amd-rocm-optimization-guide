@@ -12,4 +12,6 @@ Sparse MFMA intrinsics
 
 Sparse Matrix Fused Multiply-Add (MFMA) intrinsics exploit structured sparsity
 in the A operand to deliver higher effective throughput on suitable workloads.
-Coverage for sparse variants is added in later CDNA generation branches.
+Coverage for sparse variants is added in later CDNA generation branches. For
+trailing parameter documentation, see
+:doc:`Common MFMA parameters <mfma-common-parameters>`.

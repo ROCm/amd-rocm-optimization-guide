@@ -53,10 +53,3 @@ intrinsic operates on a single input block.
 
 **Returns** ``v4float`` -- updated accumulator
 (:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
-
-BF16 matrix inputs
-------------------
-
-The following intrinsics accept two BF16 elements per lane packed into a
-``v2bfloat`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
-and accumulate into FP32 output fragments.

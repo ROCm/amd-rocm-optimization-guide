@@ -53,10 +53,3 @@ operates on a single input block.
 
 **Returns** ``v4float`` -- updated accumulator
 (:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
-
-FP16 matrix inputs
-------------------
-
-The following intrinsics accept four FP16 elements per lane packed into a
-``v4half`` register for both :math:`\pmb{A}` and :math:`\pmb{B}` inputs,
-and accumulate into FP32 output fragments.

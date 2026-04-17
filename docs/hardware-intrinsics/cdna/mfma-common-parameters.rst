@@ -5,12 +5,17 @@
 .. _cdna-mfma-common-parameters:
 
 ********************************************************************************
-Dense MFMA common parameters
+Common MFMA parameters
 ********************************************************************************
 
-Every ``__builtin_amdgcn_mfma_*`` intrinsic across all CDNA generations shares
-the same trailing three integer parameters.  These must be compile-time integer
-constants.
+Every MFMA intrinsic across all CDNA generations shares trailing integer
+parameters that must be compile-time integer constants. Some parameters apply to
+all MFMA variants; others are specific to dense or sparse forms.
+
+Shared parameters
+=================
+
+The following parameters are present on every MFMA intrinsic.
 
 .. list-table::
    :header-rows: 1
@@ -42,6 +47,19 @@ constants.
        example, for a 16-block :math:`\pmb{A}` matrix, setting ``cbsz``
        to ``2`` and ``abid`` to ``1`` broadcasts block 1's values to
        blocks 0, 2, and 3; block 5's values to blocks 4, 6, and 7; etc.
+
+Dense MFMA parameters
+=====================
+
+The following parameter applies to dense MFMA intrinsics only.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
    * - ``blgp``
      - int
      - :math:`\pmb{B}`-matrix Lane Group Pattern modifier. Allows a
@@ -71,3 +89,9 @@ constants.
           :math:`\pmb{A}`, bit 1 negates :math:`\pmb{B}`, and bit 2 negates
           :math:`\pmb{C}`.  Lane-group pattern swizzling is not available for
           FP64 on CDNA3.
+
+Sparse MFMA parameters
+======================
+
+Sparse MFMA intrinsics introduce additional parameters for sparsity metadata.
+Documentation for these parameters is added in later CDNA generation branches.
