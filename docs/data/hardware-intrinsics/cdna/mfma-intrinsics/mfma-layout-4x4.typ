@@ -19,7 +19,7 @@
 #let grey   = rgb("#bfbfbf")   // odd  blocks — grey tint
 #let white  = rgb("#ffffff")
 #let ink    = rgb("#1e1e1e")
-#let dimmed = rgb("#777777")
+#let dimmed = rgb("#444444")
 #let rule-block = 0.8pt + rgb("#777777")   // between blocks (every 4 cols)
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@
       // span 4 cells by using a box of width 4*sz
       box(
         width: 4 * sz,
-        align(center, text(size: 5pt, fill: dimmed)[b=#b])
+        align(center, text(size: 6pt, fill: dimmed)[b=#b])
       )
     } else {
       // empty cells already consumed by the box above — emit nothing
@@ -84,7 +84,7 @@
       width: margin-w, height: sz, fill: white,
       stroke: none,
       align(right + horizon,
-        text(size: 5.5pt, fill: dimmed)[
+        text(size: 6pt, fill: dimmed)[
           accVGPR #i #h(4pt)
         ]
       )
@@ -101,7 +101,7 @@
     if calc.rem(lane, 4) == 0 {
       box(
         width: 4 * sz,
-        align(center, text(size: 5pt, fill: dimmed)[#lane])
+        align(center, text(size: 6pt, fill: dimmed)[#lane])
       )
     } else {
       box(width: 0pt)
@@ -109,41 +109,22 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
-#let caption-text = [
-  #set text(size: 6pt, fill: dimmed)
-  Applies to all 4×4, 16-block MFMA intrinsics (f32 and i32 accumulators). \
-  Each column group of 4 lanes holds one complete 4×4 output tile in accVGPRs 0–3. \
-  Formulas: lane = 4#text(style: "italic")[b] + #text(style: "italic")[j] ;  accVGPR = #text(style: "italic")[i].
-]
-
-// ── Title ─────────────────────────────────────────────────────────────────
-#let title = text(size: 8pt, weight: "bold")[
-  4×4 accumulator layout — 16 blocks
-]
-
 // ── Final layout ──────────────────────────────────────────────────────────
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(
     dir: ttb, spacing: 4pt,
-    // Title
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      title,
-    ),
     // Block index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[block]),
+      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[block]),
       [],
       block-header,
     ),
     // Lane index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[lane]),
+      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[lane]),
       [],
       lane-header,
     ),
@@ -153,13 +134,6 @@
       margin-grid,
       [],
       data-grid,
-    ),
-    v(2pt),
-    // Caption
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      caption-text,
     ),
   )
 )

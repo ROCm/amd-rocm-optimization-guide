@@ -19,7 +19,7 @@
 #let cool    = rgb("#bfbfbf")   // lane group 1  (lanes 32–63) — grey tint
 #let white   = rgb("#ffffff")
 #let ink     = rgb("#1e1e1e")
-#let dimmed  = rgb("#777777")
+#let dimmed  = rgb("#444444")
 #let rule-major = 0.8pt + rgb("#777777")   // between accVGPR groups (every 8 rows)
 #let rule-minor = none                      // between lane-group bands — colour contrast suffices
 
@@ -60,7 +60,7 @@
   columns: (sz,) * 32,
   column-gutter: gap,
   ..range(32).map(j =>
-    align(center, text(size: 5pt, fill: dimmed)[#j])
+    align(center, text(size: 6pt, fill: dimmed)[#j])
   )
 )
 
@@ -86,10 +86,10 @@
           grid(
             columns: (auto, 8pt, auto, 4pt, auto),
             // row index
-            align(right + horizon, text(size: 5.5pt, style: "italic", fill: dimmed)[i=#i]),
+            align(right + horizon, text(size: 6pt, style: "italic", fill: dimmed)[i=#i]),
             [],
             // lane range
-            align(right + horizon, text(size: 5.5pt, fill: dimmed)[lanes #base–#last]),
+            align(right + horizon, text(size: 6pt, fill: dimmed)[lanes #base–#last]),
             [],
             align(horizon, swatch),
           )
@@ -106,39 +106,16 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
-#let caption-text = [
-  #set text(size: 6pt, fill: dimmed)
-  Applies to all 32×32, 2-block MFMA intrinsics (f32 and i32 accumulators). \
-  Each lane holds an independent accVGPR file; the cell label is the index within
-  that lane's file — identical indices in different lanes are distinct physical registers. \
-  Row _i_ determines accVGPR and lane group.
-  Column _j_ gives the lane offset: lane = (lane base) + _j_. \
-  Block 0 shown; block 1 adds 16 to every index. \
-  Formulas: lane = (32·⌊_i_/4⌋) mod 64 + _j_ ;  accVGPR = 4·⌊_i_/8⌋ + (_i_ mod 4).
-]
-
-// ── Title ─────────────────────────────────────────────────────────────────
-#let title = text(size: 8pt, weight: "bold")[
-  32×32 accumulator layout — 2 blocks
-]
-
 // ── Final layout ──────────────────────────────────────────────────────────
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(
     dir: ttb, spacing: 6pt,
-    // Title row
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      title,
-    ),
     // Column index row
     grid(
       columns: (margin-w, 4pt, auto),
       // label above margin: italic "i"
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
+      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
       [],
       col-header,
     ),
@@ -148,13 +125,6 @@
       margin-grid,
       [],
       data-grid,
-    ),
-    v(2pt),
-    // Caption
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      caption-text,
     ),
   )
 )

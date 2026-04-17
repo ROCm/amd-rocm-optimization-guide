@@ -19,7 +19,7 @@
 #let grey    = rgb("#bfbfbf")   // odd  lane groups — grey tint
 #let white   = rgb("#ffffff")
 #let ink     = rgb("#1e1e1e")
-#let dimmed  = rgb("#777777")
+#let dimmed  = rgb("#444444")
 #let rule-major = 0.8pt + rgb("#777777")   // between 4-row bands
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@
   columns: (sz,) * 16,
   column-gutter: gap,
   ..range(16).map(j =>
-    align(center, text(size: 5pt, fill: dimmed)[#j])
+    align(center, text(size: 6pt, fill: dimmed)[#j])
   )
 )
 
@@ -84,9 +84,9 @@
         align(right + horizon,
           grid(
             columns: (auto, 8pt, auto, 4pt, auto),
-            align(right + horizon, text(size: 5.5pt, style: "italic", fill: dimmed)[i=#i]),
+            align(right + horizon, text(size: 6pt, style: "italic", fill: dimmed)[i=#i]),
             [],
-            align(right + horizon, text(size: 5.5pt, fill: dimmed)[lanes #base–#last]),
+            align(right + horizon, text(size: 6pt, fill: dimmed)[lanes #base–#last]),
             [],
             align(horizon, swatch),
           )
@@ -103,20 +103,6 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
-#let caption-text = [
-  #set text(size: 6pt, fill: dimmed)
-  Applies to all 16×16, 4-block MFMA intrinsics (f32 and i32 accumulators). \
-  Block 0 shown; block _k_ adds 4_k_ to every index (blocks 1–3 use accVGPRs 4–7, 8–11, 12–15). \
-  1-block variants use only block 0 (accVGPRs 0–3) and do not support cbsz/abid. \
-  Formulas: lane = 16·⌊_i_/4⌋ + _j_ ;  accVGPR = 4_b_ + (_i_ mod 4).
-]
-
-// ── Title ─────────────────────────────────────────────────────────────────
-#let title = text(size: 8pt, weight: "bold")[
-  16×16 accumulator layout — 4 blocks
-]
-
 // ── Final layout ──────────────────────────────────────────────────────────
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
@@ -124,12 +110,7 @@
     dir: ttb, spacing: 6pt,
     grid(
       columns: (margin-w, 4pt, auto),
-      [], [],
-      title,
-    ),
-    grid(
-      columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
+      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
       [],
       col-header,
     ),
@@ -138,12 +119,6 @@
       margin-grid,
       [],
       data-grid,
-    ),
-    v(2pt),
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      caption-text,
     ),
   )
 )

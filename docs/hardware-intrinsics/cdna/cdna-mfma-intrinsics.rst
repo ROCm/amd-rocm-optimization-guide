@@ -93,7 +93,8 @@ lane are active: accVGPRs 0---15 belong to block 0, accVGPRs 16---31 to block 1.
    accVGPR index that holds output element :math:`(i, j)` of block 0; block 1
    adds 16.  Teal cells (rows where :math:`\lfloor \frac{i}{4} \rfloor` is even)
    belong to lanes 0---31; grey cells to lanes 32---63.  Column :math:`j` gives
-   the lane offset within the group.
+   the lane offset within the group.  Applies to all :math:`32 \times 32` FP32
+   and INT32 MFMA intrinsics.  See the formulas and row-to-lane table below.
 
 Given output element :math:`(i, j)` in block :math:`b`:
 
@@ -168,7 +169,9 @@ lane are partitioned by block: accVGPRs 0---3 for block 0, 4---7 for block 1,
    the accVGPR index for block 0; block :math:`k` adds :math:`4k`.  Rows
    0---3 (teal, lanes 0---15), rows 4---7 (grey, lanes 16---31), rows 8---11
    (teal, lanes 32---47), rows 12---15 (grey, lanes 48---63).  Column
-   :math:`j` gives the lane offset within the group.
+   :math:`j` gives the lane offset within the group.  Applies to all
+   :math:`16 \times 16` FP32 and INT32 MFMA intrinsics.  1-block variants use
+   only block 0. See the formulas and row-to-lane table below.
 
 Given output element :math:`(i, j)` in block :math:`b`:
 
@@ -223,7 +226,8 @@ holds all 16 output elements of block :math:`b` across 4 accVGPRs.
    :math:`4 \times 4` **accumulator layout -- 16 blocks.**  Columns are lanes
    0---63; each group of 4 consecutive lanes holds one complete
    :math:`4 \times 4` output tile in accVGPRs 0---3 (rows).  Teal groups are
-   even-numbered blocks, grey groups odd-numbered blocks.
+   even-numbered blocks, grey groups odd-numbered blocks.  Applies to all
+   :math:`4 \times 4` FP32 and INT32 MFMA intrinsics.  See the formulas below.
 
 Given output element :math:`(i, j)` in block :math:`b`:
 
