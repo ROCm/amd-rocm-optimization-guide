@@ -1,0 +1,55 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_mfma_i32_32x32x4i8
+   Include via: .. include:: mfma-ref/i32-32x32x4i8.rst
+
+``__builtin_amdgcn_mfma_i32_32x32x4i8``
+""""""""""""""""""""""""""""""""""""""""
+
+.. code-block:: cpp
+
+   v32int __builtin_amdgcn_mfma_i32_32x32x4i8(
+       int    srcA,
+       int    srcB,
+       v32int srcC,
+       int    cbsz,
+       int    abid,
+       int    blgp);
+
+Computes one step of a :math:`32 \times 32` INT32 outer-product accumulation. 
+Each instruction processes :math:`K=4` INT8 column elements of :math:`\pmb{A}`
+and :math:`K=4` INT8 row elements of :math:`\pmb{B}`, accumulating into a
+:math:`32 \times 32` INT32 tile held across 32 accVGPRs per lane. This intrinsic
+operates on two input blocks.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - int
+     - Four elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - int
+     - Four elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v32int
+     - Accumulator input: 32 INT32 elements per lane.
+   * - ``cbsz``
+     - int
+     - Control Broadcast Size modifier, see :ref:`cdna-mfma-common-parameters`.
+       Legal range: 0..1
+   * - ``abid``
+     - int
+     - :math:`\pmb{A}`-matrix Broadcast Identifier,
+       see :ref:`cdna-mfma-common-parameters`.
+       Legal range: 0..1
+   * - ``blgp``
+     - int
+     - :math:`\pmb{B}`-matrix Lane Group Pattern modifier, see
+       :ref:`cdna-mfma-common-parameters`.
+
+**Returns** ``v32int`` -- updated accumulator
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).

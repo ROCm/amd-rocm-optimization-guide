@@ -37,6 +37,11 @@ and multi-GPU programming.
   * {doc}`./hardware-intrinsics/cross-arch/arithmetic-intrinsics`
   * {doc}`./hardware-intrinsics/cross-arch/direct-to-lds-intrinsics`
   * {doc}`./hardware-intrinsics/cross-arch/warp-intrinsics`
+  * {doc}`./hardware-intrinsics/cdna/mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/dense-mfma-intrinsics`
+      * {doc}`./hardware-intrinsics/cdna/cdna-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/sparse-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/mfma-common-parameters`
 
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
 

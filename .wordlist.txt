@@ -4,7 +4,9 @@ ABCDE
 ABI
 accuracies
 AccVGPR
+accVGPR
 AccVGPRs
+accVGPRs
 ACE
 ACEs
 ACS
@@ -126,6 +128,7 @@ Cavium
 CCD
 cd
 CDNA
+cdna
 CentOS
 centos
 centric
@@ -687,6 +690,7 @@ memset
 MERCHANTABILITY
 Meta's
 MFMA
+mfma
 MiB
 MiB
 microarchitecture
@@ -1195,6 +1199,7 @@ threadgroups
 threadIdx
 Threadripper
 ToC
+toctree
 TODO
 tokenization
 tokenize
