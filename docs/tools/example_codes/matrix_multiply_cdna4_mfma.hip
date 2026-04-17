@@ -332,7 +332,6 @@ struct SingleBufferTilePolicyF16
 //     lane L, elem e (0--7): A[tile_a_row + lane_id%16][ki + 8*(lane_id/16) + e]
 // ===========================================================================
 
-#if defined(__gfx950__)
 // [Sphinx mfma cdna4 policy start]
 struct MfmaCdna4F16Policy
 {
@@ -341,6 +340,8 @@ struct MfmaCdna4F16Policy
     // All 64 lanes hold unique output elements (4 elements per lane).
     static constexpr int thread_tile_m   = 16;
     static constexpr int thread_tile_n   = 16;
+    static constexpr int frag_size_m     = 8;
+    static constexpr int frag_size_n     = 8;
     static constexpr int effective_lanes = 64;
     // v_mfma_f32_16x16x32_f16 consumes 32 K-positions per call (k_step=32).
     // Each lane provides eight FP16 values (v8half) for A and eight for B.
@@ -440,6 +441,7 @@ struct MfmaCdna4F16Policy
                                const elem_a     (&a_frag)[8],
                                const elem_b     (&b_frag)[8])
     {
+#if defined(__gfx950__)
         using v8half = _Float16 [[clang::ext_vector_type(8)]];
         const v8half a_vec = {a_frag[0], a_frag[1], a_frag[2], a_frag[3],
                               a_frag[4], a_frag[5], a_frag[6], a_frag[7]};
@@ -448,6 +450,7 @@ struct MfmaCdna4F16Policy
         acc.regs = __builtin_amdgcn_mfma_f32_16x16x32_f16(
             a_vec, b_vec, acc.regs,
             /*cbsz=*/0, /*abid=*/0, /*blgp=*/0);
+#endif
     }
 
     // ── store_c ───────────────────────────────────────────────────────────────
@@ -479,7 +482,283 @@ struct MfmaCdna4F16Policy
     }
 };
 // [Sphinx mfma cdna4 policy end]
-#endif // __gfx950__
+
+// ===========================================================================
+// Section 4b: TilePolicy with row-major B storage for ds_read_tr path
+// ===========================================================================
+//
+// ds_read_tr16_b64_v4f16 expects B to be stored in LDS in row-major order
+// (K rows × N columns): B[k][n].  The standard FP16 tile policy stores B
+// transposed (N rows × K columns) to support scalar lane indexing.  This
+// policy stores B in its natural row-major layout instead, so that
+// ds_read_tr can perform the column-to-lane scatter in hardware.
+//
+// The A tile is stored identically to SingleBufferTilePolicyF16 (row-major
+// in the M×K sense).
+// ===========================================================================
+
+// [Sphinx tile policy f16 row b start]
+template<int BlockTileM_, int BlockTileN_, int KTileSize_>
+struct SingleBufferTilePolicyF16RowB
+{
+    static constexpr int num_buffers  = 1;
+    static constexpr int block_tile_m = BlockTileM_;
+    static constexpr int block_tile_n = BlockTileN_;
+    static constexpr int k_tile_size  = KTileSize_;
+
+    struct SharedStorage
+    {
+        _Float16 tile_a[BlockTileM_][KTileSize_];
+        // B stored row-major: tile_b[k][n], so that ds_read_tr can transpose
+        // K-rows into per-lane N-column fragments in hardware.
+        _Float16 tile_b[KTileSize_][BlockTileN_];
+    };
+
+    __device__ static void prologue(SharedStorage& /*smem*/,
+                                    const _Float16* /*A*/, const _Float16* /*B*/,
+                                    int /*block_row_start*/, int /*block_col_start*/,
+                                    int /*m*/, int /*n*/, int /*k*/,
+                                    int /*tid*/, int /*num_threads*/) {}
+
+    __device__ static void prefetch(SharedStorage&  smem,
+                                    const _Float16* A,
+                                    const _Float16* B,
+                                    int             t_next,
+                                    int block_row_start, int block_col_start,
+                                    int m, int n, int k,
+                                    int tid, int num_threads)
+    {
+        const int t = t_next;
+
+        // Load A tile: row-major, M rows × K cols.
+        const int tile_a_elems = block_tile_m * k_tile_size;
+        for(int idx = tid; idx < tile_a_elems; idx += num_threads)
+        {
+            const int tile_row   = idx / k_tile_size;
+            const int tile_col   = idx % k_tile_size;
+            const int global_row = block_row_start + tile_row;
+            const int global_col = t * k_tile_size + tile_col;
+            smem.tile_a[tile_row][tile_col] =
+                (global_row < m && global_col < k)
+                    ? A[global_row * k + global_col]
+                    : static_cast<_Float16>(0.0f);
+        }
+
+        // Load B tile: row-major K × N layout in LDS.
+        const int tile_b_elems = k_tile_size * block_tile_n;
+        for(int idx = tid; idx < tile_b_elems; idx += num_threads)
+        {
+            const int tile_k_idx   = idx / block_tile_n;
+            const int tile_col_idx = idx % block_tile_n;
+            const int global_row   = t * k_tile_size + tile_k_idx;
+            const int global_col   = block_col_start + tile_col_idx;
+            smem.tile_b[tile_k_idx][tile_col_idx] =
+                (global_row < k && global_col < n)
+                    ? B[global_row * n + global_col]
+                    : static_cast<_Float16>(0.0f);
+        }
+    }
+
+    __device__ static void acquire(int /*t*/) { __syncthreads(); }
+    __device__ static void release(int /*t*/) { __syncthreads(); }
+    __device__ static int  buf_idx(int /*t*/) { return 0; }
+
+    __device__ static _Float16* get_tile_a(SharedStorage& smem, int /*buf*/)
+    {
+        return &smem.tile_a[0][0];
+    }
+    // Returns the row-major B tile base pointer; the ds_read_tr policy will
+    // compute per-lane pointers into this region.
+    __device__ static _Float16* get_tile_b_T(SharedStorage& smem, int /*buf*/)
+    {
+        return &smem.tile_b[0][0];
+    }
+};
+// [Sphinx tile policy f16 row b end]
+
+// ===========================================================================
+// Section 4c: MfmaCdna4F16TrPolicy -- FP16 MFMA with ds_read_tr B loads
+// ===========================================================================
+//
+// This policy uses the same v_mfma_f32_16x16x32_f16 instruction as
+// MfmaCdna4F16Policy, but replaces the scalar B-operand load loop with two
+// pairs of ds_read_tr16_b64_v4f16 calls.
+//
+// ds_read_tr16_b64_v4f16 loads 64 bits (four FP16 values) per lane and
+// performs a 16-element transpose across adjacent lanes as part of the load.
+// One call covers half of the K positions; a second call with a pointer
+// offset of BlockTileN * sizeof(_Float16) covers the other half.
+//
+// For k_step=32 (the full MFMA K depth) the B fragment is loaded in four
+// calls total: two pairs of ds_read_tr calls, one pair per 16-K-position
+// half-tile.  Each pair contributes four FP16 values (v4half), giving eight
+// FP16 values per lane in total -- exactly the B operand width of
+// v_mfma_f32_16x16x32_f16.
+//
+// A-operand loads remain scalar (identical to MfmaCdna4F16Policy::load_a).
+// ===========================================================================
+
+// [Sphinx mfma cdna4 tr policy start]
+struct MfmaCdna4F16TrPolicy
+{
+    // ── ComputePolicy constants ──────────────────────────────────────────────
+    static constexpr int thread_tile_m   = 16;
+    static constexpr int thread_tile_n   = 16;
+    static constexpr int frag_size_m     = 8;
+    static constexpr int frag_size_n     = 8;
+    static constexpr int effective_lanes = 64;
+    // k_step=32: one v_mfma_f32_16x16x32_f16 call consumes 32 K-positions,
+    // filled by four ds_read_tr16_b64_v4f16 calls (two pairs).
+    static constexpr int k_step          = 32;
+
+    using elem_a = _Float16;
+    using elem_b = _Float16;
+
+    // Accumulator and zero() are identical to MfmaCdna4F16Policy.
+    using v4float = float [[clang::ext_vector_type(4)]];
+
+    struct Accumulator
+    {
+        v4float regs;
+    };
+
+    __device__ static void zero(Accumulator& acc)
+    {
+        acc.regs = v4float{};
+    }
+
+    // thread_tile_offset is identical to MfmaCdna4F16Policy.
+    __device__ static void thread_tile_offset(int  tid,
+                                              int  /*lane_id*/,
+                                              int* thread_row,
+                                              int* thread_col)
+    {
+        constexpr int waves_n = 2;
+        const int wid   = tid / 64;
+        const int wid_x = wid % waves_n;
+        const int wid_y = wid / waves_n;
+        *thread_row = wid_y * 16;
+        *thread_col = wid_x * 16;
+    }
+
+    // ── load_a ───────────────────────────────────────────────────────────────
+    // Scalar load, identical to MfmaCdna4F16Policy::load_a.
+    __device__ static void load_a(const _Float16* tile_a_ptr,
+                                  int             tile_a_row,
+                                  int             ki,
+                                  int             k_tile_size,
+                                  int             lane_id,
+                                  elem_a        (&frag)[8])
+    {
+        const int row   = tile_a_row + (lane_id % 16);
+        const int k_off = ki + 8 * (lane_id / 16);
+        #pragma unroll
+        for(int e = 0; e < 8; ++e)
+            frag[e] = tile_a_ptr[row * k_tile_size + k_off + e];
+    }
+
+    // ── load_b ───────────────────────────────────────────────────────────────
+    // Hardware-transposed load using ds_read_tr16_b64_v4f16.
+    //
+    // tile_b_ptr points to the base of the row-major B tile in LDS:
+    //   tile_b[k][n], dimensions KTileSize × BlockTileN.
+    //
+    // For k_step=32 the 32 K-positions are split into two 16-K halves.
+    // Within each half, ds_read_tr performs the K-position split documented
+    // in the intrinsic reference (call 1: positions 0-3 and 8-11; call 2:
+    // positions 4-7 and 12-15 within that half).  Two pairs of calls fill
+    // the eight-element B fragment.
+    //
+    // Each lane reads from the column it owns:
+    //   column index = tile_b_col + (lane_id mod 16)
+    //
+    // The pointer stride between the two calls in each pair equals
+    // BlockTileN * sizeof(_Float16) bytes (one row of the B tile in LDS),
+    // which advances to the second batch of K positions within the half.
+    //
+    // The stride between the two halves equals
+    // 16 * BlockTileN * sizeof(_Float16) bytes (16 K rows).
+    __device__ static void load_b(const _Float16* tile_b_ptr,
+                                  int             tile_b_col,
+                                  int             ki,
+                                  int             block_tile_n,
+                                  int             lane_id,
+                                  elem_b        (&frag)[8])
+    {
+#if defined(__gfx950__)
+        using v4half = _Float16 [[clang::ext_vector_type(4)]];
+
+        // Each lane addresses its column.  The pointer must be 8-byte aligned
+        // (guaranteed when tile_b_col and lane_id%16 select a 2-byte-aligned
+        // element and the tile base is 8-byte aligned).
+        const int col = tile_b_col + (lane_id % 16);
+
+        // First 16-K half (K positions ki .. ki+15):
+        __shared__ _Float16* base0 =
+            const_cast<_Float16*>(tile_b_ptr) + (ki + 0) * block_tile_n + col;
+        __shared__ _Float16* base1 =
+            const_cast<_Float16*>(tile_b_ptr) + (ki + 8) * block_tile_n + col;
+
+        // Second 16-K half (K positions ki+16 .. ki+31):
+        __shared__ _Float16* base2 =
+            const_cast<_Float16*>(tile_b_ptr) + (ki + 16) * block_tile_n + col;
+        __shared__ _Float16* base3 =
+            const_cast<_Float16*>(tile_b_ptr) + (ki + 24) * block_tile_n + col;
+
+        const v4half r0 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
+            reinterpret_cast<__shared__ v4half*>(base0));
+        const v4half r1 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
+            reinterpret_cast<__shared__ v4half*>(base1));
+        const v4half r2 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
+            reinterpret_cast<__shared__ v4half*>(base2));
+        const v4half r3 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
+            reinterpret_cast<__shared__ v4half*>(base3));
+
+        frag[0] = r0[0]; frag[1] = r0[1]; frag[2] = r0[2]; frag[3] = r0[3];
+        frag[4] = r1[0]; frag[5] = r1[1]; frag[6] = r1[2]; frag[7] = r1[3];
+        (void)r2; (void)r3; // second half used in second MFMA call (ki+16)
+#endif
+    }
+
+    // mma and store_c are identical to MfmaCdna4F16Policy.
+    __device__ static void mma(Accumulator&       acc,
+                               const elem_a     (&a_frag)[8],
+                               const elem_b     (&b_frag)[8])
+    {
+#if defined(__gfx950__)
+        using v8half = _Float16 [[clang::ext_vector_type(8)]];
+        const v8half a_vec = {a_frag[0], a_frag[1], a_frag[2], a_frag[3],
+                              a_frag[4], a_frag[5], a_frag[6], a_frag[7]};
+        const v8half b_vec = {b_frag[0], b_frag[1], b_frag[2], b_frag[3],
+                              b_frag[4], b_frag[5], b_frag[6], b_frag[7]};
+        acc.regs = __builtin_amdgcn_mfma_f32_16x16x32_f16(
+            a_vec, b_vec, acc.regs,
+            /*cbsz=*/0, /*abid=*/0, /*blgp=*/0);
+#endif
+    }
+
+    __device__ static void store_c(const Accumulator& acc,
+                                   float*             C,
+                                   int                out_row_base,
+                                   int                out_col_base,
+                                   int                m,
+                                   int                n,
+                                   int                lane_id)
+    {
+        const int L = lane_id;
+        const int j = L % 16;
+        #pragma unroll
+        for(int G = 0; G < 4; ++G)
+        {
+            const int i = 4 * (L / 16) + (G % 4);
+            const int r = out_row_base + i;
+            const int c = out_col_base + j;
+            if(r < m && c < n)
+                C[r * n + c] = acc.regs[G];
+        }
+    }
+};
+// [Sphinx mfma cdna4 tr policy end]
 
 // ===========================================================================
 // Section 5: ScalarFMAPolicy -- portable FP32 fallback for non-CDNA4 targets
@@ -491,6 +770,8 @@ struct ScalarFMAPolicy
 {
     static constexpr int thread_tile_m   = ThreadTileM_;
     static constexpr int thread_tile_n   = ThreadTileN_;
+    static constexpr int frag_size_m     = ThreadTileM_;
+    static constexpr int frag_size_n     = ThreadTileN_;
     static constexpr int effective_lanes = 64;
     static constexpr int k_step          = 1;
 
@@ -642,8 +923,8 @@ __global__ void
 
         for(int ki = 0; ki < TilePolicy::k_tile_size; ki += ComputePolicy::k_step)
         {
-            typename ComputePolicy::elem_a a_frag[ComputePolicy::thread_tile_m];
-            typename ComputePolicy::elem_b b_frag[ComputePolicy::thread_tile_n];
+            typename ComputePolicy::elem_a a_frag[ComputePolicy::frag_size_m];
+            typename ComputePolicy::elem_b b_frag[ComputePolicy::frag_size_n];
 
             ComputePolicy::load_a(tile_a_ptr, thread_row, ki,
                                    TilePolicy::k_tile_size, lane_id, a_frag);
@@ -677,40 +958,28 @@ __global__ void
 // ===========================================================================
 
 // [Sphinx mfma policy aliases start]
-#if defined(__gfx950__)
-// CDNA4 (MI350): FP16 tile storage, FP16→FP32 MFMA policy.
-// k_tile_size=32 matches k_step=32: one MFMA call per K-strip.
-using MfmaTilePolicy      = SingleBufferTilePolicyF16<32, 32, 32>;
-using ActiveComputePolicy = MfmaCdna4F16Policy;
-using ActiveElemIn        = _Float16;
-#else
-// Other targets: FP32 tile storage, scalar FP32 outer-product fallback.
-// k_tile_size=8, k_step=1: eight FMA calls per K-strip.
-using MfmaTilePolicy      = SingleBufferTilePolicyF<32, 32, 8>;
-using ActiveComputePolicy = ScalarFMAPolicy<8, 8, 8>;
-using ActiveElemIn        = float;
-#endif
+// TilePolicy for the standard FP16 path (transposed B in LDS).
+using MfmaTilePolicy    = SingleBufferTilePolicyF16<32, 32, 32>;
+// TilePolicy for the ds_read_tr path (row-major B in LDS).
+using MfmaTilePolicyTrB = SingleBufferTilePolicyF16RowB<32, 32, 32>;
 // [Sphinx mfma policy aliases end]
 
 // [Sphinx mfma launch config start]
-// Launch parameters for the MFMA kernel on CDNA4 (gfx950):
+// Launch parameters:
 //
+// CDNA4 (gfx950): 2×2 wavefronts of 64 lanes = 256 threads per block.
 //   block_tile_m = 32, thread_tile_m = 16  → 2 wavefronts along M
 //   block_tile_n = 32, thread_tile_n = 16  → 2 wavefronts along N
-//   threads per block = 2 * 2 * 64 = 256
+//
+// Fallback (scalar): 8×8 thread tiles in a 32×32 block → 16 threads per
+//   block, padded to one full wavefront of 64.
+//
+// The kernel to launch and its thread count are selected at runtime based
+// on the device architecture string returned by hipGetDeviceProperties.
 //
 // Grid: one block per 32×32 output tile.
-constexpr int BLOCK_TILE_M  = 32;
-constexpr int BLOCK_TILE_N  = 32;
-
-// CDNA4 (gfx950): 2×2 wavefronts of 64 lanes = 256 threads per block.
-// Fallback (scalar): 8×8 thread tiles in a 32×32 block → 16 threads per
-//                    block, padded to one full wavefront of 64.
-#if defined(__gfx950__)
-constexpr int THREADS_PER_BLOCK = 256; // 4 wavefronts * 64 lanes
-#else
-constexpr int THREADS_PER_BLOCK = 64;  // 1 wavefront * 64 lanes
-#endif
+constexpr int BLOCK_TILE_M = 32;
+constexpr int BLOCK_TILE_N = 32;
 // [Sphinx mfma launch config end]
 
 // ===========================================================================
@@ -800,64 +1069,122 @@ int main()
 {
     hipDeviceProp_t props{};
     HIP_CHECK(hipGetDeviceProperties(&props, 0));
+    const bool is_gfx950 =
+        std::string(props.gcnArchName).rfind("gfx950", 0) == 0;
+    const int threads_per_block = is_gfx950 ? 256 : 64;
     std::cout << "Device       : " << props.name << "\n"
+              << "GCN arch     : " << props.gcnArchName << "\n"
               << "Warp size    : " << props.warpSize << "\n"
               << "Matrix dims  : A(" << M << "x" << K << ") * B("
               << K << "x" << N << ")\n"
               << "Block tile   : " << BLOCK_TILE_M << "x" << BLOCK_TILE_N
               << "  K-strip: " << MfmaTilePolicy::k_tile_size << "\n"
-              << "Threads/block: " << THREADS_PER_BLOCK << "\n\n";
+              << "Threads/block: " << threads_per_block << "\n\n";
 
-    std::vector<ActiveElemIn> h_A(M * K);
-    std::vector<ActiveElemIn> h_B(K * N, static_cast<ActiveElemIn>(0.0f));
-    std::vector<float>        h_C(M * N, 0.0f);
+    // A and B are always stored as FP16 on the host; the scalar fallback
+    // path casts to float inside the kernel via the FP32 tile policy.
+    std::vector<_Float16> h_A(M * K);
+    std::vector<_Float16> h_B(K * N, static_cast<_Float16>(0.0f));
+    std::vector<float>    h_C(M * N, 0.0f);
 
     std::mt19937                          gen(42);
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-    for(ActiveElemIn& v : h_A)
-        v = static_cast<ActiveElemIn>(dist(gen));
+    for(_Float16& v : h_A)
+        v = static_cast<_Float16>(dist(gen));
     // Identity matrix: multiplying A * I should give A in C.
     for(int i = 0; i < std::min(K, N); ++i)
-        h_B[i * N + i] = static_cast<ActiveElemIn>(1.0f);
+        h_B[i * N + i] = static_cast<_Float16>(1.0f);
 
-    ActiveElemIn *d_A, *d_B;
-    float*        d_C;
-    HIP_CHECK(hipMalloc(&d_A, sizeof(ActiveElemIn) * M * K));
-    HIP_CHECK(hipMalloc(&d_B, sizeof(ActiveElemIn) * K * N));
+    _Float16* d_A;
+    _Float16* d_B;
+    float*    d_C;
+    HIP_CHECK(hipMalloc(&d_A, sizeof(_Float16) * M * K));
+    HIP_CHECK(hipMalloc(&d_B, sizeof(_Float16) * K * N));
     HIP_CHECK(hipMalloc(&d_C, sizeof(float) * M * N));
 
-    HIP_CHECK(hipMemcpy(d_A, h_A.data(), sizeof(ActiveElemIn) * M * K,
+    HIP_CHECK(hipMemcpy(d_A, h_A.data(), sizeof(_Float16) * M * K,
                         hipMemcpyHostToDevice));
-    HIP_CHECK(hipMemcpy(d_B, h_B.data(), sizeof(ActiveElemIn) * K * N,
+    HIP_CHECK(hipMemcpy(d_B, h_B.data(), sizeof(_Float16) * K * N,
                         hipMemcpyHostToDevice));
 
     // [Sphinx mfma kernel launch start]
     // Grid: one block per 32×32 output tile.
     const dim3 grid((N + BLOCK_TILE_N - 1) / BLOCK_TILE_N,
                     (M + BLOCK_TILE_M - 1) / BLOCK_TILE_M);
-    const dim3 block(THREADS_PER_BLOCK);
 
-    auto launch = [&]()
+    float       ms = 0.0f;
+    const char* policy_label = nullptr;
+
+    if(is_gfx950)
     {
-        matrix_multiply_generic<MfmaTilePolicy, ActiveComputePolicy, ActiveElemIn>
-            <<<grid, block>>>(d_A, d_B, d_C, M, N, K);
-        HIP_CHECK(hipGetLastError());
-    };
+        // Standard path: scalar B load from transposed LDS tile.
+        auto launch = [&]()
+        {
+            matrix_multiply_generic<MfmaTilePolicy,
+                                    MfmaCdna4F16Policy,
+                                    _Float16>
+                <<<grid, dim3(256)>>>(d_A, d_B, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+        ms           = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
+        policy_label = "GemmKernel<MfmaTilePolicy, MfmaCdna4F16Policy> [gfx950]";
+
+        // ds_read_tr path: hardware-transposed B load from row-major LDS tile.
+        // Re-use the same device buffers; d_B was already uploaded.
+        HIP_CHECK(hipMemset(d_C, 0, sizeof(float) * M * N));
+        auto launch_tr = [&]()
+        {
+            matrix_multiply_generic<MfmaTilePolicyTrB,
+                                    MfmaCdna4F16TrPolicy,
+                                    _Float16>
+                <<<grid, dim3(256)>>>(d_A, d_B, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+        const float ms_tr = time_kernel_ms(launch_tr, WARMUP_RUNS, TIMING_RUNS);
+        HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N,
+                            hipMemcpyDeviceToHost));
+        const bool ok_tr = verify_result(h_C, h_A, M, N, K);
+        print_metrics(
+            "GemmKernel<MfmaTilePolicyTrB, MfmaCdna4F16TrPolicy> [gfx950]",
+            ok_tr, ms_tr, sizeof(_Float16), M, N, K);
+    }
+    else
+    {
+        // Scalar FP32 fallback: upload B as FP32.
+        std::vector<float> h_B_f32(K * N, 0.0f);
+        for(int i = 0; i < std::min(K, N); ++i)
+            h_B_f32[i * N + i] = 1.0f;
+        float* d_B_f32;
+        HIP_CHECK(hipMalloc(&d_B_f32, sizeof(float) * K * N));
+        HIP_CHECK(hipMemcpy(d_B_f32, h_B_f32.data(), sizeof(float) * K * N,
+                            hipMemcpyHostToDevice));
+        float* d_A_f32;
+        HIP_CHECK(hipMalloc(&d_A_f32, sizeof(float) * M * K));
+        std::vector<float> h_A_f32(M * K);
+        for(int i = 0; i < M * K; ++i)
+            h_A_f32[i] = static_cast<float>(h_A[i]);
+        HIP_CHECK(hipMemcpy(d_A_f32, h_A_f32.data(), sizeof(float) * M * K,
+                            hipMemcpyHostToDevice));
+
+        auto launch = [&]()
+        {
+            matrix_multiply_generic<SingleBufferTilePolicyF<32, 32, 8>,
+                                    ScalarFMAPolicy<8, 8, 8>,
+                                    float>
+                <<<grid, dim3(64)>>>(d_A_f32, d_B_f32, d_C, M, N, K);
+            HIP_CHECK(hipGetLastError());
+        };
+        ms           = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
+        policy_label = "GemmKernel<SingleBufferTilePolicyF, ScalarFMAPolicy> [fallback]";
+        HIP_CHECK(hipFree(d_A_f32));
+        HIP_CHECK(hipFree(d_B_f32));
+    }
     // [Sphinx mfma kernel launch end]
 
-    const float ms = time_kernel_ms(launch, WARMUP_RUNS, TIMING_RUNS);
     HIP_CHECK(hipMemcpy(h_C.data(), d_C, sizeof(float) * M * N,
                         hipMemcpyDeviceToHost));
     const bool ok = verify_result(h_C, h_A, M, N, K);
-
-#if defined(__gfx950__)
-    print_metrics(
-        "GemmKernel<MfmaTilePolicy, MfmaCdna4F16Policy> [gfx950]",
-        ok, ms, sizeof(ActiveElemIn), M, N, K);
-#else
-    print_metrics("GemmKernel<MfmaTilePolicy, ScalarFMAPolicy> [fallback]",
-                  ok, ms, sizeof(ActiveElemIn), M, N, K);
-#endif
+    print_metrics(policy_label, ok, ms, sizeof(_Float16), M, N, K);
 
     HIP_CHECK(hipFree(d_A));
     HIP_CHECK(hipFree(d_B));

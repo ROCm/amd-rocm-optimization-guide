@@ -295,3 +295,63 @@ consecutive values along the M or N dimension of the matrix.
 
 **Returns** ``v4bfloat`` -- four BF16 values holding the lane's BF16
 fragment after transposition.
+
+.. _cdna4-mfma-lds-intrinsics-example:
+
+FP16 GEMM example
+==================
+
+The following excerpts from
+``docs/tools/example_codes/matrix_multiply_cdna4_mfma.hip`` show how to use
+``__builtin_amdgcn_ds_read_tr16_b64_v4f16`` in a complete FP16 GEMM kernel.
+Two cooperating structures are required: a tile policy that stores the B tile
+in LDS in row-major order, and a compute policy that issues the transpose load
+calls in place of the scalar load loop.
+
+Step 1: store B in row-major order in LDS
+-----------------------------------------
+
+The standard FP16 tile policy stores B transposed (``tile_b_T[N][K]``) so
+that scalar lane indexing can stride along the K dimension. The
+``ds_read_tr`` path instead requires B in row-major order (``tile_b[K][N]``)
+so the hardware can scatter each N-column to its lane.
+
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
+   :language: cpp
+   :start-after: [Sphinx tile policy f16 row b start]
+   :end-before:  [Sphinx tile policy f16 row b end]
+   :caption: SingleBufferTilePolicyF16RowB shared-memory layout
+             (matrix_multiply_cdna4_mfma.hip)
+
+Step 2: load B with hardware-transposed calls
+---------------------------------------------
+
+``MfmaCdna4F16TrPolicy::load_b`` replaces the scalar load loop with four
+``ds_read_tr16_b64_v4f16`` calls. Each call loads 64 bits (four FP16 values)
+per lane and performs the 16-element transpose in hardware.
+
+``v_mfma_f32_16x16x32_f16`` consumes 32 K-positions per call
+(``k_step = 32``). Because each ``ds_read_tr16_b64_v4f16`` call covers only
+half of the 16 K-positions it is responsible for (see the K-position split
+table above), four calls are needed in total -- two pairs, one pair per
+16-K-position half:
+
+- Call 1 (``r0``): K positions ``ki + 0`` to ``ki + 3`` and ``ki + 8`` to
+  ``ki + 11`` (first half, first batch)
+- Call 2 (``r1``): K positions ``ki + 4`` to ``ki + 7`` and ``ki + 12`` to
+  ``ki + 15`` (first half, second batch)
+- Call 3 (``r2``): same pattern for the second 16-K half (``ki + 16`` to
+  ``ki + 31``), used when the kernel iterates to ``ki + 16``
+- Call 4 (``r3``): second batch of the second half
+
+Each lane addresses its own N-column:
+``column = tile_b_col + (lane_id mod 16)``.
+The pointer stride between the two calls in each pair is
+``BlockTileN * sizeof(_Float16)`` bytes (one K-row of the B tile in LDS).
+
+.. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
+   :language: cpp
+   :start-after: [Sphinx mfma cdna4 tr policy start]
+   :end-before:  [Sphinx mfma cdna4 tr policy end]
+   :caption: MfmaCdna4F16TrPolicy with ds_read_tr B loads
+             (matrix_multiply_cdna4_mfma.hip)
