@@ -50,15 +50,16 @@ operates on a single input block.
        Must be ``0``.
    * - ``blgp``
      - int
-     - Negation modifier (3-bit field). Bit 0 negates ``srcA``, bit 1 negates
-       ``srcB``, bit 2 negates ``srcC``. Legal range: 0..7.
+     - :math:`\pmb{B}`-matrix Lane Group Pattern modifier, repurposed as a
+       negation modifier (3-bit field). Bit 0 negates ``srcA``, bit 1 negates
+       ``srcB``, bit 2 negates ``srcC``.
 
 **Returns** ``v4double`` -- updated accumulator
 (:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
 
 .. note::
 
-   Unlike FP32, BF16, and INT8 MFMA instructions, FP64 MFMA instructions
+   Unlike most FP32, BF16, and INT8 MFMA instructions, FP64 MFMA instructions
    cannot co-execute with VALU instructions. To hide execution latency,
    schedule non-VALU instructions (loads, stores, or branches) around
    FP64 MFMA operations.
