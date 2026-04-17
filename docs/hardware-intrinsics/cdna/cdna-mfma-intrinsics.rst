@@ -165,7 +165,7 @@ lane are partitioned by block: accVGPRs 0---3 for block 0, 4---7 for block 1,
    :alt: :math:`16 \times 16` MFMA accumulator layout -- accVGPR index per
          output element, with lane groups colour-coded by block assignment.
    :align: center
-   :width: 70%
+   :width: 100%
 
    :math:`16 \times 16` **accumulator layout -- 4 blocks.**  Each cell shows
    the accVGPR index for block 0; block :math:`k` adds :math:`4k`.  Rows

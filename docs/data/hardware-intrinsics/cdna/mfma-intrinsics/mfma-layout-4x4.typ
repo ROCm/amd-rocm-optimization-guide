@@ -23,7 +23,7 @@
 #let rule-block = 0.8pt + rgb("#777777")   // between blocks (every 4 cols)
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
-#let sz  = 14pt
+#let sz  = 18pt
 #let gap = 0pt
 
 // ── Derived quantities ────────────────────────────────────────────────────
@@ -40,7 +40,7 @@
     width: sz, height: sz, fill: bg,
     stroke: (left: left-rule, top: none, bottom: none, right: none),
     align(center + horizon,
-      text(size: 6pt, weight: "bold", fill: ink)[#i]
+      text(size: 9pt, weight: "bold", fill: ink)[#i]
     )
   )
 }
@@ -66,7 +66,7 @@
       // span 4 cells by using a box of width 4*sz
       box(
         width: 4 * sz,
-        align(center, text(size: 6pt, fill: dimmed)[b=#b])
+        align(center, text(size: 9pt, fill: dimmed)[b=#b])
       )
     } else {
       // empty cells already consumed by the box above — emit nothing
@@ -76,7 +76,7 @@
 )
 
 // ── Left margin: row index label (= accVGPR = tile row i) ─────────────────
-#let margin-w = 60pt
+#let margin-w = 80pt
 #let margin-grid = grid(
   rows: (sz,) * 4,
   ..range(4).map(i => {
@@ -84,7 +84,7 @@
       width: margin-w, height: sz, fill: white,
       stroke: none,
       align(right + horizon,
-        text(size: 6pt, fill: dimmed)[
+        text(size: 9pt, fill: dimmed)[
           accVGPR #i #h(4pt)
         ]
       )
@@ -101,7 +101,7 @@
     if calc.rem(lane, 4) == 0 {
       box(
         width: 4 * sz,
-        align(center, text(size: 6pt, fill: dimmed)[#lane])
+        align(center, text(size: 9pt, fill: dimmed)[#lane])
       )
     } else {
       box(width: 0pt)
@@ -117,14 +117,14 @@
     // Block index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[block]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[block]),
       [],
       block-header,
     ),
     // Lane index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[lane]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[lane]),
       [],
       lane-header,
     ),

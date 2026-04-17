@@ -24,12 +24,12 @@
 #let grey         = rgb("#bfbfbf")   // odd  blocks — grey tint
 #let white        = rgb("#ffffff")
 #let ink          = rgb("#1e1e1e")
-#let dimmed       = rgb("#777777")
+#let dimmed       = rgb("#444444")
 #let rule-block   = 0.8pt + rgb("#777777")   // between blocks (every 4 cols)
 #let rule-group   = 1.2pt + rgb("#444444")   // between 16-lane row groups (every 16 cols)
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
-#let sz  = 14pt
+#let sz  = 18pt
 #let gap = 0pt
 
 // ── Derived quantities ────────────────────────────────────────────────────
@@ -54,7 +54,7 @@
     width: sz, height: sz, fill: bg,
     stroke: (left: left-rule, top: none, bottom: none, right: none),
     align(center + horizon,
-      text(size: 6pt, weight: "bold", fill: ink)[0]
+      text(size: 9pt, weight: "bold", fill: ink)[0]
     )
   )
 }
@@ -77,7 +77,7 @@
     if calc.rem(lane, 4) == 0 {
       box(
         width: 4 * sz,
-        align(center, text(size: 5pt, fill: dimmed)[b=#b])
+        align(center, text(size: 9pt, fill: dimmed)[b=#b])
       )
     } else {
       box(width: 0pt)
@@ -94,7 +94,7 @@
     if calc.rem(lane, 16) == 0 {
       box(
         width: 16 * sz,
-        align(center, text(size: 5pt, fill: dimmed)[row #g, lanes #(g*16)–#(g*16+15)])
+        align(center, text(size: 9pt, fill: dimmed)[row #g, lanes #(g*16)–#(g*16+15)])
       )
     } else {
       box(width: 0pt)
@@ -110,7 +110,7 @@
     if calc.rem(lane, 4) == 0 {
       box(
         width: 4 * sz,
-        align(center, text(size: 5pt, fill: dimmed)[#lane])
+        align(center, text(size: 9pt, fill: dimmed)[#lane])
       )
     } else {
       box(width: 0pt)
@@ -127,7 +127,7 @@
       width: margin-w, height: sz, fill: white,
       stroke: none,
       align(right + horizon,
-        text(size: 5.5pt, fill: dimmed)[
+        text(size: 9pt, fill: dimmed)[
           row _i_=#i #h(4pt)
         ]
       )
@@ -135,49 +135,29 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
-#let caption-text = [
-  #set text(size: 6pt, fill: dimmed)
-  Applies to all 4×4, 4-block FP64 MFMA intrinsics. \
-  Each lane holds 1 FP64 value in accVGPR pair 0 (v[1:0]). \
-  Within each 16-lane row group, 4 sub-groups of 4 lanes cover blocks 0–3. \
-  Formulas: lane = 16_i_ + 4_b_ + _j_ ;  accVGPR pair = 0.
-]
-
-// ── Title ─────────────────────────────────────────────────────────────────
-#let title = text(size: 8pt, weight: "bold")[
-  4×4 FP64 accumulator layout — 4 blocks
-]
-
 // ── Final layout ──────────────────────────────────────────────────────────
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(
     dir: ttb, spacing: 4pt,
-    // Title
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      title,
-    ),
     // Row-group header
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[row group]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[row group]),
       [],
       group-header,
     ),
     // Block index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[block]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[block]),
       [],
       block-header,
     ),
     // Lane index row
     grid(
       columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 5.5pt, style: "italic", fill: dimmed)[lane]),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[lane]),
       [],
       lane-header,
     ),
@@ -187,13 +167,6 @@
       margin-grid,
       [],
       data-grid,
-    ),
-    v(2pt),
-    // Caption
-    grid(
-      columns: (margin-w, 4pt, auto),
-      [], [],
-      caption-text,
     ),
   )
 )

@@ -23,7 +23,7 @@
 #let rule-major = 0.8pt + rgb("#777777")   // between 4-row bands
 
 // ── Cell geometry ─────────────────────────────────────────────────────────
-#let sz  = 14pt
+#let sz  = 18pt
 #let gap = 0pt
 
 // ── Layout functions ──────────────────────────────────────────────────────
@@ -41,7 +41,7 @@
     width: sz, height: sz, fill: bg,
     stroke: (top: top-rule, bottom: none, left: none, right: none),
     align(center + horizon,
-      text(size: 6pt, weight: "bold", fill: ink)[#r]
+      text(size: 9pt, weight: "bold", fill: ink)[#r]
     )
   )
 }
@@ -60,12 +60,12 @@
   columns: (sz,) * 16,
   column-gutter: gap,
   ..range(16).map(j =>
-    align(center, text(size: 6pt, fill: dimmed)[#j])
+    align(center, text(size: 9pt, fill: dimmed)[#j])
   )
 )
 
 // ── Left margin: one label per 4-row band ─────────────────────────────────
-#let margin-w = 80pt
+#let margin-w = 105pt
 #let margin-grid = grid(
   rows: (sz,) * 16,
   ..range(16).map(i => {
@@ -75,20 +75,20 @@
       let base = calc.floor(i / 4) * 16
       let last = base + 15
       let swatch = box(
-        width: 6pt, height: 6pt,
+        width: 7pt, height: 7pt,
         fill: if g == 0 { teal-light } else { grey },
         stroke: 0.3pt + dimmed,
       )
       box(
-        height: sz,
+        width: margin-w, height: sz,
         align(right + horizon,
           grid(
-            columns: (auto, 8pt, auto, 4pt, auto),
-            align(right + horizon, text(size: 6pt, style: "italic", fill: dimmed)[i=#i]),
+            columns: (24pt, 4pt, 60pt, 4pt, 9pt),
+            align(right + horizon, text(size: 9pt, style: "italic", fill: dimmed)[i=#i]),
             [],
-            align(right + horizon, text(size: 6pt, fill: dimmed)[lanes #base–#last]),
+            align(right + horizon, text(size: 9pt, fill: dimmed)[lanes #base–#last]),
             [],
-            align(horizon, swatch),
+            align(center + horizon, swatch),
           )
         )
       )
@@ -109,13 +109,13 @@
   stack(
     dir: ttb, spacing: 6pt,
     grid(
-      columns: (margin-w, 4pt, auto),
-      align(right + bottom, text(size: 6pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
+      columns: (margin-w, 10pt, auto),
+      align(right + bottom, text(size: 9pt, style: "italic", fill: dimmed)[_i_ ╲ _j_]),
       [],
       col-header,
     ),
     grid(
-      columns: (margin-w, 4pt, auto),
+      columns: (margin-w, 10pt, auto),
       margin-grid,
       [],
       data-grid,
