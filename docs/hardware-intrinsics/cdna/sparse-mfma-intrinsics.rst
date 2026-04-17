@@ -1,6 +1,6 @@
 .. meta::
    :description: Reference for sparse matrix fused multiply-accumulate (SMFMAC) intrinsics on AMD Instinct accelerators, covering 4:2 structured sparsity with FP16, BF16, INT8, and FP8 data types on CDNA3 and CDNA4 GPUs.
-   :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA3, CDNA4, gfx940, gfx942, gfx950, MI300, MI350
+   :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA3, CDNA4, gfx942, gfx950, MI300, MI350
 
 .. _sparse-mfma-intrinsics:
 
@@ -10,7 +10,7 @@ Sparse MFMA intrinsics
 
 Sparse Matrix Fused Multiply-Accumulate (SMFMAC) intrinsics let you issue
 hardware matrix multiply-accumulate operations that exploit 4:2 structured
-sparsity directly from HIP device code on CDNA3 GPUs (``gfx940``, ``gfx942``,
+sparsity directly from HIP device code on CDNA3 GPUs (``gfx942``,
 MI300 series) and CDNA4 GPUs (``gfx950``, MI350 series).  Each SMFMAC
 instruction multiplies a compressed
 :math:`\pmb{A}` fragment by a dense :math:`\pmb{B}` fragment and accumulates
@@ -29,8 +29,8 @@ Architecture availability
 =========================
 
 The FP16, BF16, and INT8 SMFMAC variants at the base K depths are available
-on ``gfx940`` and ``gfx942``.  The FP8 and BF8 variants require ``gfx942``
-or later.  Doubled-K variants in all data types are available on ``gfx950``
+on ``gfx942``.  The FP8 and BF8 variants require ``gfx942``or later.
+Doubled-K variants in all data types are available on ``gfx950``
 only; these are noted in the individual intrinsic reference entries.
 
 Naming convention
@@ -429,7 +429,7 @@ element groups.
 
 .. note::
 
-   The FP8 encoding used by ``gfx940`` and ``gfx942`` is FNUZ (Finite, No
+   The FP8 encoding used by ``gfx942`` is FNUZ (Finite, No
    Unsigned Zero), while later architectures use the standard OCP (Open
    Compute Project) E4M3 encoding.  The example code selects the correct
    interpretation at runtime based on the device architecture.
