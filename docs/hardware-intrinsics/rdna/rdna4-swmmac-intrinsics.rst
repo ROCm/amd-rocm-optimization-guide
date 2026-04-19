@@ -19,7 +19,7 @@ required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 
 .. note::
 
-   RDNA 4 GPUs run all shader programs in wave32 mode by default. The
+   RDNA 4 GPUs run all shader programs in ``wave32`` mode by default. The
    ``_w32`` suffix in each intrinsic name reflects this: all SWMMAC
    intrinsics on this page require ``wavefrontsize32``. ``wavefrontsize64`` is not supported for HIP code.
 
