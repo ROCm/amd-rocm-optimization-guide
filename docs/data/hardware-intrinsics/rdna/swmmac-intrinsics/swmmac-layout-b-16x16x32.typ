@@ -127,7 +127,7 @@
 // ── Caption ───────────────────────────────────────────────────────────────
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
-  srcB dense fragment for 16×16×32 SWMMAC (FP16/BF16 inputs), RDNA 4 (gfx1200, gfx1201), wave32. \
+  srcB dense fragment for 16×16×32 SWMMAC (FP16/BF16 inputs), RDNA4. \
   Cell value = VGPR index (0–7); each VGPR holds 2 packed FP16 values. \
   Teal rows = lane group 0 (lanes 0–15); grey = lane group 1 (lanes 16–31). \
   Both groups cover all 16 columns (col = lane % 16). Row _k_ = dense-K index.

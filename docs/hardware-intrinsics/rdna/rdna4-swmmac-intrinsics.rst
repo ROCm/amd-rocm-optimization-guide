@@ -273,7 +273,7 @@ from the rest of the kernel. The example below implements
 :math:`16 \times 16` FP16-input, FP32-accumulate intrinsic available on RDNA 4
 (``gfx1200``, ``gfx1201``).
 
-Each wave32 wavefront computes a single :math:`16 \times 16` output tile. The
+Each wavefront computes a single :math:`16 \times 16` output tile. The
 :math:`\pmb{A}` operand is pre-sparsified: half the K positions are zero and
 omitted from storage, so the compressed K dimension is 16 (representing 32
 dense K positions).
@@ -281,7 +281,7 @@ dense K positions).
 .. rubric:: Policy constants
 
 ``swmmac_f32_16x16x32_f16_w32`` consumes 32 dense K positions per call
-(compressed to K=16 in :math:`\pmb{A}`), so ``k_step = 32``. The wave32
+(compressed to K=16 in :math:`\pmb{A}`), so ``k_step = 32``. The
 wavefront holds the entire :math:`16 \times 16` tile: ``thread_tile_m =
 thread_tile_n = 16`` and ``effective_lanes = 32``.
 
@@ -296,7 +296,7 @@ example constructs a simple even-column sparsity pattern (elements at positions
 
 The intrinsic returns a ``v8float`` holding 8 FP32 values per lane. The
 ``store_c()`` pass maps ``(lane, VGPR index)`` back to :math:`(i, j)`
-coordinates using the GFX12 SWMMAC accumulator layout.
+coordinates using the SWMMAC accumulator layout.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
    :language: cuda
