@@ -21,13 +21,12 @@
 // SOFTWARE.
 
 // ---------------------------------------------------------------------------
-// matrix_multiply_rdna4_swmmac.hip -- FP16 SWMMAC ComputePolicy for RDNA 4
-//                                     (gfx1200 / gfx1201)
+// matrix_multiply_rdna4_swmmac.hip -- FP16 SWMMAC ComputePolicy for RDNA4
 //
 // This file is a companion to matrix_multiply_generic.hip (Step 7) and
 // provides a concrete ComputePolicy implementation that uses the SWMMAC
 // instruction __builtin_amdgcn_swmmac_f32_16x16x32_f16_w32 available on
-// RDNA 4 GPUs (gfx1200 RX 9070 XT, gfx1201 RX 9070).
+// RDNA4 GPUs.
 //
 // SWMMAC exploits structured 2:4 sparsity in the A matrix: for every four
 // consecutive K-elements, exactly two are non-zero. The hardware uses a
@@ -40,7 +39,7 @@
 // kernel template is reused without modification, adapted here to work with
 // half-precision element types and a pre-sparsified A matrix.
 //
-// Architecture: RDNA 4 (gfx1200, gfx1201) only.
+// Architecture: RDNA4 (gfx1200, gfx1201) only.
 // Compile with: amdclang++ -O3 -std=c++17 --offload-arch=gfx1201 \
 //                   matrix_multiply_rdna4_swmmac.hip -o mm_rdna4_swmmac
 //          or:  amdclang++ -O3 -std=c++17 --offload-arch=gfx1200 \
