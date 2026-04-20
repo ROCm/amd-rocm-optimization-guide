@@ -17,6 +17,14 @@ fragment, all within a single 32-wide wavefront. Because the :math:`\pmb{A}`
 operand is stored in compressed form, SWMMAC halves the storage and bandwidth
 required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 
+SWMMAC is the sparse variant of the WMMA instruction family, which is used on
+RDNA (consumer) GPUs. CDNA (Instinct) GPUs provide a comparable operation
+through :doc:`SMFMAC <../cdna/sparse-mfma-intrinsics>`, the sparse variant of
+MFMA. The two differ in wavefront size (wave32 for SWMMAC, wave64 for SMFMAC)
+and accumulator storage (ordinary VGPRs for SWMMAC, dedicated accVGPRs for
+SMFMAC). The underlying sparsity model --- 2:4 structured sparsity on
+:math:`\pmb{A}` --- is the same on both architectures.
+
 .. note::
 
    RDNA4 GPUs run all shader programs in ``wave32`` mode by default. The
@@ -273,11 +281,10 @@ The ``index`` parameter is shared by all SWMMAC intrinsics. The ``a_neg``,
 Example kernel
 ==============
 
-The matrix multiplication tutorial in :ref:`matrix-multiply-optimization` uses
-a ``ComputePolicy`` type parameter to separate the multiply-accumulate logic
-from the rest of the kernel. The example below implements
-``SwmmacRdna4F16Policy`` using
-``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32`.
+:ref:`mfma-compute-policy` explains the ``ComputePolicy`` pattern used to
+separate the multiply-accumulate logic from the rest of a kernel. The example
+below implements ``SwmmacRdna4F16Policy`` using
+``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32``.
 
 Each wavefront computes a single :math:`16 \times 16` output tile. The
 :math:`\pmb{A}` operand is pre-sparsified: half the K positions are zero and
@@ -312,8 +319,9 @@ coordinates using the SWMMAC accumulator layout.
 .. rubric:: Instantiating the kernel
 
 With ``SwmmacRdna4F16Policy`` in place, plug it into the generic kernel
-alongside a ``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n`` are
-multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 32``.
+alongside a ``TilePolicy`` (see :ref:`mfma-compute-policy`) whose
+``block_tile_m`` and ``block_tile_n`` are multiples of 16 and whose
+``k_tile_size`` is a multiple of ``k_step = 32``.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
    :language: cuda
