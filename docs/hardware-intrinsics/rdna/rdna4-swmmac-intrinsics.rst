@@ -22,8 +22,8 @@ RDNA (consumer) GPUs. CDNA (Instinct) GPUs provide a comparable operation
 through :doc:`SMFMAC <../cdna/sparse-mfma-intrinsics>`, the sparse variant of
 MFMA. The two differ in wavefront size (wave32 for SWMMAC, wave64 for SMFMAC)
 and accumulator storage (ordinary VGPRs for SWMMAC, dedicated accVGPRs for
-SMFMAC). The underlying sparsity model --- 2:4 structured sparsity on
-:math:`\pmb{A}` --- is the same on both architectures.
+SMFMAC). The underlying sparsity model (2:4 structured sparsity on
+:math:`\pmb{A}`) is the same on both architectures.
 
 .. note::
 
