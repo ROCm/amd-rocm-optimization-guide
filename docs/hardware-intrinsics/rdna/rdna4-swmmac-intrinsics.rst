@@ -13,7 +13,7 @@ hardware sparse matrix multiply-accumulate operations directly from HIP device
 code on RDNA4 GPUs (``gfx1200``, ``gfx1201``). Each SWMMAC instruction
 multiplies a compressed sparse :math:`\pmb{A}` fragment by a dense
 :math:`\pmb{B}` fragment and accumulates the result into a :math:`\pmb{D}`
-fragment, all within a single wave32 wavefront. Because the :math:`\pmb{A}`
+fragment, all within a single 32-wide wavefront. Because the :math:`\pmb{A}`
 operand is stored in compressed form, SWMMAC halves the storage and bandwidth
 required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 
@@ -26,9 +26,7 @@ required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 Architecture availability
 =========================
 
-The intrinsics on this page require the ``swmmac-gfx1200-insts`` target
-feature, which is enabled automatically when compiling for ``gfx1200`` or
-``gfx1201``. Pass the target architecture flag at compile time:
+The intrinsics on this page target RDNA4 GPUs. To automatically enable them, pass the LLVM target architecture flag at compile time:
 
 .. code-block:: bash
 
@@ -269,9 +267,7 @@ The matrix multiplication tutorial in :ref:`matrix-multiply-optimization` uses
 a ``ComputePolicy`` type parameter to separate the multiply-accumulate logic
 from the rest of the kernel. The example below implements
 ``SwmmacRdna4F16Policy`` using
-``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32`` -- a sparse
-:math:`16 \times 16` FP16-input, FP32-accumulate intrinsic available on RDNA4
-(``gfx1200``, ``gfx1201``).
+``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32`.
 
 Each wavefront computes a single :math:`16 \times 16` output tile. The
 :math:`\pmb{A}` operand is pre-sparsified: half the K positions are zero and
