@@ -1353,6 +1353,7 @@ whitespaces
 WikiText
 WinGDB
 WMMA
+wmma
 Wojna
 workgroup
 Workgroups

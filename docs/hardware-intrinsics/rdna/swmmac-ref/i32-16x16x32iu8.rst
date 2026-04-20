@@ -1,0 +1,60 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32
+   Include via: .. include:: swmmac-ref/i32-16x16x32iu8.rst
+
+``__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32``
+""""""""""""""""""""""""""""""""""""""""""""""""""
+
+.. code-block:: cpp
+
+   v8int __builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(
+       bool  a_neg,
+       v2int srcA,
+       bool  b_neg,
+       v4int srcB,
+       v8int srcC,
+       int   index,
+       bool  clamp);
+
+Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
+8-bit integer inputs. :math:`\pmb{A}` is packed as two ``int`` registers per
+lane (8 bytes = 8 INT8 elements after 2:4 expansion to 16 K positions).
+:math:`\pmb{B}` is packed as four ``int`` registers per lane (16 bytes = 16
+INT8 elements).
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``a_neg``
+     - bool
+     - ``true`` for signed INT8, ``false`` for unsigned UINT8. Compile-time
+       constant, see :ref:`rdna4-swmmac-common-parameters`.
+   * - ``srcA``
+     - v2int
+     - Eight compressed 8-bit elements of :math:`\pmb{A}` per lane, packed
+       into two 32-bit registers.
+   * - ``b_neg``
+     - bool
+     - ``true`` for signed INT8, ``false`` for unsigned UINT8 in
+       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
+   * - ``srcB``
+     - v4int
+     - Sixteen dense 8-bit elements of :math:`\pmb{B}` per lane, packed into
+       four 32-bit registers.
+   * - ``srcC``
+     - v8int
+     - Accumulator input: eight INT32 elements per lane.
+   * - ``index``
+     - int
+     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
+   * - ``clamp``
+     - bool
+     - Clamp output to input type range on overflow. Compile-time constant,
+       see :ref:`rdna4-swmmac-common-parameters`.
+
+**Returns** ``v8int`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).

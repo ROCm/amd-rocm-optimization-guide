@@ -1,0 +1,40 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12
+   Include via: .. include:: wmma-ref/f32-16x16x16fp8-fp8-rdna4.rst
+
+``__builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+.. code-block:: cpp
+
+   v8float __builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12(
+       v2int   srcA,
+       v2int   srcB,
+       v8float srcC);
+
+Computes one step of a dense :math:`16 \times 16` FP32 accumulation with FP8
+(E4M3) inputs for both :math:`\pmb{A}` and :math:`\pmb{B}`.  Eight FP8
+values are packed into two 32-bit registers per lane (four 8-bit values per
+register).
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v2int
+     - Eight FP8 elements of :math:`\pmb{A}` per lane, packed into two
+       32-bit registers (four 8-bit values per register).
+   * - ``srcB``
+     - v2int
+     - Eight FP8 elements of :math:`\pmb{B}` per lane, packed into two
+       32-bit registers.
+   * - ``srcC``
+     - v8float
+     - Accumulator input: eight FP32 elements per lane.
+
+**Returns** ``v8float`` -- updated accumulator
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).
