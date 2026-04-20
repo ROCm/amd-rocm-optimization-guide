@@ -582,18 +582,18 @@ struct SingleBufferTilePolicyF16RowB
 //
 // This policy uses the same v_mfma_f32_16x16x32_f16 instruction as
 // MfmaCdna4F16Policy, but replaces the scalar B-operand load loop with two
-// pairs of ds_read_tr16_b64_v4f16 calls.
+// ds_read_tr16_b64_v4f16 calls.
 //
 // ds_read_tr16_b64_v4f16 loads 64 bits (four FP16 values) per lane and
 // performs a 16-element transpose across adjacent lanes as part of the load.
-// One call covers half of the K positions; a second call with a pointer
-// offset of BlockTileN * sizeof(_Float16) covers the other half.
+// One call covers the first 4 K-positions per lane group; a second call
+// with a pointer offset of 4 * BlockTileN * sizeof(__fp16) covers the
+// remaining 4 K-positions.
 //
-// For k_step=32 (the full MFMA K depth) the B fragment is loaded in four
-// calls total: two pairs of ds_read_tr calls, one pair per 16-K-position
-// half-tile.  Each pair contributes four FP16 values (v4half), giving eight
-// FP16 values per lane in total -- exactly the B operand width of
-// v_mfma_f32_16x16x32_f16.
+// For k_step=32 (the full MFMA K depth) the B fragment is loaded in two
+// ds_read_tr16_b64_v4f16 calls.  Each call contributes four FP16 values
+// (v4half), giving eight FP16 values per lane in total -- exactly the
+// B operand width of v_mfma_f32_16x16x32_f16.
 //
 // A-operand loads remain scalar (identical to MfmaCdna4F16Policy::load_a).
 // ===========================================================================
@@ -608,7 +608,7 @@ struct MfmaCdna4F16TrPolicy
     static constexpr int frag_size_n     = 8;
     static constexpr int effective_lanes = 64;
     // k_step=32: one v_mfma_f32_16x16x32_f16 call consumes 32 K-positions,
-    // filled by four ds_read_tr16_b64_v4f16 calls (two pairs).
+    // filled by two ds_read_tr16_b64_v4f16 calls.
     static constexpr int k_step          = 32;
 
     using elem_a = _Float16;

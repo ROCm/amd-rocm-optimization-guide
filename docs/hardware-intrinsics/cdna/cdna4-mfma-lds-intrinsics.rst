@@ -271,6 +271,14 @@ consecutive values along the M or N dimension of the matrix.
 **Returns** ``v4half`` -- four FP16 values holding the lane's FP16 fragment
 after transposition.
 
+.. note::
+
+   This intrinsic requires the ``__fp16`` type (GCC-style half-precision),
+   not ``_Float16`` (ISO C half-precision). When calling the intrinsic,
+   cast pointers and vector types to ``__fp16``-based variants. The standard
+   MFMA compute intrinsics accept ``_Float16``, so a cast is needed only at
+   the ``ds_read_tr`` call site.
+
 ``__builtin_amdgcn_ds_read_tr16_b64_v4bf16``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -326,28 +334,29 @@ so the hardware can scatter each N-column to its lane.
 Step 2: load B with hardware-transposed calls
 ---------------------------------------------
 
-``MfmaCdna4F16TrPolicy::load_b`` replaces the scalar load loop with four
+``MfmaCdna4F16TrPolicy::load_b`` replaces the scalar load loop with two
 ``ds_read_tr16_b64_v4f16`` calls. Each call loads 64 bits (four FP16 values)
 per lane and performs the 16-element transpose in hardware.
 
 ``v_mfma_f32_16x16x32_f16`` consumes 32 K-positions per call
-(``k_step = 32``). Because each ``ds_read_tr16_b64_v4f16`` call covers only
-half of the 16 K-positions it is responsible for (see the K-position split
-table above), four calls are needed in total -- two pairs, one pair per
-16-K-position half:
+(``k_step = 32``). The 64 lanes form four groups of 16
+(``g = lane_id / 16``), each group covering 8 consecutive K-positions
+starting at ``ki + 8 * g``. Each ``ds_read_tr16_b64_v4f16`` call fills half
+of a group's 8 K-positions (see the K-position split table above), so two
+calls per ``load_b`` invocation produce the full 8-element B fragment:
 
-- Call 1 (``r0``): K positions ``ki + 0`` to ``ki + 3`` and ``ki + 8`` to
-  ``ki + 11`` (first half, first batch)
-- Call 2 (``r1``): K positions ``ki + 4`` to ``ki + 7`` and ``ki + 12`` to
-  ``ki + 15`` (first half, second batch)
-- Call 3 (``r2``): same pattern for the second 16-K half (``ki + 16`` to
-  ``ki + 31``), used when the kernel iterates to ``ki + 16``
-- Call 4 (``r3``): second batch of the second half
+- Call 1 (``r0``): each group loads the first 4 of its 8 K-positions.
+  Wavefront-wide this covers K positions ``ki + 0`` to ``ki + 3``,
+  ``ki + 8`` to ``ki + 11``, ``ki + 16`` to ``ki + 19``, and
+  ``ki + 24`` to ``ki + 27``.
+- Call 2 (``r1``): each group loads the remaining 4 K-positions.
+  Wavefront-wide: ``ki + 4`` to ``ki + 7``, ``ki + 12`` to ``ki + 15``,
+  ``ki + 20`` to ``ki + 23``, and ``ki + 24`` to ``ki + 31``.
 
 Each lane addresses its own N-column:
 ``column = tile_b_col + (lane_id mod 16)``.
-The pointer stride between the two calls in each pair is
-``BlockTileN * sizeof(_Float16)`` bytes (one K-row of the B tile in LDS).
+The pointer stride between the two calls is
+``4 * BlockTileN * sizeof(__fp16)`` bytes (four K-rows of the B tile in LDS).
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna4_mfma.hip
    :language: cpp
