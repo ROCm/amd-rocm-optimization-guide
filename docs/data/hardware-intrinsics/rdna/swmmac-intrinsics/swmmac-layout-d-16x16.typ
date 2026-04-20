@@ -112,7 +112,7 @@
 // ── Caption ───────────────────────────────────────────────────────────────
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
-  D/C accumulator for all 16×16 SWMMAC intrinsics on RDNA 4 (gfx1200, gfx1201), wave32. \
+  D/C accumulator for all 16×16 SWMMAC intrinsics on RDNA4. \
   Cell value = VGPR index _g_ (0–7). Column _j_ = matrix column = lane % 16. \
   Formulas: lane = ⌊_i_/8⌋ · 16 + _j_ ;  VGPR = _i_ mod 8.
 ]
