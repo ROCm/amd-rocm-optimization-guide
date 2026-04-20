@@ -29,6 +29,7 @@ ALUs
 AMD
 amd
 amdclang
+amdgcn
 AMDGPU
 amdgpu
 AMDGPUs
@@ -952,6 +953,7 @@ RDC's
 RDMA
 rdma
 RDNA
+rdna
 readlane
 README
 recommender
@@ -1122,6 +1124,7 @@ Slurm
 sm
 SMEM
 SMFMA
+SMFMAC
 SMI
 smi
 SMT
@@ -1131,6 +1134,7 @@ softmax
 SOMA
 Spack
 spack
+sparsified
 SPI
 SplitK
 spmm
@@ -1141,6 +1145,9 @@ SQs
 SRAM
 SRAMECC
 src
+srcA
+srcB
+srcC
 stanford
 stochastically
 strided
@@ -1160,6 +1167,8 @@ supercomputing
 Supermicro
 SVD
 SWE
+SWMMAC
+swmmac
 SYCL
 symlink
 symlinks

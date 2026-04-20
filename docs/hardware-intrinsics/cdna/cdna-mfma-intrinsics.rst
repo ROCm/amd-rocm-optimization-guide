@@ -247,6 +247,8 @@ Conversely, given lane :math:`L` and accVGPR index :math:`G`:
    j &= L \bmod 4 \\
    b &= \lfloor \frac{L}{4} \rfloor
 
+.. _mfma-compute-policy:
+
 Using MFMA intrinsics as a compute policy
 ==========================================
 

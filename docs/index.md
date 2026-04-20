@@ -44,6 +44,7 @@ and multi-GPU programming.
       * {doc}`./hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics`
     * {doc}`./hardware-intrinsics/cdna/sparse-mfma-intrinsics`
     * {doc}`./hardware-intrinsics/cdna/mfma-common-parameters`
+  * {doc}`./hardware-intrinsics/rdna/rdna4-swmmac-intrinsics`
 
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
 
