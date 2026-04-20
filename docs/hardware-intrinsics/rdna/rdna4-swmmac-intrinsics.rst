@@ -369,8 +369,7 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  RDNA4 SWMMAC instructions do not support VALU
-co-execution; the VALU co-execution cycle count is 0 for all variants.
+\text{clock frequency}`.
 
 .. list-table::
    :header-rows: 1
@@ -379,51 +378,39 @@ co-execution; the VALU co-execution cycle count is 0 for all variants.
    * - Intrinsic
      - Ops
      - Cycle count
-     - VALU co-execution cycles
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32``
      - 16384
      - 16
-     - 0
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_bf16_w32``
      - 16384
      - 16
-     - 0
    * - ``__builtin_amdgcn_swmmac_f16_16x16x32_f16_w32``
      - 16384
      - 16
-     - 0
    * - ``__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32``
      - 16384
      - 16
-     - 0
    * - ``__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32``
      - 16384
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_i32_16x16x32_iu4_w32``
      - 16384
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_i32_16x16x64_iu4_w32``
      - 32768
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w32``
      - 16384
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w32``
      - 16384
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w32``
      - 16384
      - 8
-     - 0
    * - ``__builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w32``
      - 16384
      - 8
-     - 0
 
 .. _rdna4-swmmac-intrinsic-reference:
 
