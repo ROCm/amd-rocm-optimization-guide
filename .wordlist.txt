@@ -540,6 +540,7 @@ iGPU
 IILE
 ImageNet
 IMDb
+immediates
 impactful
 inband
 IncDec
@@ -695,6 +696,7 @@ MERCHANTABILITY
 Meta's
 MFMA
 mfma
+MfmaCdna
 MiB
 MiB
 microarchitecture
@@ -1048,6 +1050,7 @@ rocWMMA
 Rodinia
 ror
 roundtrip
+RowB
 RPP
 RST
 rst
@@ -1110,6 +1113,7 @@ SIMDs
 SIMT
 sinewave
 SingleBufferTilePolicy
+SingleBufferTilePolicyF
 sinf
 sizeof
 SKU
@@ -1248,6 +1252,7 @@ tqdm
 tracebacks
 tradeoffs
 TransferBench
+TrPolicy
 transfering
 TrapStatus
 Trinayan
