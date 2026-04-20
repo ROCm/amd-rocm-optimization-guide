@@ -222,6 +222,16 @@ the intrinsic definition. The number in the name is the element count per lane.
 
 .. note::
 
+   ``__fp16`` and ``_Float16`` are distinct Clang types. ``__fp16`` is a
+   storage-only type: arithmetic on ``__fp16`` values promotes to ``float``
+   before the operation. ``_Float16`` is the C standard FP16 arithmetic type
+   that supports native half-precision operations without promotion. RDNA4
+   SWMMAC intrinsics use ``__fp16``; CDNA MFMA intrinsics use ``_Float16``.
+   The two types are not implicitly convertible, so cast explicitly when
+   sharing FP16 data between code paths that target different architectures.
+
+.. note::
+
    BF16 matrix inputs use ``short`` as the storage type for RDNA4 SWMMAC
    (not ``__bf16``). Reinterpret your BF16 data with ``__builtin_bit_cast``
    or a union before passing it to the intrinsic.
@@ -433,7 +443,8 @@ identical in structure to the FP16 variant.
      - int
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8float`` -- updated accumulator.
+**Returns** ``v8float`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 FP8 and BF8 inputs
 ^^^^^^^^^^^^^^^^^^
@@ -497,7 +508,8 @@ All four variants share the same parameter layout:
      - int
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8float`` -- updated accumulator.
+**Returns** ``v8float`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 FP16-accumulate intrinsics
 --------------------------
@@ -536,7 +548,8 @@ identical to the FP32-accumulate FP16 variant.
      - int
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8fp16`` -- updated accumulator.
+**Returns** ``v8fp16`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 BF16-accumulate intrinsics
 --------------------------
@@ -574,7 +587,8 @@ inputs and the accumulator are BF16 (stored as ``short``).
      - int
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8short`` -- updated accumulator (BF16 stored as ``short``).
+**Returns** ``v8short`` -- updated accumulator (BF16 stored as ``short``)
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 INT32-accumulate intrinsics
 ---------------------------
@@ -613,7 +627,7 @@ INT8 elements).
    * - ``a_neg``
      - bool
      - ``true`` for signed INT8, ``false`` for unsigned UINT8. Compile-time
-       constant.
+       constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcA``
      - v2int
      - Eight compressed 8-bit elements of :math:`\pmb{A}` per lane, packed
@@ -621,7 +635,7 @@ INT8 elements).
    * - ``b_neg``
      - bool
      - ``true`` for signed INT8, ``false`` for unsigned UINT8 in
-       :math:`\pmb{B}`. Compile-time constant.
+       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcB``
      - v4int
      - Sixteen dense 8-bit elements of :math:`\pmb{B}` per lane, packed into
@@ -634,9 +648,11 @@ INT8 elements).
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``clamp``
      - bool
-     - Clamp output to input type range on overflow. Compile-time constant.
+     - Clamp output to input type range on overflow. Compile-time constant,
+       see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8int`` -- updated accumulator.
+**Returns** ``v8int`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 INT4 and UINT4 inputs (16x16x32)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -667,7 +683,7 @@ Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
    * - ``a_neg``
      - bool
      - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{A}`. Compile-time constant.
+       :math:`\pmb{A}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcA``
      - int
      - Eight compressed 4-bit elements of :math:`\pmb{A}` per lane, packed
@@ -675,7 +691,7 @@ Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
    * - ``b_neg``
      - bool
      - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{B}`. Compile-time constant.
+       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcB``
      - v2int
      - Sixteen dense 4-bit elements of :math:`\pmb{B}` per lane, packed into
@@ -688,9 +704,11 @@ Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``clamp``
      - bool
-     - Clamp output to input type range on overflow. Compile-time constant.
+     - Clamp output to input type range on overflow. Compile-time constant,
+       see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8int`` -- updated accumulator.
+**Returns** ``v8int`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
 
 INT4 and UINT4 inputs (16x16x64)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -721,7 +739,7 @@ INT4 elements of :math:`\pmb{B}` into four ``int`` registers.
    * - ``a_neg``
      - bool
      - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{A}`. Compile-time constant.
+       :math:`\pmb{A}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcA``
      - v2int
      - Sixteen compressed 4-bit elements of :math:`\pmb{A}` per lane, packed
@@ -729,7 +747,7 @@ INT4 elements of :math:`\pmb{B}` into four ``int`` registers.
    * - ``b_neg``
      - bool
      - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{B}`. Compile-time constant.
+       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``srcB``
      - v4int
      - Thirty-two dense 4-bit elements of :math:`\pmb{B}` per lane, packed
@@ -742,6 +760,8 @@ INT4 elements of :math:`\pmb{B}` into four ``int`` registers.
      - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
    * - ``clamp``
      - bool
-     - Clamp output to input type range on overflow. Compile-time constant.
+     - Clamp output to input type range on overflow. Compile-time constant,
+       see :ref:`rdna4-swmmac-common-parameters`.
 
-**Returns** ``v8int`` -- updated accumulator.
+**Returns** ``v8int`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
