@@ -1,4 +1,4 @@
-// 16×16 SWMMAC Accumulator layout (RDNA 4, wave32)
+// 16×16 WMMA Accumulator layout (RDNA 4, wave32)
 //
 // Visual encoding
 //   Rose cells → rows  0– 7 (lanes  0–15)
@@ -112,14 +112,14 @@
 // ── Caption ───────────────────────────────────────────────────────────────
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
-  Accumulator for all 16×16 SWMMAC intrinsics on RDNA4. \
+  Accumulator for all 16×16 WMMA intrinsics on RDNA4. \
   Cell value = VGPR index _g_ (0–7). Column _j_ = matrix column = lane % 16. \
   Formulas: lane = ⌊_i_/8⌋ · 16 + _j_ ;  VGPR = _i_ mod 8.
 ]
 
 // ── Title ─────────────────────────────────────────────────────────────────
 #let title = text(size: 8pt, weight: "bold")[
-  16×16 SWMMAC accumulator layout — wave32
+  16×16 WMMA accumulator layout — wave32 (RDNA4)
 ]
 
 // ── Final layout ──────────────────────────────────────────────────────────

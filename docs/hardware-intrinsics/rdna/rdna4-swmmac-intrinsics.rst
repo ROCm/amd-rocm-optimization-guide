@@ -12,7 +12,7 @@ Sparse Wave-Matrix Multiply-Accumulate (SWMMAC) intrinsics let you issue
 hardware sparse matrix multiply-accumulate operations directly from HIP device
 code on RDNA4 GPUs (``gfx1200``, ``gfx1201``). Each SWMMAC instruction
 multiplies a compressed sparse :math:`\pmb{A}` fragment by a dense
-:math:`\pmb{B}` fragment and accumulates the result into a :math:`\pmb{D}`
+:math:`\pmb{B}` fragment and accumulates the result into a :math:`\pmb{C}`
 fragment, all within a single 32-wide wavefront. Because the :math:`\pmb{A}`
 operand is stored in compressed form, SWMMAC halves the storage and bandwidth
 required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
@@ -104,13 +104,13 @@ computed by one wave32 wavefront. The 32 lanes split into two groups of 16;
 each group owns half the output rows. The diagrams below show the mapping
 between matrix elements and lane or VGPR positions for each operand.
 
-D accumulator (srcC / output)
+Accumulator layout
 ---------------------------------
 
 Each lane holds 8 FP32 output elements across VGPRs 0--7.
 
 .. figure:: ../../data/hardware-intrinsics/rdna/swmmac-intrinsics/swmmac-layout-d-16x16.svg
-   :alt: 16×16 SWMMAC D accumulator layout. Rows 0–7 (teal) are held by
+   :alt: 16×16 SWMMAC accumulator layout. Rows 0–7 (teal) are held by
          lanes 0–15; rows 8–15 (grey) by lanes 16–31. Each cell shows
          the VGPR index g (0–7) that holds element (i, j). Column j
          equals lane % 16.
@@ -429,225 +429,37 @@ matrix inputs.
 FP16 inputs
 ^^^^^^^^^^^
 
-.. code-block:: cpp
-
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_f16_w32(
-       v8fp16  srcA,
-       v16fp16 srcB,
-       v8float srcC,
-       int     index);
-
-Computes one step of a sparse :math:`16 \times 16` FP32 accumulation with FP16
-inputs. :math:`\pmb{A}` is a compressed sparse fragment (8 FP16 values per lane
-representing 16 K positions after 2:4 expansion). :math:`\pmb{B}` is a dense
-fragment (16 FP16 values per lane). The ``index`` register identifies the
-non-zero positions in :math:`\pmb{A}`.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``srcA``
-     - v8fp16
-     - Eight compressed FP16 elements of :math:`\pmb{A}` per lane.
-   * - ``srcB``
-     - v16fp16
-     - Sixteen dense FP16 elements of :math:`\pmb{B}` per lane.
-   * - ``srcC``
-     - v8float
-     - Accumulator input: eight FP32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8float`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/f32-16x16x32f16.rst
 
 BF16 inputs
 ^^^^^^^^^^^
 
-.. code-block:: cpp
-
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_bf16_w32(
-       v8short  srcA,
-       v16short srcB,
-       v8float  srcC,
-       int      index);
-
-Computes one step of a sparse :math:`16 \times 16` FP32 accumulation with BF16
-inputs. BF16 values are passed as ``short`` (16-bit storage). Otherwise
-identical in structure to the FP16 variant.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``srcA``
-     - v8short
-     - Eight compressed BF16 elements of :math:`\pmb{A}` per lane (BF16 stored
-       as ``short``).
-   * - ``srcB``
-     - v16short
-     - Sixteen dense BF16 elements of :math:`\pmb{B}` per lane.
-   * - ``srcC``
-     - v8float
-     - Accumulator input: eight FP32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8float`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/f32-16x16x32bf16.rst
 
 FP8 and BF8 inputs
 ^^^^^^^^^^^^^^^^^^
 
-These intrinsics accept 8-bit floating-point inputs in either FP8 (E4M3) or
-BF8 (E5M2) format. FP8 and BF8 values are packed four-per-register into
-``int`` fields. The intrinsic name encodes the format of :math:`\pmb{A}` first
-and :math:`\pmb{B}` second.
+.. include:: swmmac-ref/f32-16x16x32fp8-fp8.rst
 
-.. code-block:: cpp
+.. include:: swmmac-ref/f32-16x16x32fp8-bf8.rst
 
-   // FP8 A × FP8 B → FP32
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w32(
-       v2int   srcA,
-       v4int   srcB,
-       v8float srcC,
-       int     index);
+.. include:: swmmac-ref/f32-16x16x32bf8-fp8.rst
 
-   // FP8 A × BF8 B → FP32
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w32(
-       v2int   srcA,
-       v4int   srcB,
-       v8float srcC,
-       int     index);
-
-   // BF8 A × FP8 B → FP32
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w32(
-       v2int   srcA,
-       v4int   srcB,
-       v8float srcC,
-       int     index);
-
-   // BF8 A × BF8 B → FP32
-   v8float __builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w32(
-       v2int   srcA,
-       v4int   srcB,
-       v8float srcC,
-       int     index);
-
-All four variants share the same parameter layout:
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``srcA``
-     - v2int
-     - Eight compressed FP8 or BF8 elements of :math:`\pmb{A}` per lane,
-       packed into two 32-bit registers (four 8-bit values per register).
-   * - ``srcB``
-     - v4int
-     - Sixteen dense FP8 or BF8 elements of :math:`\pmb{B}` per lane, packed
-       into four 32-bit registers.
-   * - ``srcC``
-     - v8float
-     - Accumulator input: eight FP32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8float`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/f32-16x16x32bf8-bf8.rst
 
 FP16-accumulate intrinsics
 --------------------------
 
 This intrinsic accumulates into FP16 with FP16 inputs.
 
-.. code-block:: cpp
-
-   v8fp16 __builtin_amdgcn_swmmac_f16_16x16x32_f16_w32(
-       v8fp16  srcA,
-       v16fp16 srcB,
-       v8fp16  srcC,
-       int     index);
-
-Computes one step of a sparse :math:`16 \times 16` FP16 accumulation. Both
-inputs and the accumulator are FP16. Operand sizes and the sparsity index are
-identical to the FP32-accumulate FP16 variant.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``srcA``
-     - v8fp16
-     - Eight compressed FP16 elements of :math:`\pmb{A}` per lane.
-   * - ``srcB``
-     - v16fp16
-     - Sixteen dense FP16 elements of :math:`\pmb{B}` per lane.
-   * - ``srcC``
-     - v8fp16
-     - Accumulator input: eight FP16 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8fp16`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/f16-16x16x32f16.rst
 
 BF16-accumulate intrinsics
 --------------------------
 
 This intrinsic accumulates into BF16 with BF16 inputs.
 
-.. code-block:: cpp
-
-   v8short __builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32(
-       v8short  srcA,
-       v16short srcB,
-       v8short  srcC,
-       int      index);
-
-Computes one step of a sparse :math:`16 \times 16` BF16 accumulation. Both
-inputs and the accumulator are BF16 (stored as ``short``).
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``srcA``
-     - v8short
-     - Eight compressed BF16 elements of :math:`\pmb{A}` per lane.
-   * - ``srcB``
-     - v16short
-     - Sixteen dense BF16 elements of :math:`\pmb{B}` per lane.
-   * - ``srcC``
-     - v8short
-     - Accumulator input: eight BF16 elements per lane (stored as ``short``).
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8short`` -- updated accumulator (BF16 stored as ``short``)
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/bf16-16x16x32bf16.rst
 
 INT32-accumulate intrinsics
 ---------------------------
@@ -659,168 +471,14 @@ constants.
 INT8 and UINT8 inputs (16x16x32)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: cpp
-
-   v8int __builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(
-       bool  a_neg,
-       v2int srcA,
-       bool  b_neg,
-       v4int srcB,
-       v8int srcC,
-       int   index,
-       bool  clamp);
-
-Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
-8-bit integer inputs. :math:`\pmb{A}` is packed as two ``int`` registers per
-lane (8 bytes = 8 INT8 elements after 2:4 expansion to 16 K positions).
-:math:`\pmb{B}` is packed as four ``int`` registers per lane (16 bytes = 16
-INT8 elements).
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``a_neg``
-     - bool
-     - ``true`` for signed INT8, ``false`` for unsigned UINT8. Compile-time
-       constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcA``
-     - v2int
-     - Eight compressed 8-bit elements of :math:`\pmb{A}` per lane, packed
-       into two 32-bit registers.
-   * - ``b_neg``
-     - bool
-     - ``true`` for signed INT8, ``false`` for unsigned UINT8 in
-       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcB``
-     - v4int
-     - Sixteen dense 8-bit elements of :math:`\pmb{B}` per lane, packed into
-       four 32-bit registers.
-   * - ``srcC``
-     - v8int
-     - Accumulator input: eight INT32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``clamp``
-     - bool
-     - Clamp output to input type range on overflow. Compile-time constant,
-       see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8int`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/i32-16x16x32iu8.rst
 
 INT4 and UINT4 inputs (16x16x32)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: cpp
-
-   v8int __builtin_amdgcn_swmmac_i32_16x16x32_iu4_w32(
-       bool  a_neg,
-       int   srcA,
-       bool  b_neg,
-       v2int srcB,
-       v8int srcC,
-       int   index,
-       bool  clamp);
-
-Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
-4-bit integer inputs. Eight INT4 elements of :math:`\pmb{A}` fit into a single
-``int`` per lane; sixteen INT4 elements of :math:`\pmb{B}` fit into two
-``int`` registers.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``a_neg``
-     - bool
-     - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{A}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcA``
-     - int
-     - Eight compressed 4-bit elements of :math:`\pmb{A}` per lane, packed
-       into one 32-bit register.
-   * - ``b_neg``
-     - bool
-     - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcB``
-     - v2int
-     - Sixteen dense 4-bit elements of :math:`\pmb{B}` per lane, packed into
-       two 32-bit registers.
-   * - ``srcC``
-     - v8int
-     - Accumulator input: eight INT32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``clamp``
-     - bool
-     - Clamp output to input type range on overflow. Compile-time constant,
-       see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8int`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/i32-16x16x32iu4.rst
 
 INT4 and UINT4 inputs (16x16x64)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: cpp
-
-   v8int __builtin_amdgcn_swmmac_i32_16x16x64_iu4_w32(
-       bool  a_neg,
-       v2int srcA,
-       bool  b_neg,
-       v4int srcB,
-       v8int srcC,
-       int   index,
-       bool  clamp);
-
-Computes one step of a sparse :math:`16 \times 16` INT32 accumulation with
-4-bit integer inputs over a deeper K=64 strip. Sixteen INT4 elements of
-:math:`\pmb{A}` are packed into two ``int`` registers per lane; thirty-two
-INT4 elements of :math:`\pmb{B}` into four ``int`` registers.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Parameter
-     - Type
-     - Description
-   * - ``a_neg``
-     - bool
-     - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{A}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcA``
-     - v2int
-     - Sixteen compressed 4-bit elements of :math:`\pmb{A}` per lane, packed
-       into two 32-bit registers.
-   * - ``b_neg``
-     - bool
-     - ``true`` for signed INT4, ``false`` for unsigned UINT4 in
-       :math:`\pmb{B}`. Compile-time constant, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``srcB``
-     - v4int
-     - Thirty-two dense 4-bit elements of :math:`\pmb{B}` per lane, packed
-       into four 32-bit registers.
-   * - ``srcC``
-     - v8int
-     - Accumulator input: eight INT32 elements per lane.
-   * - ``index``
-     - int
-     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
-   * - ``clamp``
-     - bool
-     - Clamp output to input type range on overflow. Compile-time constant,
-       see :ref:`rdna4-swmmac-common-parameters`.
-
-**Returns** ``v8int`` -- updated accumulator
-(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
+.. include:: swmmac-ref/i32-16x16x64iu4.rst
