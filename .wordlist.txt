@@ -199,6 +199,7 @@ CSn
 csn
 CSV
 CSVs
+CTA
 cTDP
 CTest
 CTests
@@ -1122,6 +1123,7 @@ Slurm
 sm
 SMEM
 SMFMA
+SMFMAC
 SMI
 smi
 SMT
