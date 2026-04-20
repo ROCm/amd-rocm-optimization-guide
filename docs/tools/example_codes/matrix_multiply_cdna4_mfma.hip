@@ -663,21 +663,21 @@ struct MfmaCdna4F16TrPolicy
     // tile_b_ptr points to the base of the row-major B tile in LDS:
     //   tile_b[k][n], dimensions KTileSize × BlockTileN.
     //
-    // For k_step=32 the 32 K-positions are split into two 16-K halves.
-    // Within each half, ds_read_tr performs the K-position split documented
-    // in the intrinsic reference (call 1: positions 0-3 and 8-11; call 2:
-    // positions 4-7 and 12-15 within that half).  Two pairs of calls fill
-    // the eight-element B fragment.
+    // Each lane belongs to one of four 16-lane groups (g = lane_id / 16),
+    // handling K-positions ki + 8*g through ki + 8*g + 7.  Two ds_read_tr
+    // calls fill the eight-element B fragment per lane:
     //
-    // Each lane reads from the column it owns:
-    //   column index = tile_b_col + (lane_id mod 16)
+    //   local_tx = lane_id % 16
+    //   k_base   = ki + 8 * (lane_id / 16)
     //
-    // The pointer stride between the two calls in each pair equals
-    // BlockTileN * sizeof(_Float16) bytes (one row of the B tile in LDS),
-    // which advances to the second batch of K positions within the half.
+    //   Call 1: ptr = &tile_b[k_base + local_tx/4][tile_b_col + (local_tx%4)*4]
+    //           -> frag[0..3]
+    //   Call 2: ptr = &tile_b[k_base + 4 + local_tx/4][tile_b_col + (local_tx%4)*4]
+    //           -> frag[4..7]
     //
-    // The stride between the two halves equals
-    // 16 * BlockTileN * sizeof(_Float16) bytes (16 K rows).
+    // The stride between the two calls is 4 rows of the B tile (4 * BlockTileN
+    // elements).  The hardware transpose gathers strided K elements across
+    // adjacent lanes so that each lane receives its own column's data.
     __device__ static void load_b(const _Float16* tile_b_ptr,
                                   int             tile_b_col,
                                   int             ki,
@@ -686,37 +686,28 @@ struct MfmaCdna4F16TrPolicy
                                   elem_b        (&frag)[8])
     {
 #if defined(__gfx950__)
-        using v4half = _Float16 [[clang::ext_vector_type(4)]];
+        using v4half = __fp16 [[clang::ext_vector_type(4)]];
 
-        // Each lane addresses its column.  The pointer must be 8-byte aligned
-        // (guaranteed when tile_b_col and lane_id%16 select a 2-byte-aligned
-        // element and the tile base is 8-byte aligned).
-        const int col = tile_b_col + (lane_id % 16);
+        const int local_tx = lane_id % 16;
+        const int k_base   = ki + 8 * (lane_id / 16);
 
-        // First 16-K half (K positions ki .. ki+15):
-        __shared__ _Float16* base0 =
-            const_cast<_Float16*>(tile_b_ptr) + (ki + 0) * block_tile_n + col;
-        __shared__ _Float16* base1 =
-            const_cast<_Float16*>(tile_b_ptr) + (ki + 8) * block_tile_n + col;
+        __fp16* base0 =
+            const_cast<__fp16*>(reinterpret_cast<const __fp16*>(tile_b_ptr))
+            + (k_base + local_tx / 4) * block_tile_n
+            + tile_b_col + (local_tx % 4) * 4;
 
-        // Second 16-K half (K positions ki+16 .. ki+31):
-        __shared__ _Float16* base2 =
-            const_cast<_Float16*>(tile_b_ptr) + (ki + 16) * block_tile_n + col;
-        __shared__ _Float16* base3 =
-            const_cast<_Float16*>(tile_b_ptr) + (ki + 24) * block_tile_n + col;
+        __fp16* base1 =
+            const_cast<__fp16*>(reinterpret_cast<const __fp16*>(tile_b_ptr))
+            + (k_base + 4 + local_tx / 4) * block_tile_n
+            + tile_b_col + (local_tx % 4) * 4;
 
         const v4half r0 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
-            reinterpret_cast<__shared__ v4half*>(base0));
+            (__attribute__((address_space(3))) v4half*)(base0));
         const v4half r1 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
-            reinterpret_cast<__shared__ v4half*>(base1));
-        const v4half r2 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
-            reinterpret_cast<__shared__ v4half*>(base2));
-        const v4half r3 = __builtin_amdgcn_ds_read_tr16_b64_v4f16(
-            reinterpret_cast<__shared__ v4half*>(base3));
+            (__attribute__((address_space(3))) v4half*)(base1));
 
         frag[0] = r0[0]; frag[1] = r0[1]; frag[2] = r0[2]; frag[3] = r0[3];
         frag[4] = r1[0]; frag[5] = r1[1]; frag[6] = r1[2]; frag[7] = r1[3];
-        (void)r2; (void)r3; // second half used in second MFMA call (ki+16)
 #endif
     }
 
