@@ -1,16 +1,16 @@
 .. meta::
-   :description: Reference for RDNA 4 (gfx1200, gfx1201) sparse wave-matrix multiply-accumulate intrinsics, covering all supported __builtin_amdgcn_swmmac_* variants, parameters, and output layouts.
-   :keywords: RDNA 4, gfx1200, gfx1201, SWMMAC, sparse matrix, wave-matrix, HIP intrinsics, FP32, FP16, BF16, FP8, BF8, INT8, INT4, __builtin_amdgcn_swmmac
+   :description: Reference for RDNA4 (gfx1200, gfx1201) sparse wave-matrix multiply-accumulate intrinsics, covering all supported __builtin_amdgcn_swmmac_* variants, parameters, and output layouts.
+   :keywords: RDNA4, gfx1200, gfx1201, SWMMAC, sparse matrix, wave-matrix, HIP intrinsics, FP32, FP16, BF16, FP8, BF8, INT8, INT4, __builtin_amdgcn_swmmac
 
 .. _rdna4-swmmac-intrinsics:
 
 ********************************************************************************
-RDNA 4 SWMMAC intrinsics
+RDNA4 SWMMAC intrinsics
 ********************************************************************************
 
 Sparse Wave-Matrix Multiply-Accumulate (SWMMAC) intrinsics let you issue
 hardware sparse matrix multiply-accumulate operations directly from HIP device
-code on RDNA 4 GPUs (``gfx1200``, ``gfx1201``). Each SWMMAC instruction
+code on RDNA4 GPUs (``gfx1200``, ``gfx1201``). Each SWMMAC instruction
 multiplies a compressed sparse :math:`\pmb{A}` fragment by a dense
 :math:`\pmb{B}` fragment and accumulates the result into a :math:`\pmb{D}`
 fragment, all within a single wave32 wavefront. Because the :math:`\pmb{A}`
@@ -19,7 +19,7 @@ required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 
 .. note::
 
-   RDNA 4 GPUs run all shader programs in ``wave32`` mode by default. The
+   RDNA4 GPUs run all shader programs in ``wave32`` mode by default. The
    ``_w32`` suffix in each intrinsic name reflects this: all SWMMAC
    intrinsics on this page require ``wavefrontsize32``. ``wavefrontsize64`` is not supported for HIP code.
 
@@ -63,7 +63,7 @@ All SWMMAC intrinsics follow the pattern:
     Used only for mixed FP8/BF8 variants.
 
 ``_w32``
-    Wavefront size suffix. All RDNA 4 SWMMAC intrinsics use wave32.
+    Wavefront size suffix. All RDNA4 SWMMAC intrinsics use wave32.
 
 Structured sparsity (2:4 pattern)
 ==================================
@@ -224,7 +224,7 @@ the intrinsic definition. The number in the name is the element count per lane.
 
 .. note::
 
-   BF16 matrix inputs use ``short`` as the storage type for RDNA 4 SWMMAC
+   BF16 matrix inputs use ``short`` as the storage type for RDNA4 SWMMAC
    (not ``__bf16``). Reinterpret your BF16 data with ``__builtin_bit_cast``
    or a union before passing it to the intrinsic.
 
@@ -270,7 +270,7 @@ a ``ComputePolicy`` type parameter to separate the multiply-accumulate logic
 from the rest of the kernel. The example below implements
 ``SwmmacRdna4F16Policy`` using
 ``__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32`` -- a sparse
-:math:`16 \times 16` FP16-input, FP32-accumulate intrinsic available on RDNA 4
+:math:`16 \times 16` FP16-input, FP32-accumulate intrinsic available on RDNA4
 (``gfx1200``, ``gfx1201``).
 
 Each wavefront computes a single :math:`16 \times 16` output tile. The
@@ -338,7 +338,7 @@ multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 32``.
 
 .. note::
 
-   ``SwmmacRdna4F16Policy`` requires an RDNA 4 GPU (``gfx1200`` or ``gfx1201``).
+   ``SwmmacRdna4F16Policy`` requires an RDNA4 GPU (``gfx1200`` or ``gfx1201``).
    The ``#if defined(__gfx1200__) || defined(__gfx1201__)``
    guard in the example file falls back to ``ScalarFMASPolicy`` on other targets,
    so the file compiles without modification.
@@ -352,7 +352,7 @@ multiples of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 32``.
 Intrinsic reference
 ===================
 
-The following sections list every SWMMAC intrinsic available on RDNA 4,
+The following sections list every SWMMAC intrinsic available on RDNA4,
 grouped by accumulator type.
 
 FP32-accumulate intrinsics
