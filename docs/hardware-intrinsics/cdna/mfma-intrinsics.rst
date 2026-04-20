@@ -23,4 +23,9 @@ density -- dense or sparse -- and then by CDNA generation.
   * :doc:`CDNA3 dense MFMA intrinsics <cdna3-dense-mfma-intrinsics>`
 
 * :doc:`Sparse MFMA intrinsics <sparse-mfma-intrinsics>`
+
+  * :doc:`CDNA and CDNA2 sparse MFMA intrinsics <cdna-sparse-mfma-intrinsics>`
+  * :doc:`CDNA3 sparse MFMA intrinsics <cdna3-sparse-mfma-intrinsics>`
+  * :doc:`CDNA4 sparse MFMA intrinsics <cdna4-sparse-mfma-intrinsics>`
+
 * :doc:`Common MFMA parameters <mfma-common-parameters>`

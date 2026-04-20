@@ -93,5 +93,27 @@ The following parameter applies to dense MFMA intrinsics only.
 Sparse MFMA parameters
 ======================
 
-Sparse MFMA intrinsics introduce additional parameters for sparsity metadata.
-Documentation for these parameters is added in later CDNA generation branches.
+Sparse MFMA (SMFMAC) intrinsics share the ``cbsz`` and ``abid`` parameters
+described above with the same semantics as their dense counterparts.  In
+addition, SMFMAC intrinsics accept the following parameter:
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``idx``
+     - int
+     - Sparsity index.  Encodes which two of the four positions in each
+       group of four elements along the K dimension hold the non-zeros in
+       the compressed :math:`\pmb{A}` matrix.  The bit width of the index
+       scales with K: a 2-bit field per group of four is needed, so K=16
+       requires 8 bits, K=32 requires 16 bits, and K=64 requires 32 bits.
+       This is a runtime value, not a compile-time constant.
+
+.. note::
+
+   SMFMAC intrinsics do not support the ``blgp`` (:math:`\pmb{B}`-matrix
+   Lane Group Pattern) modifier available on dense MFMA instructions.
