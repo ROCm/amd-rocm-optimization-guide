@@ -27,7 +27,7 @@ earlier generations.
 Architecture availability
 =========================
 
-The intrinsics on this page target CDNA4 (``gfx950``, MI350 series)
+The intrinsics on this page target CDNA4 (gfx950 architecture also known as AMD Instinct MI350 Series)
 exclusively.  Equivalent intrinsics for other CDNA generations are documented
 on their own reference pages:
 
