@@ -1,0 +1,57 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_smfmac_f32_32x32x64_fp8_fp8
+   Include via: .. include:: smfmac-ref/f32-32x32x64-fp8-fp8.rst
+
+``__builtin_amdgcn_smfmac_f32_32x32x64_fp8_fp8``
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+.. code-block:: cpp
+
+   v16float __builtin_amdgcn_smfmac_f32_32x32x64_fp8_fp8(
+       v4int     srcA,
+       v8int     srcB,
+       v16float  srcC,
+       int      idx,
+       int      cbsz,
+       int      abid);
+
+Computes one step of a :math:`32 \times 32` sparse FP32 outer-product
+accumulation.  Each instruction processes :math:`K=64` compressed FP8 (E4M3)
+elements of :math:`\pmb{A}` and :math:`K=64` dense FP8 (E4M3) elements of
+:math:`\pmb{B}`, accumulating into a :math:`32 \times 32` FP32 tile held
+across 16 accVGPRs per lane.  Each 32-bit register lane packs four 8-bit
+elements.  This variant is available on ``gfx950`` only.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v4int
+     - Compressed :math:`\pmb{A}` elements per lane (4:2 sparse, four
+       FP8 (E4M3) values packed per 32-bit lane).
+   * - ``srcB``
+     - v8int
+     - Dense :math:`\pmb{B}` elements per lane (four FP8 (E4M3) values
+       packed per 32-bit lane).
+   * - ``srcC``
+     - v16float
+     - Accumulator input: 16 FP32 elements per lane.
+   * - ``idx``
+     - int
+     - Sparsity index encoding the positions of non-zero elements within
+       each group of four along the K dimension, see
+       :ref:`smfmac-common-parameters`.
+   * - ``cbsz``
+     - int
+     - Control Broadcast Size modifier, see :ref:`smfmac-common-parameters`.
+   * - ``abid``
+     - int
+     - :math:`\pmb{A}`-matrix Broadcast Identifier, see
+       :ref:`smfmac-common-parameters`.
+
+**Returns** ``v16float`` -- updated accumulator
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).

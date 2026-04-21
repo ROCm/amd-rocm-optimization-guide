@@ -40,5 +40,10 @@ subtrees:
               - file: hardware-intrinsics/cdna/cdna2-mfma-intrinsics
               - file: hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics
           - file: hardware-intrinsics/cdna/sparse-mfma-intrinsics
+            subtrees:
+            - entries:
+              - file: hardware-intrinsics/cdna/cdna-sparse-mfma-intrinsics
+              - file: hardware-intrinsics/cdna/cdna3-sparse-mfma-intrinsics
+              - file: hardware-intrinsics/cdna/cdna4-sparse-mfma-intrinsics
           - file: hardware-intrinsics/cdna/mfma-common-parameters
       - file: hardware-intrinsics/rdna/rdna4-swmmac-intrinsics
