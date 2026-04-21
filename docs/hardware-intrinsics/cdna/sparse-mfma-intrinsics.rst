@@ -12,7 +12,7 @@ Sparse MFMA intrinsics
 
 Sparse Matrix Fused Multiply-Accumulate (SMFMAC) intrinsics multiply a
 compressed :math:`\pmb{A}` tile by a dense :math:`\pmb{B}` tile and
-accumulate the result into a :math:`\pmb{D}` tile, exploiting 4:2 structured
+accumulate the result into a :math:`\pmb{C}` tile, exploiting 4:2 structured
 sparsity to halve the storage and bandwidth required for :math:`\pmb{A}`.
 Select a CDNA generation below for the corresponding intrinsic reference.
 For trailing parameter documentation, see

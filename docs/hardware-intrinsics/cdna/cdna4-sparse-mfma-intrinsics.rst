@@ -13,7 +13,7 @@ hardware matrix multiply-accumulate operations that exploit 4:2 structured
 sparsity directly from HIP device code on CDNA4 GPUs (``gfx950``,
 MI350 series).  Each SMFMAC instruction multiplies a compressed
 :math:`\pmb{A}` fragment by a dense :math:`\pmb{B}` fragment and accumulates
-the result into a :math:`\pmb{D}` fragment, all within a single wavefront of
+the result into a :math:`\pmb{C}` fragment, all within a single wavefront of
 64 lanes.  Because the :math:`\pmb{A}` operand is stored in compressed form,
 these intrinsics halve the storage and memory bandwidth required for
 :math:`\pmb{A}` compared to their dense MFMA counterparts, while the hardware

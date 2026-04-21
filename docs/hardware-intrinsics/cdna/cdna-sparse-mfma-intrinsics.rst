@@ -13,7 +13,7 @@ hardware matrix multiply-accumulate operations that exploit 4:2 structured
 sparsity directly from HIP device code on CDNA GPUs (``gfx908``, MI100) and
 CDNA2 GPUs (``gfx90a``, MI200 series).  Each SMFMAC instruction multiplies a
 compressed :math:`\pmb{A}` fragment by a dense :math:`\pmb{B}` fragment and
-accumulates the result into a :math:`\pmb{D}` fragment, all within a single
+accumulates the result into a :math:`\pmb{C}` fragment, all within a single
 wavefront of 64 lanes.  Because the :math:`\pmb{A}` operand is stored in
 compressed form, these intrinsics halve the storage and memory bandwidth
 required for :math:`\pmb{A}` compared to their dense MFMA counterparts, while
@@ -113,11 +113,32 @@ The formulas in the subsections below use the following notation:
 The :math:`16 \times 16` output tile occupies 4 VGPRs per lane (``v4float``
 or ``v4int``).
 
-.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32.svg
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32-a.svg
+   :alt: :math:`16 \times 16`, K=32 SMFMAC A (sparse) operand layout.
+   :align: center
+   :width: 100%
+
+   :math:`16 \times 16`, **K=32 A (sparse, 2:4) operand layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32-idx.svg
+   :alt: :math:`16 \times 16`, K=32 SMFMAC compression index layout.
+   :align: center
+   :width: 100%
+
+   :math:`16 \times 16`, **K=32 compression index layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32-b.svg
+   :alt: :math:`16 \times 16`, K=32 SMFMAC B (dense) operand layout.
+   :align: center
+   :width: 100%
+
+   :math:`16 \times 16`, **K=32 B (dense) operand layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-16x16x32-cd.svg
    :alt: :math:`16 \times 16`, K=32 SMFMAC accumulator layout -- VGPR index
          per output element, with lane groups colour-coded.
    :align: center
-   :width: 70%
+   :width: 100%
 
    :math:`16 \times 16`, **K=32 accumulator layout.**  Each cell shows the
    VGPR index that holds output element :math:`(i, j)`.  Rows 0---3 (teal,
@@ -167,7 +188,28 @@ The row-to-lane mapping:
 The :math:`32 \times 32` output tile occupies 16 VGPRs per lane
 (``v16float`` or ``v16int``).
 
-.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16.svg
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16-a.svg
+   :alt: :math:`32 \times 32`, K=16 SMFMAC A (sparse) operand layout.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32`, **K=16 A (sparse, 2:4) operand layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16-idx.svg
+   :alt: :math:`32 \times 32`, K=16 SMFMAC compression index layout.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32`, **K=16 compression index layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16-b.svg
+   :alt: :math:`32 \times 32`, K=16 SMFMAC B (dense) operand layout.
+   :align: center
+   :width: 100%
+
+   :math:`32 \times 32`, **K=16 B (dense) operand layout.**
+
+.. figure:: ../../data/hardware-intrinsics/cdna/sparse-mfma-intrinsics/smfmac-layout-32x32x16-cd.svg
    :alt: :math:`32 \times 32`, K=16 SMFMAC accumulator layout -- VGPR index
          per output element, with lane groups colour-coded.
    :align: center
