@@ -4,7 +4,9 @@
    Note: CDNA2 uses different blgp semantics; see f64-16x16x4f64-cdna2.rst
 
 ``__builtin_amdgcn_mfma_f64_16x16x4f64``
-""""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 

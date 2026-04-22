@@ -1,6 +1,6 @@
 .. meta::
-  :description: AMD ROCm hardware intrinsics and specialized instructions for GPU optimization
-  :keywords: AMD, ROCm, HIP, hardware intrinsics, GPU optimization, specialized instructions, CDNA, RDNA, MFMA, WMMA, dot product, wave-level operations
+   :description: Explore AMD ROCm hardware intrinsics and specialized GPU instructions, including MFMA matrix cores, WMMA, and dot product operations for CDNA and RDNA GPUs.
+   :keywords: AMD, ROCm, HIP, hardware intrinsics, GPU optimization, specialized instructions, CDNA, RDNA, MFMA, WMMA, dot product, wave-level operations
 
 .. _hardware_intrinsics:
 
@@ -24,7 +24,7 @@ specific patterns.
 Why hardware intrinsics matter
 ==============================
 
-Modern compilers are sophisticated, but they cannot always utilize the full
+Modern compilers are sophisticated, but they cannot always use the full
 range of hardware capabilities available on AMD GPUs. The compiler rarely
 auto-vectorizes code to use dedicated dot product units, even when the pattern
 is evident. Wave-level reduction hardware requires explicit intrinsic calls
@@ -39,11 +39,13 @@ How this chapter is organized
 =============================
 
 This chapter organizes intrinsics by their availability across AMD GPU
-architectures. Cross-architecture intrinsics work on both CDNA and RDNA architectures,
-providing foundational functionality like dot product acceleration, wave-level
-reductions, and extended atomic operations. CDNA-specific intrinsics target
-data center GPUs with matrix operations and sparse acceleration. RDNA-specific
-intrinsics focus on graphics-oriented features useful for compute workloads.
+architectures. Cross-architecture intrinsics work on both CDNA and RDNA
+architectures, providing arithmetic and packing operations (dot products, SAD,
+type conversion), warp-level operations (shuffle, DPP, reductions, permlane,
+vote), and direct-to-Local Data Share (LDS) memory transfers. CDNA-specific intrinsics cover
+matrix operations (MFMA) with both dense and sparse variants. RDNA-specific
+intrinsics cover wave-matrix multiply-accumulate (WMMA) operations, including
+sparse variants on RDNA4.
 
 Some intrinsics require specific hardware features beyond basic architecture
 support, which are noted with feature flags where applicable.
@@ -74,8 +76,8 @@ Connection to optimization patterns
 
 The intrinsics in this chapter directly accelerate the patterns you learned
 previously. Wave reduction intrinsics replace manual shuffle-based reductions
-with single-instruction operations. Extended atomic operations provide
-hardware-accelerated floating-point atomics for histogram computations. Matrix
+with single-instruction operations. Direct-to-LDS intrinsics bypass register
+staging to reduce register pressure in memory-bound kernels. Matrix
 multiply-accumulate intrinsics leverage dedicated matrix cores to achieve
 orders-of-magnitude higher throughput than scalar operations.
 
@@ -91,7 +93,7 @@ Working through the hardware intrinsics sections will help you:
 * Apply dot product acceleration and wave-level operations
 * Leverage matrix operations (MFMA on CDNA, WMMA on RDNA) for compute-bound
   applications
-* Use extended atomic operations and direct memory transfers
+* Use direct-to-LDS memory transfers to reduce register pressure
 * Apply architecture-specific optimizations for CDNA or RDNA GPUs
 * Integrate intrinsics into the optimization patterns you learned previously
 

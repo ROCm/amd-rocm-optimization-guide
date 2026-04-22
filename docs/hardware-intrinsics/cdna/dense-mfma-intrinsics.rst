@@ -1,6 +1,5 @@
 .. meta::
-   :description: Reference documentation for dense MFMA intrinsics on AMD CDNA
-      GPUs, covering all CDNA generations.
+   :description: Reference for dense MFMA matrix multiply-accumulate intrinsics on AMD CDNA GPUs, covering supported data types and output layouts across all CDNA generations.
    :keywords: AMD, ROCm, HIP, CDNA, MFMA, dense MFMA, matrix cores, intrinsics,
       matrix multiply-accumulate
 
@@ -16,7 +15,7 @@ with data. Select a CDNA generation below for the corresponding intrinsic
 reference. For trailing parameter documentation, see
 :doc:`Common MFMA parameters <mfma-common-parameters>`.
 
-* :doc:`CDNA MFMA intrinsics <cdna-mfma-intrinsics>`
-* :doc:`CDNA2 MFMA intrinsics <cdna2-mfma-intrinsics>`
+* :doc:`CDNA dense MFMA intrinsics <cdna-dense-mfma-intrinsics>`
+* :doc:`CDNA2 dense MFMA intrinsics <cdna2-dense-mfma-intrinsics>`
 * :doc:`CDNA3 dense MFMA intrinsics <cdna3-dense-mfma-intrinsics>`
 * :doc:`CDNA4 dense MFMA intrinsics <cdna4-dense-mfma-intrinsics>`

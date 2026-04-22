@@ -95,6 +95,7 @@ bitcode
 bitcode
 bitcodes
 bitmask
+bitmasks
 bitsandbytes
 Bitwise
 bitwise
@@ -865,6 +866,7 @@ PerfDb
 Perfetto
 performant
 perl
+permlane
 pftrace
 PGI
 PIL
@@ -874,6 +876,7 @@ pipelining
 pixelated
 PMC
 PnP
+popcount
 POR
 portably
 PowerEdge

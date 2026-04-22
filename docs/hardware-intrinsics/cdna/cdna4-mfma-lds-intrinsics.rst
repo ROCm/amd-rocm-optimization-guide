@@ -1,11 +1,11 @@
 .. meta::
-   :description: Reference for CDNA4 (gfx950, MI350) LDS transpose load intrinsics (__builtin_amdgcn_ds_read_tr*) that feed MFMA operands from shared memory.
+   :description: Reference for CDNA4 (gfx950, MI350) LDS transpose load intrinsics that feed MFMA operands directly from shared memory, covering all ds_read_tr variants.
    :keywords: CDNA4, gfx950, MI350, LDS, transpose load, ds_read_tr, MFMA operands, HIP intrinsics, shared memory, __builtin_amdgcn_ds_read_tr
 
 .. _cdna4-mfma-lds-intrinsics:
 
 CDNA4 MFMA transpose load intrinsics
-=====================================
+====================================
 
 The CDNA4 (``gfx950``, MI350 series) architecture introduces a set of LDS
 (Local Data Share) load intrinsics that perform a hardware-assisted transpose
@@ -55,7 +55,7 @@ All transpose load intrinsics follow the pattern:
     or ``bf16``.
 
 Register types used in this reference
-======================================
+=====================================
 
 The signatures below use the following type aliases, which you can declare
 with Clang vector attributes in any HIP translation unit:
@@ -137,7 +137,7 @@ These intrinsics load and transpose operands for the scaled sub-byte MFMA
 family (``__builtin_amdgcn_mfma_scale_f32_*``).
 
 ``__builtin_amdgcn_ds_read_tr4_b64_v2i32``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -161,7 +161,7 @@ the result as a ``v2int`` (two 32-bit words).
 after transposition.
 
 ``__builtin_amdgcn_ds_read_tr6_b96_v3i32``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -191,7 +191,7 @@ These intrinsics load and transpose operands for the FP8, BF8, and INT8
 MFMA families.
 
 ``__builtin_amdgcn_ds_read_tr8_b64_v2i32``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -215,7 +215,7 @@ the result as a ``v2int`` (two 32-bit words).
 fragment after transposition.
 
 ``__builtin_amdgcn_ds_read_tr16_b64_v4i16``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -247,7 +247,7 @@ These intrinsics load and transpose operands for the FP16 and BF16 MFMA
 families.
 
 ``__builtin_amdgcn_ds_read_tr16_b64_v4f16``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -280,7 +280,7 @@ after transposition.
    the ``ds_read_tr`` call site.
 
 ``__builtin_amdgcn_ds_read_tr16_b64_v4bf16``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -307,7 +307,7 @@ fragment after transposition.
 .. _cdna4-mfma-lds-intrinsics-example:
 
 FP16 GEMM example
-==================
+=================
 
 The following excerpts from
 ``docs/tools/example_codes/matrix_multiply_cdna4_mfma.hip`` show how to use

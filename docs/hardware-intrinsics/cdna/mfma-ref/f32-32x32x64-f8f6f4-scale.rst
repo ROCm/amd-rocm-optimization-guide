@@ -3,7 +3,9 @@
    Include via: .. include:: mfma-ref/f32-32x32x64-f8f6f4-scale.rst
 
 ``__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4``
-"""""""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 
@@ -65,7 +67,7 @@ The vector type of ``srcA`` and ``srcB`` depends on the format specified by
 The ``srcA`` vector type must be consistent with the format selected by
 ``cbsz``, and the ``srcB`` vector type must be consistent with the format
 selected by ``blgp``. Mixing a vector type with an incompatible format
-code is undefined behaviour.
+code is undefined behavior.
 
 .. list-table::
    :header-rows: 1
@@ -117,7 +119,7 @@ code is undefined behaviour.
 
    Unlike the standard ``cbsz`` and ``blgp`` modifiers described in
    :ref:`cdna-mfma-common-parameters`, in this intrinsic ``cbsz`` and ``blgp``
-   are **format selectors**, not broadcast/lane-group-pattern modifiers.
+   are **format selectors**, not broadcast and lane-group-pattern modifiers.
 
 .. note::
 

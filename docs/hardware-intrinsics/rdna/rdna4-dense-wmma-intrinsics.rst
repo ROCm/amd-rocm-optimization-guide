@@ -1,7 +1,6 @@
 .. meta::
-   :description: Reference for RDNA4 (gfx1200, gfx1201) dense wave-matrix
-      multiply-accumulate intrinsics, covering all supported
-      __builtin_amdgcn_wmma_*_gfx12 variants, parameters, and output layouts.
+   :description: Reference for RDNA4 dense wave-matrix multiply-accumulate
+      intrinsics, covering all __builtin_amdgcn_wmma_gfx12 variants, parameters, and output layouts.
    :keywords: RDNA4, gfx1200, gfx1201, WMMA, dense matrix, wave-matrix,
       HIP intrinsics, FP32, FP16, BF16, FP8, BF8, INT8, INT4,
       __builtin_amdgcn_wmma, global_load_tr
@@ -22,17 +21,17 @@ accumulates the result into a :math:`\pmb{C}` fragment, all within a single
 RDNA4 supports the same FP16, BF16, INT8, and INT4 WMMA shapes as RDNA3 and
 adds FP8 (E4M3), BF8 (E5M2) input formats and a deeper-K INT4 variant
 (16x16x32).  RDNA4 also provides sparse
-:ref:`SWMMAC <rdna4-swmmac-intrinsics>` variants that halve the
+:ref:`sparse WMMA <rdna4-sparse-wmma-intrinsics>` variants that halve the
 :math:`\pmb{A}` bandwidth using 2:4 structured sparsity.
 
 CDNA (Instinct) GPUs provide a comparable dense operation through
-:doc:`MFMA <../cdna/dense-mfma-intrinsics>`.  The two differ in wavefront
+:doc:`Matrix Fused Multiply-Accumulate (MFMA) <../cdna/dense-mfma-intrinsics>`.  The two differ in wavefront
 size (wave32 for WMMA, wave64 for MFMA) and accumulator storage.
 
 .. note::
 
    RDNA4 WMMA builtins use a ``_gfx12`` suffix
-   (e.g., ``__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12``) to
+   (for example, ``__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12``) to
    distinguish them from the RDNA3 builtins, which lack this suffix.  The
    two generations have different fragment sizes and accumulator layouts
    despite sharing the same tile dimensions.
@@ -47,7 +46,7 @@ Architecture availability
 =========================
 
 The intrinsics on this page target RDNA4 GPUs.  To automatically enable them,
-pass the LLVM target architecture flag at compile time:
+pass the Low Level Virtual Machine (LLVM) target architecture flag at compile time:
 
 .. code-block:: bash
 
@@ -55,7 +54,7 @@ pass the LLVM target architecture flag at compile time:
    amdclang++ --offload-arch=gfx1201 ...
 
 Equivalent dense WMMA intrinsics for the previous generation are documented on
-the :ref:`rdna3-wmma-intrinsics` page.
+the :ref:`rdna3-dense-wmma-intrinsics` page.
 
 Naming convention
 =================
@@ -83,7 +82,7 @@ All dense WMMA intrinsics on this page follow the pattern:
 
 ``in_type_b`` (optional)
     Input element type of :math:`\pmb{B}` when it differs from :math:`\pmb{A}`.
-    Used only for mixed FP8/BF8 variants.
+    Used only for mixed FP8 and BF8 variants.
 
 ``_w32``
     Wavefront size suffix.  All RDNA4 WMMA intrinsics use wave32.
@@ -103,10 +102,10 @@ each group owns a contiguous block of 8 output rows.  This is a
 the K dimension across lane groups: the two groups cover different K
 positions in the A and B fragments, interleaved in groups of 4 consecutive
 K values.  The diagram and tables below show the mapping between matrix
-elements and lane or VGPR positions for each operand.
+elements and lane or Vector General-Purpose Register (VGPR) positions for each operand.
 
 Accumulator layout
----------------------------------
+------------------
 
 Each lane holds 8 output elements across VGPRs 0--7.  This layout is
 identical to the
@@ -156,8 +155,8 @@ The row-to-lane mapping:
    rows in lanes 16--31), while RDNA4 uses contiguous 8-row blocks.  See
    :ref:`rdna3-wmma-accumulator-layout` for the RDNA3 layout.
 
-srcA and srcB (FP16/BF16)
---------------------------
+srcA and srcB (FP16 and BF16)
+-----------------------------
 
 Each lane holds 8 input elements of :math:`\pmb{A}` (``v8half``, 4 VGPRs ×
 2 FP16), covering one row of the :math:`16 \times 16` A fragment; similarly,
@@ -173,13 +172,13 @@ two groups cover different K positions in an interleaved pattern: groups of
 (lanes 0--15) covers K {0--3, 8--11}; lane group 1 (lanes 16--31) covers K
 {4--7, 12--15}**.  Both groups cover all 16 rows (srcA) or columns (srcB).
 
-The row/column-to-lane mapping:
+The row and column-to-lane mapping:
 
 .. list-table::
    :header-rows: 1
    :widths: auto
 
-   * - Row (srcA) / Column (srcB)
+   * - Row (srcA) or Column (srcB)
      - Lanes
      - VGPRs
    * - 0
@@ -253,17 +252,21 @@ The 8 FP16 elements per lane are distributed across VGPRs:
      - K {12, 13}
      - K {14, 15}
 
-Example kernel
-==============
+Using WMMA intrinsics as a compute policy
+=========================================
 
 :ref:`mfma-compute-policy` explains the ``ComputePolicy`` pattern used to
 separate the multiply-accumulate logic from the rest of a kernel.  Two policy
 variants are provided for RDNA4.
 
+The complete source file is available for download:
+
+* :download:`matrix_multiply_rdna4_wmma.hip <../../tools/example_codes/matrix_multiply_rdna4_wmma.hip>`
+
 Baseline policy
 ---------------
 
-``WmmaRdna4F16Policy`` uses scalar LDS loads for both A and B fragments.
+``WmmaRdna4F16Policy`` uses scalar Local Data Share (LDS) loads for both A and B fragments.
 B is cooperatively transposed during the tile load (in the ``TilePolicy``).
 
 Each wavefront computes a single :math:`16 \times 16` output tile.  The 32
@@ -284,7 +287,7 @@ The intrinsic returns a ``v8float`` holding 8 VGPR values per lane.  The
 coordinates using the RDNA4 lane-group-split layout.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx wmma rdna4 policy start]
    :end-before: [Sphinx wmma rdna4 policy end]
 
@@ -301,7 +304,7 @@ The compute path (``load_a``, ``load_b``, ``mma``, ``store_c``) is identical
 to the baseline -- only the tile policy's ``prefetch()`` stage changes.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx wmma rdna4 tr policy start]
    :end-before: [Sphinx wmma rdna4 tr policy end]
 
@@ -312,17 +315,17 @@ With either policy, plug it into the generic kernel alongside any
 of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 16``.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx wmma policy aliases start]
    :end-before: [Sphinx wmma policy aliases end]
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx wmma launch config start]
    :end-before: [Sphinx wmma launch config end]
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx wmma kernel launch start]
    :end-before: [Sphinx wmma kernel launch end]
 
@@ -456,15 +459,21 @@ matrix inputs.
 FP16 inputs
 ^^^^^^^^^^^
 
+The following intrinsics use FP16 matrix inputs.
+
 .. include:: wmma-ref/f32-16x16x16f16-rdna4.rst
 
 BF16 inputs
 ^^^^^^^^^^^
 
+The following intrinsics use BF16 matrix inputs.
+
 .. include:: wmma-ref/f32-16x16x16bf16-rdna4.rst
 
 FP8 and BF8 inputs
 ^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use FP8 and BF8 matrix inputs.
 
 .. include:: wmma-ref/f32-16x16x16fp8-fp8-rdna4.rst
 
@@ -479,12 +488,22 @@ FP16-accumulate intrinsics
 
 This intrinsic accumulates into FP16 with FP16 inputs.
 
+FP16 inputs
+^^^^^^^^^^^
+
+The following intrinsic uses FP16 matrix inputs.
+
 .. include:: wmma-ref/f16-16x16x16f16-rdna4.rst
 
 BF16-accumulate intrinsics
 --------------------------
 
 This intrinsic accumulates into BF16 with BF16 inputs.
+
+BF16 inputs
+^^^^^^^^^^^
+
+The following intrinsic uses BF16 matrix inputs.
 
 .. include:: wmma-ref/bf16-16x16x16bf16-rdna4.rst
 
@@ -496,16 +515,22 @@ integer inputs, controlled by the ``a_neg`` and ``b_neg`` compile-time
 constants.
 
 INT8 and UINT8 inputs (16x16x16)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT8 and UINT8 matrix inputs.
 
 .. include:: wmma-ref/i32-16x16x16iu8-rdna4.rst
 
 INT4 and UINT4 inputs (16x16x16)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT4 and UINT4 matrix inputs.
 
 .. include:: wmma-ref/i32-16x16x16iu4-rdna4.rst
 
 INT4 and UINT4 inputs (16x16x32)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT4 and UINT4 matrix inputs.
 
 .. include:: wmma-ref/i32-16x16x32iu4-rdna4.rst

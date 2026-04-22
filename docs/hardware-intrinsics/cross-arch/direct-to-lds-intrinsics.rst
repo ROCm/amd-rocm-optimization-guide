@@ -1,11 +1,12 @@
 .. meta::
-   :description: Reference for AMD GPU intrinsics that transfer data from global or buffer memory directly into LDS without staging in VGPRs. Covers CDNA, CDNA2, CDNA3, CDNA4, and RDNA2.
+   :description: Reference for AMD GPU intrinsics that transfer data from global
+      or buffer memory directly into LDS, bypassing VGPRs, across CDNA and RDNA architectures.
    :keywords: AMD, ROCm, HIP, intrinsics, LDS, global_load_lds, load_to_lds, buffer_load_lds, VGPR, CDNA, RDNA2, direct-to-LDS
 
 .. _direct-to-lds-intrinsics:
 
 ********************************************************************************
-Global-to-LDS intrinsics
+Global-to-LDS intrinsics for AMD GPUs
 ********************************************************************************
 
 AMD GPUs provide a family of intrinsics that load data from global or buffer
@@ -18,13 +19,70 @@ All intrinsics in this family are wavefront-wide operations: each lane
 provides its own source address, and the hardware writes lane *k*'s value to
 the LDS base address plus an implicit per-lane stride.
 
+Architecture availability
+=========================
+
+The following table summarizes architecture support for each intrinsic.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Intrinsic
+     - CDNA
+     - CDNA2
+     - CDNA3
+     - CDNA4
+     - RDNA2
+     - RDNA3
+     - RDNA3.5
+     - RDNA4
+   * - ``__builtin_amdgcn_global_load_lds``
+     - No
+     - No
+     - Yes
+     - Yes
+     - No
+     - No
+     - No
+     - No
+   * - ``__builtin_amdgcn_load_to_lds``
+     - No
+     - No
+     - Yes
+     - Yes
+     - No
+     - No
+     - No
+     - No
+   * - ``__builtin_amdgcn_raw_ptr_buffer_load_lds``
+     - No
+     - No
+     - Yes
+     - Yes
+     - Yes
+     - No
+     - No
+     - No
+   * - ``__builtin_amdgcn_struct_ptr_buffer_load_lds``
+     - No
+     - No
+     - Yes
+     - Yes
+     - Yes
+     - No
+     - No
+     - No
+
 Flat-addressed intrinsics
 =========================
 
 These intrinsics take a pointer directly as the source address.
 
 ``__builtin_amdgcn_global_load_lds``
--------------------------------------
+------------------------------------
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cuda
 
@@ -63,7 +121,9 @@ loads ``size`` bytes from its own global address; the hardware writes lane
        :ref:`direct-to-lds-cache-policy`.
 
 ``__builtin_amdgcn_load_to_lds``
----------------------------------
+--------------------------------
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cuda
 
@@ -103,7 +163,7 @@ writes lane *k*'s value to ``dst_base + offset + k * stride`` where
        :ref:`direct-to-lds-cache-policy`.
 
 Buffer-addressed intrinsics
-============================
+===========================
 
 These intrinsics take a buffer resource descriptor as the source, created with
 ``__builtin_amdgcn_make_buffer_rsrc``.  The three offset parameters (per-lane,
@@ -115,7 +175,9 @@ wave-uniform, and compile-time) are combined to form the final source address.
    and RDNA2.  They're not supported on RDNA3, RDNA3.5, or RDNA4.
 
 ``__builtin_amdgcn_raw_ptr_buffer_load_lds``
----------------------------------------------
+--------------------------------------------
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cuda
 
@@ -178,7 +240,9 @@ The ``lane_id`` term in the LDS address is always active.
        architecture. See :ref:`direct-to-lds-cache-policy`.
 
 ``__builtin_amdgcn_struct_ptr_buffer_load_lds``
-------------------------------------------------
+-----------------------------------------------
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cuda
 
@@ -249,67 +313,10 @@ The ``lane_id`` term in the LDS address is always active.
        swizzling on all supported architectures. The remaining bits differ by
        architecture. See :ref:`direct-to-lds-cache-policy`.
 
-Architecture availability
-=========================
-
-The following table summarizes which intrinsics are available for each
-ROCm-supported GPU architecture. For the list of supported GPU models, see
-:ref:`rocm:system_requirements`.
-
-.. list-table::
-   :header-rows: 1
-   :widths: auto
-
-   * - Intrinsic
-     - CDNA
-     - CDNA2
-     - CDNA3
-     - CDNA4
-     - RDNA2
-     - RDNA3
-     - RDNA3.5
-     - RDNA4
-   * - ``__builtin_amdgcn_global_load_lds``
-     - No
-     - No
-     - Yes
-     - Yes
-     - No
-     - No
-     - No
-     - No
-   * - ``__builtin_amdgcn_load_to_lds``
-     - No
-     - No
-     - Yes
-     - Yes
-     - No
-     - No
-     - No
-     - No
-   * - ``__builtin_amdgcn_raw_ptr_buffer_load_lds``
-     - No
-     - No
-     - Yes
-     - Yes
-     - Yes
-     - No
-     - No
-     - No
-   * - ``__builtin_amdgcn_struct_ptr_buffer_load_lds``
-     - No
-     - No
-     - Yes
-     - Yes
-     - Yes
-     - No
-     - No
-     - No
-
 .. _direct-to-lds-cache-policy:
 
 Cache policy (``aux`` parameter)
-=================================
+================================
 
 All direct-to-LDS intrinsics accept an ``aux`` parameter whose individual bits
 control cache scope and temporal reuse hints.  The bit layout differs by
@@ -318,7 +325,7 @@ buffer swizzling on all supported architectures.
 
 For background on AMD GPU cache hierarchy and coherence scopes, see the
 `CDNA3 Instruction Set Architecture <https://gpuopen.com/amd-cdna3-white-paper/>`_
-white paper and the ISA reference guides published on
+white paper and the Instruction Set Architecture (ISA) reference guides published on
 `GPUOpen <https://gpuopen.com/>`_.
 
 In a single-GPU kernel, wave scope with temporal reuse (``aux = 0``) is the
@@ -327,7 +334,7 @@ typical choice.
 .. _direct-to-lds-cache-policy-cdna3-cdna4:
 
 CDNA3 and CDNA4
------------------
+---------------
 
 Three control bits are relevant:
 
@@ -414,7 +421,7 @@ The following terms describe cache line behavior in the table above:
 .. _direct-to-lds-cache-policy-cdna-cdna2:
 
 CDNA and CDNA2
----------------
+--------------
 
 One control bit is relevant:
 
@@ -441,7 +448,7 @@ One control bit is relevant:
 .. _direct-to-lds-cache-policy-rdna2:
 
 RDNA2
-------
+-----
 
 Three control bits are relevant:
 
