@@ -7,10 +7,10 @@
 Multi-GPU programming
 ********************************************************************************
 
-Multi-GPU programming leverages the available GPUs within a single system or across
+Multi-GPU programming uses the available GPUs within a single system or across
 nodes to accelerate compute workloads. It covers techniques for multi-device management,
 including device selection, synchronization, and memory handling. These topics help
-developers scale HIP applications to fully utilize the computational power of multi-GPU
+developers scale HIP applications to fully use the computational power of multi-GPU
 and distributed environments.
 
 .. note::

@@ -11,7 +11,7 @@ subtrees:
   - file: conceptual/introduction
   - file: conceptual/introduction/understand
   - file: conceptual/introduction/guidelines
-  - file: how-to/multi-gpu_programming
+  - file: how-to/multi-gpu-programming
 
 - caption: Performance optimization patterns
   entries:

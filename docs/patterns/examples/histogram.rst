@@ -4,9 +4,9 @@
 
 .. _histogram:
 
-*************************************************************
-Histogram
-*************************************************************
+********************************************************************************
+Optimizing histogram in HIP
+********************************************************************************
 
 Histogram is an operation that counts how often each value (or range of
 values) appears in an input dataset. It appears throughout GPU workloads,
@@ -24,6 +24,27 @@ thread process more elements so fewer blocks are launched. The final approach
 eliminates global atomics at the merge step entirely by having each block write
 its local histogram to a private slice of a temporary buffer, then summing those
 slices in a separate reduction kernel.
+
+The complete source file for all kernels is available at:
+
+* :download:`Histogram kernels <../../tools/example_codes/histogram.hip>`
+
+.. note::
+
+   All kernels compute a 256-bin histogram over a large array of unsigned
+   integers and are validated against a sequential reference implementation.
+   They compile with ``amdclang++ -O3 -std=c++17`` and run on any
+   ROCm-supported GPU architecture.
+
+Prerequisites
+=============
+
+Before starting this tutorial, ensure the following are in place.
+
+* ROCm installed and ``amdclang++`` available on ``PATH``.
+* Familiarity with the HIP execution model (grids, blocks, warps) and its
+  mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
+* :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
 Histogram fundamentals
 ======================
@@ -67,6 +88,10 @@ lost. This is a natural consequence of parallel execution: with many threads
 running concurrently across compute units, some will read the same value before
 any of them writes back.
 
+.. figure:: ../../data/tutorial/histogram/race_condition.svg
+   :alt: Timeline showing two threads reading the same histogram bin value
+         before either writes back, resulting in a lost increment.
+
 When multiple threads map to the same bin, this kind of overlap is expected.
 Atomic operations, covered in the next section, are the standard solution.
 
@@ -109,6 +134,23 @@ Atomic operations can target shared memory (block scope), global memory
 information, see the
 `GPU atomics operations reference <https://rocm.docs.amd.com/en/latest/reference/gpu-atomics-operation.html>`_.
 
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 histogram.hip -o histogram
+   ./histogram
+
+**Profile wall-clock time with rocprofv3:**
+
+.. code-block:: bash
+
+   rocprofv3 --kernel-trace --output-format csv -- ./histogram
+
+The ``--kernel-trace`` CSV reports ``End_Timestamp - Start_Timestamp`` (both in
+nanoseconds) for each kernel dispatch.  Compare the duration column across
+kernel variants to measure the impact of each optimization step.
+
 Naive kernel
 ============
 
@@ -140,6 +182,21 @@ The example code uses a skewed input where every fourth element is fixed to
 bin 1, to reflect a realistic distribution in which one bin is significantly
 busier than the others.
 
+What to observe
+---------------
+
+Profile the naive kernel and record the following counter.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` establishes the baseline.  Global
+       atomic contention on hot bins makes this the slowest variant.
+
 Shared memory histogram
 =======================
 
@@ -157,6 +214,10 @@ The kernel has three phases:
    atomically incrementing the appropriate LDS bin for each.
 3. One thread per bin merges the LDS histogram into the global histogram with a
    single global atomic.
+
+.. figure:: ../../data/tutorial/histogram/shared_memory_histogram.svg
+   :alt: Three-phase diagram showing per-block LDS initialization, local atomic
+         accumulation in LDS, and a global merge step.
 
 .. literalinclude:: ../../tools/example_codes/histogram.hip
    :language: cpp
@@ -182,6 +243,23 @@ atomics total, versus 16 M for the naive kernel.
    256 bins, this is 1 KB, well within the 64 KB of LDS available per Compute
    Unit on CDNA GPUs and per Work Group Processor on RDNA GPUs.
 
+What to observe
+---------------
+
+Compare the following counter against the naive kernel baseline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` should drop significantly versus
+       the naive kernel.  LDS atomics are an order of magnitude faster than
+       global atomics, and processing multiple elements per thread reduces
+       the total block count and global merge traffic.
+
 Partial histograms
 ==================
 
@@ -198,6 +276,11 @@ across all the per-block slices for each bin. Because the two passes are
 separated, neither requires global atomics: the first pass uses conflict-free
 stores, and the second pass is a straightforward parallel reduction (see
 :ref:`reduction`).
+
+.. figure:: ../../data/tutorial/histogram/partial_histogram.svg
+   :alt: Two-pass layout showing each block writing its histogram to a private
+         slice of a temporary buffer in pass 1, then a reduction kernel summing
+         across all block slices per bin in pass 2.
 
 The first kernel is identical to the shared memory kernel except for the merge
 step, which becomes a plain store rather than a global atomic:
@@ -237,63 +320,46 @@ so the reads are coalesced.
    16``, ``block_size = 256``, and a 16 M-element input, this is 4,096 blocks
    × 256 bins × 4 bytes = 4 MB.
 
-The results on an AMD Radeon (RDNA3-based) GPU show how ``ITEMS_PER_THREAD`` affects each kernel.
-Relative performance is measured as kernel time divided by naive kernel time
-from the same run, so lower values indicate faster execution.
+What to observe
+---------------
+
+Compare the following counters against the shared memory kernel.
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 25 25 25
+   :widths: auto
 
-   * - Items per thread
-     - Naive
-     - Shared memory
-     - Partial + reduce
-   * - 1
-     - 1.00
-     - 2.57
-     - 3.27
-   * - 2
-     - 1.00
-     - 1.60
-     - 1.95
-   * - 4
-     - 1.00
-     - 1.10
-     - 1.29
-   * - 8
-     - 1.00
-     - 0.87
-     - 0.97
-   * - 16
-     - 1.00
-     - 0.77
-     - 0.83
-   * - 32
-     - 1.00
-     - 0.72
-     - 0.76
-   * - 64
-     - 1.00
-     - 0.73
-     - 0.75
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - Compare ``End_Timestamp - Start_Timestamp`` for both passes (the
+       partial histogram kernel and the reduction kernel) against the single-pass
+       shared memory kernel.  The two-pass approach eliminates global atomics
+       at the merge step but introduces overhead from the additional kernel
+       launch and the tree reduction.
+   * - ``VGPR_Count`` (kernel-trace CSV)
+     - From ``--kernel-trace`` CSV: compare register usage between the
+       shared-memory kernel and the partial histogram kernel to confirm
+       similar resource consumption.
 
-At low ``ITEMS_PER_THREAD`` values, each block covers only a small portion of
-the input, so many blocks are launched and the global atomic merge in the shared
-memory kernel, or the partial histogram buffer and second kernel launch in the
-two-pass approach, dominates runtime. Performance improves steadily up to
-``ITEMS_PER_THREAD = 32``, where the block count is low enough that merge
-overhead is no longer the bottleneck. Above 32, the benefit plateaus because
-the kernel becomes compute-bound within each block rather than overhead-bound.
+.. tip::
 
-The two-pass approach consistently runs slightly slower than the shared memory
-kernel at the same ``ITEMS_PER_THREAD`` approach. Eliminating the global atomics at
-the merge step saves some cost. Still, the additional kernel launch, the larger
-temporary buffer, and the tree reduction in the second kernel together exceed
-that saving on this workload.
+   Increasing ``ITEMS_PER_THREAD`` reduces the block count, which reduces
+   merge overhead in all variants.  Performance improves until the kernel
+   becomes compute-bound within each block and the benefit plateaus.  Use
+   ``rocprofv3 --kernel-trace`` to find the crossover point for your target
+   GPU.
 
-For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
-provides highly optimized histogram primitives that handle edge cases and automatically apply
-architecture-specific tuning. The kernels in this tutorial are
-intended to build intuition for the optimization principles, those primitives
-apply internally.
+Further reading
+===============
+
+The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
+
+* `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
+  — production-quality histogram primitives that handle edge cases and
+  automatically apply architecture-specific tuning.
+* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
+  guide to timeline and counter profiling.
+* `AMD GPU architecture guides (ISA references) <https://gpuopen.com/amd-gpu-architecture-programming-documentation/>`_
+  — VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
+  architecture family.

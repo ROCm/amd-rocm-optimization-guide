@@ -1,11 +1,11 @@
 .. meta::
-  :description: AMD ROCm performance optimization patterns for GPU applications
+  :description: Learn proven GPU optimization patterns for reduction, histogram, and matrix multiplication in HIP, with step-by-step profiling on AMD GPUs.
   :keywords: AMD, ROCm, HIP, performance patterns, GPU optimization, reduction, histogram, matrix multiplication, parallel algorithms, tiling
 
 .. _performance-optimization-patterns:
 
 ********************************************************************************
-Performance optimization patterns
+HIP performance optimization patterns
 ********************************************************************************
 
 This chapter takes a patterns-based approach to GPU optimization. Rather than
@@ -24,7 +24,7 @@ multiplication. The optimization techniques you learn apply broadly to similar
 computational structures in your own code.
 
 Patterns in this chapter use standard HIP programming constructs, teaching
-principles that work across GPU architectures. You will learn to leverage
+principles that work across GPU architectures. You will learn to use the
 memory hierarchy, organize threads efficiently, and structure computations for
 optimal performance without relying on architecture-specific features.
 
@@ -75,8 +75,8 @@ Before working through this chapter, you should be familiar with:
 
 * Basic HIP programming concepts, including kernel launches, thread indexing,
   and memory management
-* GPU architecture fundamentals: threads, warps/waves, workgroups, and memory
-  hierarchy
+* GPU architecture fundamentals: threads, warps or waves, workgroups, and
+  memory hierarchy
 * C++ programming and basic parallel programming concepts
 
 What comes next
