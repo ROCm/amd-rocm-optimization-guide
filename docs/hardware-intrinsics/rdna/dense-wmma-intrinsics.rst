@@ -1,6 +1,6 @@
 .. meta::
-   :description: Reference documentation for dense WMMA intrinsics on AMD RDNA
-      GPUs, covering RDNA3/3.5 and RDNA4 generations.
+   :description: Reference for dense WMMA wave-matrix multiply-accumulate
+      intrinsics on AMD RDNA GPUs, with supported data types and output layouts for RDNA3, RDNA3.5, and RDNA4.
    :keywords: AMD, ROCm, HIP, RDNA, WMMA, dense WMMA, wave-matrix, intrinsics,
       matrix multiply-accumulate
 
@@ -15,5 +15,5 @@ fragments and accumulate the result into a C fragment.  All operands are fully
 populated with data.  Select a generation below for the corresponding intrinsic
 reference.
 
-* :doc:`RDNA3 WMMA intrinsics <rdna3-wmma-intrinsics>`
+* :doc:`RDNA3 dense WMMA intrinsics <rdna3-dense-wmma-intrinsics>`
 * :doc:`RDNA4 dense WMMA intrinsics <rdna4-dense-wmma-intrinsics>`

@@ -1,11 +1,12 @@
 .. meta::
-  :description: Warp-level intrinsics for AMD ROCm GPU optimization
-  :keywords: AMD, ROCm, HIP, warp, hardware intrinsics, DPP, warp-level operations
+   :description: Explore warp-level HIP intrinsics for AMD GPUs, including
+      shuffle operations, cross-row permutations, warp reductions, and voting with CDNA and RDNA support.
+   :keywords: AMD, ROCm, HIP, warp, hardware intrinsics, DPP, warp-level operations
 
 .. _warp_intrinsics:
 
 ********************************************************************************
-Warp-level operations
+Warp-level intrinsics for AMD GPUs
 ********************************************************************************
 
 Warp-level operations give you direct access to the hardware mechanisms that move and
@@ -13,12 +14,25 @@ aggregate data within a warp. The intrinsics in this topic work across both
 CDNA (AMD Instinct) and RDNA (AMD Radeon) architectures, and cover three areas: lane operations, warp
 reductions, and warp voting.
 
+Architecture availability
+=========================
+
+Most warp-level intrinsics are available on all AMD Instinct (CDNA) and AMD
+Radeon (RDNA) architectures.  Some intrinsics --- particularly Data Parallel Primitives (DPP) DPP8,
+cross-row permutations, and ballot width variants --- are limited to specific
+generations.  For per-intrinsic availability, see the architecture tables in
+the :ref:`reference pages <warp_intrinsic_reference>` below.
+
+The complete source file is available for download:
+
+* :download:`warp_intrinsics.hip <../../tools/example_codes/warp_intrinsics.hip>`
+
 Lane operations
 ===============
 
 Within a warp, lanes execute the same instruction simultaneously, but each holds
 its own register values. Many algorithms require lanes to exchange or replicate
-those values — to share a computed result, apply a cyclic shift, or reorganise
+those values — to share a computed result, apply a cyclic shift, or reorganize
 data before the next computation step. The intrinsics in this topic cover the
 distinct ways of expressing that communication: reading from a named lane,
 moving data in a cyclic pattern, applying a compile-time-fixed permutation, and
@@ -58,6 +72,11 @@ After a ``__shfl_down`` reduction, lane 0 holds the warp maximum. Passing the
 literal ``0`` as the lane index satisfies the uniformity requirement and
 broadcasts that value to every lane in the warp.
 
+For the full signatures and parameter details, see
+:ref:`readlane <shuffle-readlane>` and
+:ref:`readfirstlane <shuffle-readfirstlane>` in the shuffle and lane access
+reference.
+
 Warp rotation using ``mov_dpp`` and ``ds_bpermute``
 ---------------------------------------------------
 
@@ -84,13 +103,16 @@ as the index. Lane 0 of the first row reads from lane 31 (address 124), and
 lane 0 of the second row reads from lane 15 (address 60). All other lanes keep
 the ``row_ror`` result unchanged.
 
+For the full signatures and parameter details, see
+:ref:`mov_dpp <dpp-mov-dpp>` and :ref:`ds_bpermute <dpp-ds-bpermute>` in the
+DPP and data-share permutation reference.
+
 Warp rotation using ``__shfl``
 ------------------------------
 
 The DPP rotation above is the preferred approach on AMD hardware, but the same
-pattern can be expressed portably using ``__shfl``. This is useful when
-targeting multiple GPU vendors or when the performance difference is not
-significant for your workload. Each lane computes its source index as
+pattern can be expressed using ``__shfl``. This is useful when the performance
+difference is not significant for your workload. Each lane computes its source index as
 ``(lane - 1 + warpSize) % warpSize`` and because ``__shfl`` accepts any uniform
 lane index, the modular arithmetic produces the wrap-around without the
 architecture-specific workaround that the DPP path requires.
@@ -104,7 +126,7 @@ architecture-specific workaround that the DPP path requires.
 The DPP and ``__shfl`` kernels produce identical output and can be verified against
 the same CPU reference.
 
-The two paths compile to different ISA on CDNA-based GPUs: the DPP path emits
+The two paths compile to different Instruction Set Architecture (ISA) on CDNA-based GPUs: the DPP path emits
 ``v_mov_b32_dpp wave_rol:1``, a pure register move that executes in the dedicated
 DPP unit without touching memory, while the ``__shfl`` path emits
 ``ds_bpermute_b32``, which routes through the data-share unit. On RDNA-based
@@ -127,8 +149,8 @@ single instruction with no per-lane index computation. The mask specifies a
 bitwise transformation of each lane index to its source, making it well-suited
 to power-of-two group swaps that appear in butterfly networks, data
 rearrangement before matrix operations, or paired-lane exchanges. For the full
-signature, see ``__builtin_amdgcn_ds_swizzle`` in the :ref:`reference table
-<warp_intrinsics>`.
+signature, see :ref:`ds_swizzle <dpp-ds-swizzle>` in the DPP and data-share
+permutation reference.
 
 The 16-bit mask encodes the permutation: bits [14:10] hold ``and_mask``, bits
 [9:5] hold ``or_mask``, and bits [4:0] hold ``xor_mask``. The source lane is
@@ -144,11 +166,15 @@ it determines group size are explained in the prose below.
    :start-after: [Sphinx ds swizzle start]
    :end-before: [Sphinx ds swizzle end]
 
-The mask ``0x101F`` sets ``xor_mask = 0x04``, which XORs each lane index with
+The mask ``0x101F`` sets ``xor_mask = 0x04``, which applies a bitwise XOR between each lane index and
 4. Lanes 0--3 read from lanes 4--7 and vice versa, lanes 8--11 read from lanes
 12--15, and so on across the warp. Shifting the set bit changes the group size:
 ``0x041F`` swaps neighboring pairs, ``0x081F`` swaps groups of two, ``0x201F``
 swaps groups of eight, and ``0x401F`` swaps groups of sixteen.
+
+For the full signature and parameter details, see
+:ref:`ds_swizzle <dpp-ds-swizzle>` in the DPP and data-share permutation
+reference.
 
 Warp reductions
 ===============
@@ -161,7 +187,7 @@ of a kernel. The three implementations below all express the same butterfly
 pattern, where lanes exchange values with increasingly distant partners until
 one lane holds the aggregate. Still, they differ significantly in how directly they
 map to hardware. The first two reduce floating-point values and show the
-progression from portable shuffle-based code to hardware-native DPP. The third
+progression from shuffle-based code to hardware-native DPP. The third
 uses an unsigned integer reduction to demonstrate ``wave_reduce_add_u32``, the
 single-instruction form currently available in the compiler. Understanding all
 three lets you choose the right level of abstraction for your target and
@@ -251,6 +277,10 @@ approach.
 The second argument is a strategy hint: ``0`` lets the compiler choose, ``1``
 requests the iterative strategy, and ``2`` requests the DPP-based strategy.
 
+For the full signature and parameter details, see
+:ref:`wave_reduce_add_u32 <wave-reduce-add-u32>` in the warp reduction
+reference.
+
 Warp voting
 ===========
 
@@ -280,194 +310,91 @@ as its accumulator, so the final index is the count of passing lanes strictly
 below the current lane across the full 64-bit mask. Lanes where the predicate
 is false receive an index, too, but should not write to the output.
 
-Reference
-=========
+For the full signatures and parameter details, see
+:ref:`ballot_w64 <vote-ballot-w64>` and
+:ref:`mbcnt_lo <vote-mbcnt-lo>` / :ref:`mbcnt_hi <vote-mbcnt-hi>` in the
+warp voting reference.
 
-Lane operations
----------------
+**Compile and run:**
 
-.. list-table::
-   :header-rows: 1
-   :widths: 50 30 20
+.. code-block:: bash
 
-   * - Signature
-     - Description
-     - Supported architecture
-   * - ``T __shfl(T val, int src_lane, int width=warpSize)``
-     - Copy ``val`` from a specific lane
-     - All
-   * - ``T __shfl_up(T val, unsigned int offset, int width=warpSize)``
-     - Copy ``val`` from a lane behind the current lane
-     - All
-   * - ``T __shfl_down(T val, unsigned int offset, int width=warpSize)``
-     - Copy ``val`` from a lane ahead of the current lane
-     - All
-   * - ``T __shfl_xor(T val, int mask, int width=warpSize)``
-     - Copy ``val`` from the lane at XOR of current lane index and ``mask``
-     - All
-   * - ``unsigned int __builtin_amdgcn_readfirstlane(unsigned int val)``
-     - Read ``val`` from the first active lane
-     - All
-   * - ``unsigned int __builtin_amdgcn_readlane(unsigned int val, unsigned int lane)``
-     - Read ``val`` from a specific lane by uniform runtime index
-     - All
-   * - ``unsigned int __builtin_amdgcn_writelane(unsigned int val, unsigned int lane, unsigned int old)``
-     - Write ``val`` to ``lane``; all other lanes return ``old``
-     - All
-   * - ``int __builtin_amdgcn_mov_dpp(int val, int dpp_ctrl, int row_mask, int bank_mask, bool bound_ctrl)``
-     - Move data between lanes using a DPP control word
-     - All
-   * - ``int __builtin_amdgcn_update_dpp(int old, int val, int dpp_ctrl, int row_mask, int bank_mask, bool bound_ctrl)``
-     - DPP move with a fallback value for out-of-range lanes
-     - All
-   * - ``unsigned int __builtin_amdgcn_mov_dpp8(unsigned int val, unsigned int sel)``
-     - DPP move using an 8-element compile-time permutation within groups of 8
-     - gfx10xx, gfx11xx, gfx12xx
-   * - ``int __builtin_amdgcn_ds_swizzle(int val, int mask)``
-     - Apply a fixed bitmask permutation to lane indices
-     - All
-   * - ``int __builtin_amdgcn_ds_permute(int index, int val)``
-     - Forward permutation: lane writes its value to the lane given by ``index``
-     - All
-   * - ``int __builtin_amdgcn_ds_bpermute(int index, int val)``
-     - Backward permutation: lane reads from the lane given by ``index``
-     - All
-   * - ``int __builtin_amdgcn_permlane16(int old, int val, int lanesel_lo, int lanesel_hi, bool fi, bool bc)``
-     - Permute within each 16-lane group using two 4-bit selectors
-     - gfx10xx, gfx11xx, gfx12xx
-   * - ``int __builtin_amdgcn_permlanex16(int old, int val, int lanesel_lo, int lanesel_hi, bool fi, bool bc)``
-     - Same as ``permlane16`` but crosses the 16-lane boundary
-     - gfx10xx, gfx11xx, gfx12xx
-   * - ``int __builtin_amdgcn_permlane64(int val)``
-     - Exchange data between the two 32-lane halves without a selector (wave64 only)
-     - gfx11xx
-   * - ``unsigned int __builtin_amdgcn_permlane16_var(unsigned int old, unsigned int val, unsigned int lanesel, bool fi, bool bc)``
-     - ``permlane16`` with a runtime lane selector
-     - gfx12xx
-   * - ``unsigned int __builtin_amdgcn_permlanex16_var(unsigned int old, unsigned int val, unsigned int lanesel, bool fi, bool bc)``
-     - ``permlanex16`` with a runtime lane selector
-     - gfx12xx
-   * - ``_Vector<2, unsigned int> __builtin_amdgcn_permlane16_swap(unsigned int src0, unsigned int src1, bool fi, bool bc)``
-     - Swap odd and even 16-lane rows between two operands
-     - gfx950
-   * - ``_Vector<2, unsigned int> __builtin_amdgcn_permlane32_swap(unsigned int src0, unsigned int src1, bool fi, bool bc)``
-     - Swap the upper and lower 32-lane halves between two operands
-     - gfx950
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx942 \
+       warp_intrinsics.hip -o warp_intrinsics
+   ./warp_intrinsics
 
-Warp reductions
----------------
+.. note::
+
+   The example above targets CDNA3 (``gfx942``, wave64).  Replace
+   ``--offload-arch`` with the appropriate target for your GPU --- for example,
+   ``gfx90a`` for CDNA2 or ``gfx1200`` for RDNA4 (wave32).  The ``__shfl*`` intrinsics work on all architectures; the DPP-specific code
+   paths are guarded by architecture macros in the example file.
+
+Naming convention
+=================
+
+Warp-level intrinsics come in two families:
+
+**HIP wrappers** use the ``__shfl`` prefix:
+
+.. code-block:: text
+
+   __shfl[_up|_down|_xor](val, offset_or_lane, width)
+
+The suffix indicates the direction or mode: ``_up`` reads from a lower lane,
+``_down`` from a higher lane, ``_xor`` reads from a lane whose index is the bitwise XOR of
+the current lane index and a mask, and no suffix reads from an absolute lane
+index.
+
+**Hardware intrinsics** use the ``__builtin_amdgcn_`` prefix and map
+directly to ISA instructions:
+
+.. code-block:: text
+
+   __builtin_amdgcn_<operation>(args...)
+
+Key operation names:
+
+* ``readlane`` / ``readfirstlane`` / ``writelane`` -- named lane access
+* ``mov_dpp`` / ``update_dpp`` / ``mov_dpp8`` -- Data Parallel Primitives
+* ``ds_swizzle`` / ``ds_permute`` / ``ds_bpermute`` -- data-share permutations
+* ``permlane16`` / ``permlanex16`` / ``permlane64`` -- cross-row permutations
+* ``ballot_w64`` / ``ballot_w32`` -- warp voting
+* ``mbcnt_lo`` / ``mbcnt_hi`` -- masked bit count (compaction index)
+* ``wave_reduce_<op>_<type>`` -- single-instruction warp reductions, where
+  ``<op>`` is ``add``, ``sub``, ``min``, ``max``, ``and``, ``or``, or ``xor``,
+  and ``<type>`` is ``u32``, ``u64``, ``i32``, ``i64``, ``b32``, or ``b64``
+
+Use the ``__shfl*`` family for standard shuffle operations.
+Use the ``__builtin_amdgcn_*`` intrinsics when you need a specific hardware
+feature (DPP, ``ds_swizzle``, warp voting) or when the ISA instruction gives
+measurable performance benefit.
+
+.. _warp_intrinsic_reference:
+
+Warp intrinsic reference
+========================
+
+Each reference page documents the full signature, parameter details, and
+architecture support for every intrinsic in that family.
 
 .. list-table::
    :header-rows: 1
-   :widths: 50 30 20
+   :widths: auto
 
-   * - Signature
+   * - Family
      - Description
-     - Supported architecture
-   * - ``unsigned int __builtin_amdgcn_wave_reduce_add_u32(unsigned int src, int strategy)``
-     - Addition (u32)
-     - All
-   * - ``unsigned long __builtin_amdgcn_wave_reduce_add_u64(unsigned long src, int strategy)``
-     - Addition (u64)
-     - All
-   * - ``unsigned int __builtin_amdgcn_wave_reduce_sub_u32(unsigned int src, int strategy)``
-     - Subtraction (u32)
-     - All
-   * - ``unsigned long __builtin_amdgcn_wave_reduce_sub_u64(unsigned long src, int strategy)``
-     - Subtraction (u64)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_min_i32(int src, int strategy)``
-     - Signed minimum (i32)
-     - All
-   * - ``unsigned int __builtin_amdgcn_wave_reduce_min_u32(unsigned int src, int strategy)``
-     - Unsigned minimum (u32)
-     - All
-   * - ``long __builtin_amdgcn_wave_reduce_min_i64(long src, int strategy)``
-     - Signed minimum (i64)
-     - All
-   * - ``unsigned long __builtin_amdgcn_wave_reduce_min_u64(unsigned long src, int strategy)``
-     - Unsigned minimum (u64)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_max_i32(int src, int strategy)``
-     - Signed maximum (i32)
-     - All
-   * - ``unsigned int __builtin_amdgcn_wave_reduce_max_u32(unsigned int src, int strategy)``
-     - Unsigned maximum (u32)
-     - All
-   * - ``long __builtin_amdgcn_wave_reduce_max_i64(long src, int strategy)``
-     - Signed maximum (i64)
-     - All
-   * - ``unsigned long __builtin_amdgcn_wave_reduce_max_u64(unsigned long src, int strategy)``
-     - Unsigned maximum (u64)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_and_b32(int src, int strategy)``
-     - Bitwise AND (b32)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_and_b64(int src, int strategy)``
-     - Bitwise AND (b64)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_or_b32(int src, int strategy)``
-     - Bitwise OR (b32)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_or_b64(int src, int strategy)``
-     - Bitwise OR (b64)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_xor_b32(int src, int strategy)``
-     - Bitwise XOR (b32)
-     - All
-   * - ``int __builtin_amdgcn_wave_reduce_xor_b64(int src, int strategy)``
-     - Bitwise XOR (b64)
-     - All
-
-Warp voting
------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 50 30 20
-
-   * - Signature
-     - Description
-     - Supported architecture
-   * - ``unsigned long long __builtin_amdgcn_ballot_w64(bool pred)``
-     - 64-bit mask of active lanes where ``pred`` is true
-     - Supported when warp size is 64
-   * - ``unsigned int __builtin_amdgcn_ballot_w32(bool pred)``
-     - 32-bit mask of active lanes where ``pred`` is true
-     - Supported when warp size is 32
-   * - ``bool __builtin_amdgcn_inverse_ballot_w64(uint64_t mask)``
-     - True if the current lane's bit is set in ``mask``
-     - Supported when warp size is 64
-   * - ``bool __builtin_amdgcn_inverse_ballot_w32(uint32_t mask)``
-     - True if the current lane's bit is set in ``mask``
-     - Supported when warp size is 32
-   * - ``unsigned int __builtin_amdgcn_mbcnt_lo(unsigned int mask, unsigned int base)``
-     - Count set bits in lower 32-bit half of ballot mask below current lane
-     - All
-   * - ``unsigned int __builtin_amdgcn_mbcnt_hi(unsigned int mask, unsigned int base)``
-     - Count set bits in upper 32-bit half of ballot mask below current lane
-     - All
-   * - ``uint64_t __builtin_amdgcn_uicmp(unsigned int src0, unsigned int src1, int cond)`` *(deprecated)*
-     - Compare two unsigned integers and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``uint64_t __builtin_amdgcn_uicmpl(uint64_t src0, uint64_t src1, int cond)`` *(deprecated)*
-     - Compare two 64-bit unsigned integers and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``uint64_t __builtin_amdgcn_sicmp(int src0, int src1, int cond)`` *(deprecated)*
-     - Compare two signed integers and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``uint64_t __builtin_amdgcn_sicmpl(int64_t src0, int64_t src1, int cond)`` *(deprecated)*
-     - Compare two 64-bit signed integers and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``uint64_t __builtin_amdgcn_fcmp(double src0, double src1, int cond)`` *(deprecated)*
-     - Compare two doubles and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``uint64_t __builtin_amdgcn_fcmpf(float src0, float src1, int cond)`` *(deprecated)*
-     - Compare two floats and return a ballot mask; use ``ballot_w64`` instead
-     - All
-   * - ``void __builtin_amdgcn_wave_barrier()``
-     - Synchronize all lanes within the warp
-     - All
-   * - ``unsigned int __builtin_amdgcn_wave_id()``
-     - Return the warp's index within the workgroup
-     - All
+   * - :doc:`Shuffle and lane access <warp-ref/shuffle-intrinsics>`
+     - ``__shfl*`` wrappers and hardware ``readlane``,
+       ``readfirstlane``, ``writelane``
+   * - :doc:`DPP and data-share permutations <warp-ref/dpp-intrinsics>`
+     - ``mov_dpp``, ``update_dpp``, ``mov_dpp8``, ``ds_swizzle``,
+       ``ds_permute``, ``ds_bpermute``
+   * - :doc:`Cross-row permutations <warp-ref/permlane-intrinsics>`
+     - ``permlane16``, ``permlanex16``, ``permlane64``, and runtime/swap
+       variants
+   * - :doc:`Warp reductions <warp-ref/wave-reduce-intrinsics>`
+     - ``wave_reduce_<op>_<type>`` for add, sub, min, max, and, or, xor
+   * - :doc:`Warp voting and synchronization <warp-ref/vote-intrinsics>`
+     - ``ballot``, ``inverse_ballot``, ``mbcnt``, ``wave_barrier``,
+       ``wave_id``

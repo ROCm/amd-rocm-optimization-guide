@@ -1,5 +1,5 @@
 .. meta::
-   :description: Reference for CDNA3 (gfx942, MI300 series) sparse matrix fused multiply-accumulate (SMFMAC) intrinsics, covering FP8 and BF8 variants with 4:2 structured sparsity.
+   :description: Reference for CDNA3 (gfx942, MI300 series) sparse MFMA (SMFMAC) intrinsics, covering FP16, BF16, INT8, FP8, and BF8 variants with 4:2 structured sparsity.
    :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA3, gfx942, MI300, FP8, BF8
 
 .. _cdna3-sparse-mfma-intrinsics:
@@ -37,7 +37,7 @@ reference pages:
 
    On CDNA3, all four operands (:math:`\pmb{A}`, :math:`\pmb{B}`,
    :math:`\pmb{C}`, and :math:`\pmb{D}`) can reside in either accumulation
-   VGPRs (accVGPRs) or standard architecture VGPRs (ArchVGPRs).  In HIP
+   VGPRs (accVGPRs) or standard architecture VGPRs (archVGPRs).  In HIP
    device code the compiler selects the appropriate register class
    automatically.
 
@@ -116,7 +116,7 @@ The formulas in the subsections below use the following notation:
 * **VGPR** -- zero-based index into that lane's accumulator register file
 
 :math:`16 \times 16` layout
-----------------------------
+---------------------------
 
 The :math:`16 \times 16` output tile occupies 4 VGPRs per lane (``v4float``
 or ``v4int``).
@@ -189,7 +189,7 @@ The row-to-lane mapping:
      - 0---3
 
 :math:`32 \times 32` layout
-----------------------------
+---------------------------
 
 The :math:`32 \times 32` output tile occupies 16 VGPRs per lane
 (``v16float`` or ``v16int``).
@@ -294,8 +294,15 @@ in the intrinsic definition.  The number in the name is the element count
 per lane; the total VGPR count equals the element count multiplied by the
 element size in 32-bit words.
 
-Example kernels
-===============
+Common parameters
+=================
+
+The SMFMAC intrinsics do not use the ``cbsz``, ``abid``, or ``blgp``
+modifiers from the dense MFMA family.  See :doc:`mfma-common-parameters`
+for a description of those modifiers in the dense context.
+
+Using sparse MFMA intrinsics as a compute policy
+================================================
 
 The following example kernel demonstrates the FP8 SMFMAC intrinsic in the
 context of a tiled matrix multiplication.  The kernel loads tiles of the
@@ -303,8 +310,12 @@ compressed :math:`\pmb{A}` matrix and the dense :math:`\pmb{B}` matrix into
 LDS, then calls the SMFMAC intrinsic to replace the inner-product loop of a
 conventional scalar kernel.
 
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna3_sparse_mfma.hip <../../tools/example_codes/matrix_multiply_cdna3_sparse_mfma.hip>`
+
 FP8 16×16 sparse kernel
-------------------------
+-----------------------
 
 This kernel uses ``__builtin_amdgcn_smfmac_f32_16x16x64_fp8_fp8`` to
 compute a :math:`16 \times 16` sparse matrix multiply-accumulate with
@@ -331,6 +342,19 @@ element groups.
    Compute Project) E4M3 encoding.  The example code selects the correct
    interpretation at runtime based on the device architecture.
 
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx942 \
+       matrix_multiply_cdna3_sparse_mfma.hip -o mm_cdna3_sparse_mfma
+   ./mm_cdna3_sparse_mfma
+
+.. note::
+
+   This example requires a CDNA3 GPU (``gfx942``).
+   Compile with ``--offload-arch=gfx942`` to select the correct architecture.
+
 .. _cdna3-smfmac-instruction-throughput:
 
 Instruction throughput
@@ -339,7 +363,7 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  All SMFMAC instructions support VALU
+\text{clock frequency}`.  All SMFMAC instructions support vector ALU (VALU)
 co-execution; the VALU co-execution cycle count gives the number of VALU
 cycles available during the SMFMAC latency window.
 
@@ -395,7 +419,7 @@ FP32-accumulate intrinsics
 These intrinsics accumulate into single-precision (FP32) output fragments.
 
 FP8 and BF8 matrix inputs
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following intrinsics accept compressed FP8 (E4M3) or BF8 (E5M2)
 elements for :math:`\pmb{A}` and dense FP8 or BF8 elements for

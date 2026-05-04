@@ -3,7 +3,9 @@
    Include via: .. include:: swmmac-ref/i32-16x16x32iu8.rst
 
 ``__builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32``
-""""""""""""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 

@@ -3,7 +3,9 @@
    Include via: .. include:: wmma-ref/bf16-16x16x16bf16-tied-rdna3.rst
 
 ``__builtin_amdgcn_wmma_bf16_16x16x16_bf16_tied_w32``
-""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 

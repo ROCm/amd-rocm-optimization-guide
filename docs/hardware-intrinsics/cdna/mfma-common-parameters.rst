@@ -1,5 +1,5 @@
 .. meta::
-   :description: Common trailing parameters shared by all CDNA MFMA intrinsics: cbsz, abid, and blgp.
+   :description: Learn about common trailing parameters shared by all CDNA MFMA intrinsics, including cbsz broadcast control, abid bank selection, and blgp lane group pattern.
    :keywords: AMD, ROCm, HIP, MFMA, cbsz, abid, blgp, broadcast, lane group, matrix cores, CDNA
 
 .. _cdna-mfma-common-parameters:
@@ -89,6 +89,8 @@ The following parameter applies to dense MFMA intrinsics only.
           :math:`\pmb{A}`, bit 1 negates :math:`\pmb{B}`, and bit 2 negates
           :math:`\pmb{C}`.  Lane-group pattern swizzling is not available for
           FP64 on CDNA3.
+
+.. _smfmac-common-parameters:
 
 Sparse MFMA parameters
 ======================

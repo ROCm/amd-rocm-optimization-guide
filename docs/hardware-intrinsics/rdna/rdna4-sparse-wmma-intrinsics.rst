@@ -1,11 +1,12 @@
 .. meta::
-   :description: Reference for RDNA4 (gfx1200, gfx1201) sparse wave-matrix multiply-accumulate intrinsics, covering all supported __builtin_amdgcn_swmmac_* variants, parameters, and output layouts.
+   :description: Reference for RDNA4 sparse wave-matrix multiply-accumulate
+      intrinsics, covering all supported __builtin_amdgcn_swmmac variants, parameters, and layouts.
    :keywords: RDNA4, gfx1200, gfx1201, SWMMAC, sparse matrix, wave-matrix, HIP intrinsics, FP32, FP16, BF16, FP8, BF8, INT8, INT4, __builtin_amdgcn_swmmac
 
-.. _rdna4-swmmac-intrinsics:
+.. _rdna4-sparse-wmma-intrinsics:
 
 ********************************************************************************
-RDNA4 SWMMAC intrinsics
+RDNA4 sparse WMMA intrinsics
 ********************************************************************************
 
 Sparse Wave-Matrix Multiply-Accumulate (SWMMAC) intrinsics let you issue
@@ -19,9 +20,9 @@ required for :math:`\pmb{A}` relative to a dense multiply of the same tile size.
 
 SWMMAC is the sparse variant of the WMMA instruction family, which is used on
 RDNA (consumer) GPUs. CDNA (Instinct) GPUs provide a comparable operation
-through :doc:`SMFMAC <../cdna/sparse-mfma-intrinsics>`, the sparse variant of
-MFMA. The two differ in wavefront size (wave32 for SWMMAC, wave64 for SMFMAC)
-and accumulator storage (ordinary VGPRs for SWMMAC, dedicated accVGPRs for
+through :doc:`Sparse Matrix Fused Multiply-Accumulate (SMFMAC) <../cdna/sparse-mfma-intrinsics>`, the sparse variant of
+Matrix Fused Multiply-Accumulate (MFMA). The two differ in wavefront size (wave32 for SWMMAC, wave64 for SMFMAC)
+and accumulator storage (ordinary Vector General-Purpose Registers (VGPRs) for SWMMAC, dedicated accVGPRs for
 SMFMAC). The underlying sparsity model (2:4 structured sparsity on
 :math:`\pmb{A}`) is the same on both architectures.
 
@@ -34,7 +35,7 @@ SMFMAC). The underlying sparsity model (2:4 structured sparsity on
 Architecture availability
 =========================
 
-The intrinsics on this page target RDNA4 GPUs. To automatically enable them, pass the LLVM target architecture flag at compile time:
+The intrinsics on this page target RDNA4 GPUs. To automatically enable them, pass the Low Level Virtual Machine (LLVM) target architecture flag at compile time:
 
 .. code-block:: bash
 
@@ -66,13 +67,13 @@ All SWMMAC intrinsics follow the pattern:
 
 ``in_type_b`` (optional)
     Input element type of :math:`\pmb{B}` when it differs from :math:`\pmb{A}`.
-    Used only for mixed FP8/BF8 variants.
+    Used only for mixed FP8 and BF8 variants.
 
 ``_w32``
     Wavefront size suffix. All RDNA4 SWMMAC intrinsics use wave32.
 
 Structured sparsity (2:4 pattern)
-==================================
+=================================
 
 SWMMAC instructions require the :math:`\pmb{A}` matrix to obey 2:4 structured
 sparsity: in every contiguous group of four elements along the K dimension,
@@ -104,8 +105,15 @@ computed by one wave32 wavefront. The 32 lanes split into two groups of 16;
 each group owns half the output rows. The diagrams below show the mapping
 between matrix elements and lane or VGPR positions for each operand.
 
+The formulas in the subsections below use the following notation:
+
+* :math:`i` -- zero-based row index within the tile, :math:`0 \le i < 16`
+* :math:`j` -- zero-based column index within the tile, :math:`0 \le j < 16`
+* **lane** -- wavefront lane, :math:`0 \le \text{lane} < 32`
+* **VGPR** -- zero-based index into that lane's register vector
+
 Accumulator layout
----------------------------------
+------------------
 
 Each lane holds 8 FP32 output elements across VGPRs 0--7.
 
@@ -117,22 +125,38 @@ Each lane holds 8 FP32 output elements across VGPRs 0--7.
    :align: center
    :width: 80%
 
-Given lane :math:`L` and VGPR :math:`g`, the output element position is:
+Given output element :math:`(i, j)`:
 
 .. math::
 
-   i &= \left\lfloor \frac{L}{16} \right\rfloor \cdot 8 + g \\
-   j &= L \bmod 16
-
-Inversely, output element :math:`(i, j)` is stored in:
-
-.. math::
-
-   \text{lane} &= \left\lfloor \frac{i}{8} \right\rfloor \cdot 16 + j \\
+   \text{lane} &= \lfloor \frac{i}{8} \rfloor \cdot 16 + j \\
    \text{VGPR} &= i \bmod 8
 
-srcA (sparse, FP16/BF16)
---------------------------
+Conversely, given lane :math:`L` and VGPR index :math:`g`:
+
+.. math::
+
+   i &= \lfloor \frac{L}{16} \rfloor \cdot 8 + g \\
+   j &= L \bmod 16
+
+The row-to-lane mapping:
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Rows
+     - Lanes
+     - VGPRs
+   * - 0--7
+     - 0--15
+     - 0--7
+   * - 8--15
+     - 16--31
+     - 0--7
+
+srcA (sparse, FP16 and BF16)
+----------------------------
 
 Each lane holds 8 compressed FP16 values (``v8fp16``, 4 VGPRs × 2 FP16)
 covering one row of the sparse :math:`\pmb{A}` matrix. The compressed-K
@@ -169,8 +193,8 @@ elements are distributed across VGPRs as follows:
      - compressed K {12, 13}
      - compressed K {14, 15}
 
-srcB (dense, FP16/BF16)
-------------------------
+srcB (dense, FP16 and BF16)
+---------------------------
 
 Each lane holds 16 dense FP16 values (``v16fp16``, 8 VGPRs × 2 FP16)
 covering one column of the dense :math:`\pmb{B}` matrix. The K-row positions
@@ -201,15 +225,8 @@ K rows are distributed across VGPRs as follows:
      - K rows 8--15
      - K rows 24--31
 
-The notation used in the rest of this page:
-
-* :math:`i` -- zero-based row index within the tile, :math:`0 \le i < 16`
-* :math:`j` -- zero-based column index within the tile, :math:`0 \le j < 16`
-* **lane** -- wavefront lane, :math:`0 \le \text{lane} < 32`
-* **VGPR** -- zero-based index into that lane's register vector
-
 Register types used in this reference
-======================================
+=====================================
 
 The signatures below use the following type aliases, which you can declare with
 C++ attributes in any HIP translation unit:
@@ -278,8 +295,8 @@ The ``index`` parameter is shared by all SWMMAC intrinsics. The ``a_neg``,
      - Integer variants only. When ``true``, the INT32 accumulator output is
        clamped to the representable range of the input type on overflow.
 
-Example kernel
-==============
+Using sparse WMMA intrinsics as a compute policy
+================================================
 
 :ref:`mfma-compute-policy` explains the ``ComputePolicy`` pattern used to
 separate the multiply-accumulate logic from the rest of a kernel. The example
@@ -290,6 +307,10 @@ Each wavefront computes a single :math:`16 \times 16` output tile. The
 :math:`\pmb{A}` operand is pre-sparsified: half the K positions are zero and
 omitted from storage, so the compressed K dimension is 16 (representing 32
 dense K positions).
+
+The complete source file is available for download:
+
+* :download:`matrix_multiply_rdna4_swmmac.hip <../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip>`
 
 .. rubric:: Policy constants
 
@@ -302,7 +323,7 @@ thread_tile_n = 16`` and ``effective_lanes = 32``.
 
 Each lane's ``index`` register encodes two bits per compressed K position,
 identifying which of the four elements in each 2:4 block is non-zero. The
-example constructs a simple even-column sparsity pattern (elements at positions
+example constructs an even-column sparsity pattern (elements at positions
 0 and 2 in each block of four) at the host and passes it to the device.
 
 .. rubric:: Accumulator layout
@@ -312,7 +333,7 @@ The intrinsic returns a ``v8float`` holding 8 FP32 values per lane. The
 coordinates using the SWMMAC accumulator layout.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx swmmac rdna4 policy start]
    :end-before: [Sphinx swmmac rdna4 policy end]
 
@@ -324,17 +345,17 @@ alongside a ``TilePolicy`` (see :ref:`mfma-compute-policy`) whose
 ``k_tile_size`` is a multiple of ``k_step = 32``.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx swmmac policy aliases start]
    :end-before: [Sphinx swmmac policy aliases end]
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx swmmac launch config start]
    :end-before: [Sphinx swmmac launch config end]
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_swmmac.hip
-   :language: cuda
+   :language: cpp
    :start-after: [Sphinx swmmac kernel launch start]
    :end-before: [Sphinx swmmac kernel launch end]
 
@@ -429,15 +450,21 @@ matrix inputs.
 FP16 inputs
 ^^^^^^^^^^^
 
+The following intrinsics use FP16 matrix inputs.
+
 .. include:: swmmac-ref/f32-16x16x32f16.rst
 
 BF16 inputs
 ^^^^^^^^^^^
 
+The following intrinsics use BF16 matrix inputs.
+
 .. include:: swmmac-ref/f32-16x16x32bf16.rst
 
 FP8 and BF8 inputs
 ^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use FP8 and BF8 matrix inputs.
 
 .. include:: swmmac-ref/f32-16x16x32fp8-fp8.rst
 
@@ -452,12 +479,22 @@ FP16-accumulate intrinsics
 
 This intrinsic accumulates into FP16 with FP16 inputs.
 
+FP16 inputs
+^^^^^^^^^^^
+
+The following intrinsic uses FP16 matrix inputs.
+
 .. include:: swmmac-ref/f16-16x16x32f16.rst
 
 BF16-accumulate intrinsics
 --------------------------
 
 This intrinsic accumulates into BF16 with BF16 inputs.
+
+BF16 inputs
+^^^^^^^^^^^
+
+The following intrinsic uses BF16 matrix inputs.
 
 .. include:: swmmac-ref/bf16-16x16x32bf16.rst
 
@@ -469,16 +506,22 @@ integer inputs, controlled by the ``a_neg`` and ``b_neg`` compile-time
 constants.
 
 INT8 and UINT8 inputs (16x16x32)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT8 and UINT8 matrix inputs.
 
 .. include:: swmmac-ref/i32-16x16x32iu8.rst
 
 INT4 and UINT4 inputs (16x16x32)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT4 and UINT4 matrix inputs.
 
 .. include:: swmmac-ref/i32-16x16x32iu4.rst
 
 INT4 and UINT4 inputs (16x16x64)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT4 and UINT4 matrix inputs.
 
 .. include:: swmmac-ref/i32-16x16x64iu4.rst

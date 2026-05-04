@@ -2,10 +2,10 @@
    :description: Reference for CDNA (gfx908, MI100) matrix fused multiply-add intrinsics, covering all __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
    :keywords: AMD, ROCm, HIP, CDNA, MI100, gfx908, MFMA, matrix cores, intrinsics, __builtin_amdgcn_mfma, matrix multiply-accumulate
 
-.. _cdna-mfma-intrinsics:
+.. _cdna-dense-mfma-intrinsics:
 
 ********************************************************************************
-CDNA MFMA intrinsics
+CDNA dense MFMA intrinsics
 ********************************************************************************
 
 Matrix Fused Multiply-Add (MFMA) intrinsics let you issue hardware
@@ -23,9 +23,31 @@ The intrinsics on this page target CDNA (``gfx908``, MI100) exclusively.
 Equivalent intrinsics for later CDNA generations are documented on their own
 reference pages:
 
-* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
+* :ref:`cdna2-dense-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 * :ref:`cdna3-dense-mfma-intrinsics` -- CDNA3 (``gfx942``, MI300 series)
 * :ref:`cdna4-dense-mfma-intrinsics` -- CDNA4 (``gfx950``, MI350 series)
+
+Naming convention
+=================
+
+All MFMA intrinsics follow the pattern:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
+
+``out_type``
+    Accumulator element type (``f32`` or ``i32``).
+
+``M``, ``N``, ``K``
+    Tile dimensions in elements.  The instruction computes the
+    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
+    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
+    :math:`M \times N` output tile.  Each instruction processes one K step;
+    the caller loops over K to accumulate a full matrix product.
+
+``in_type``
+    Input element type (``f32``, ``f16``, ``bf16``, or ``i8``).
 
 .. _cdna-mfma-accumulator-layout:
 
@@ -248,10 +270,38 @@ Conversely, given lane :math:`L` and accVGPR index :math:`G`:
    j &= L \bmod 4 \\
    b &= \lfloor \frac{L}{4} \rfloor
 
+Register types used in this reference
+=====================================
+
+The signatures below use the following type aliases, which you can declare with
+C++ attributes in any HIP translation unit:
+
+.. code-block:: cpp
+
+   using v4float   = float [[clang::ext_vector_type(4)]];
+   using v16float  = float [[clang::ext_vector_type(16)]];
+   using v32float  = float [[clang::ext_vector_type(32)]];
+   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
+   using v4int     = int [[clang::ext_vector_type(4)]];
+   using v16int    = int [[clang::ext_vector_type(16)]];
+   using v32int    = int [[clang::ext_vector_type(32)]];
+   using v2bfloat  = short [[clang::ext_vector_type(2)]]; // bf16 storage
+
+Each type alias maps one-to-one to the corresponding LLVM vector type used in
+the intrinsic definition.  The number in the name is the element count per
+lane; the total VGPR count equals the element count multiplied by the element
+size in 32-bit words.
+
+Common parameters
+=================
+
+See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
+``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
+
 .. _mfma-compute-policy:
 
 Using MFMA intrinsics as a compute policy
-==========================================
+=========================================
 
 The matrix multiplication tutorial in
 :ref:`matrix-multiply-optimization` uses a ``ComputePolicy`` type
@@ -264,6 +314,10 @@ The example below implements ``MfmaCdnaPolicy`` using
 on all CDNA generations.  Each wavefront computes a single
 :math:`32 \times 32` output tile per ``mma()`` call; two blocks are active,
 giving 32 accVGPRs per lane.
+
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna_mfma.hip <../../tools/example_codes/matrix_multiply_cdna_mfma.hip>`
 
 .. rubric:: Policy constants
 
@@ -329,56 +383,6 @@ aliases and launch configuration from the example file are:
    targets the ``#if defined(__gfx908__)`` guard selects ``ScalarFMAPolicy``
    automatically, so the file compiles without modification.
 
-Naming convention
-=================
-
-All MFMA intrinsics follow the pattern:
-
-.. code-block:: text
-
-   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
-
-``out_type``
-    Accumulator element type (``f32`` or ``i32``).
-
-``M``, ``N``, ``K``
-    Tile dimensions in elements.  The instruction computes the
-    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
-    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
-    :math:`M \times N` output tile.  Each instruction processes one K step;
-    the caller loops over K to accumulate a full matrix product.
-
-``in_type``
-    Input element type (``f32``, ``f16``, ``bf16``, or ``i8``).
-
-Register types used in this reference
-======================================
-
-The signatures below use the following type aliases, which you can declare with
-C++ attributes in any HIP translation unit:
-
-.. code-block:: cpp
-
-   using v4float   = float [[clang::ext_vector_type(4)]];
-   using v16float  = float [[clang::ext_vector_type(16)]];
-   using v32float  = float [[clang::ext_vector_type(32)]];
-   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
-   using v4int     = int [[clang::ext_vector_type(4)]];
-   using v16int    = int [[clang::ext_vector_type(16)]];
-   using v32int    = int [[clang::ext_vector_type(32)]];
-   using v2bfloat  = short [[clang::ext_vector_type(2)]]; // bf16 storage
-
-Each type alias maps one-to-one to the corresponding LLVM vector type used in
-the intrinsic definition.  The number in the name is the element count per
-lane; the total VGPR count equals the element count multiplied by the element
-size in 32-bit words.
-
-Common parameters
-=================
-
-See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
-``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
-
 .. _cdna-mfma-instruction-throughput:
 
 Instruction throughput
@@ -387,9 +391,10 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  Instructions that support VALU co-execution allow
-the compiler to overlap matrix and vector work; the VALU co-execution cycle
-count gives the number of VALU cycles available during the MFMA latency
+\text{clock frequency}`.  Instructions that support vector ALU (VALU)
+co-execution allow the compiler to overlap matrix and vector work; the VALU
+co-execution cycle count gives the number of VALU cycles available during the
+MFMA latency
 window.  A value of 0 means VALU co-execution is not supported.
 
 .. list-table::
@@ -541,6 +546,8 @@ inputs, and accumulate into INT32 output fragments.
 
 INT8 matrix inputs
 ^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT8 matrix inputs.
 
 .. include:: mfma-ref/i32-32x32x4i8.rst
 .. include:: mfma-ref/i32-16x16x4i8.rst

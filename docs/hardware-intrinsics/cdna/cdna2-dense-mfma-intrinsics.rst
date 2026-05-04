@@ -1,11 +1,11 @@
 .. meta::
-   :description: Reference for CDNA2 (gfx90a, MI200) matrix fused multiply-add intrinsics, covering all supported __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
+   :description: Reference for CDNA2 (gfx90a, MI200) dense MFMA intrinsics, covering all supported matrix multiply-accumulate variants, parameters, and output layouts.
    :keywords: CDNA2, gfx90a, MI200, MFMA, matrix core, HIP intrinsics, FP32, FP64, BF16, INT8, accumulator, __builtin_amdgcn_mfma
 
-.. _cdna2-mfma-intrinsics:
+.. _cdna2-dense-mfma-intrinsics:
 
 ********************************************************************************
-CDNA2 MFMA intrinsics
+CDNA2 dense MFMA intrinsics
 ********************************************************************************
 
 Matrix Fused Multiply-Add (MFMA) intrinsics let you issue hardware
@@ -26,9 +26,36 @@ The intrinsics on this page target CDNA2 (``gfx90a``, MI200 series) exclusively.
 Equivalent intrinsics for other CDNA generations are documented on their own
 reference pages:
 
-* :ref:`cdna-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
+* :ref:`cdna-dense-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
 * :ref:`cdna3-dense-mfma-intrinsics` -- CDNA3 (``gfx942``, MI300 series)
 * :ref:`cdna4-dense-mfma-intrinsics` -- CDNA4 (``gfx950``, MI350 series)
+
+Naming convention
+=================
+
+All MFMA intrinsics follow the pattern:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>[_1k]
+
+``out_type``
+    Accumulator element type (``f32``, ``f64``, or ``i32``).
+
+``M``, ``N``, ``K``
+    Tile dimensions in elements.  The instruction computes the
+    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
+    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
+    :math:`M \times N` output tile.  Each instruction processes one K step;
+    the caller loops over K to accumulate a full matrix product.
+
+``in_type``
+    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, or ``i8``).
+
+``_1k`` (optional)
+    Suffix present on BF16 variants that deliver 1024 Flops per cycle per
+    compute unit (CU) peak throughput, twice the 512 Flops per cycle per CU
+    of the non-``_1k`` BF16 variants.
 
 .. _cdna2-mfma-accumulator-layout:
 
@@ -252,7 +279,7 @@ Conversely, given lane :math:`L` and accVGPR index :math:`G`:
    b &= \lfloor \frac{L}{4} \rfloor
 
 :math:`16 \times 16` FP64 layout
-----------------------------------
+--------------------------------
 
 The :math:`16 \times 16` FP64 tile shape uses one block.  Each lane holds
 four FP64 output elements across 4 accVGPR pairs (8 physical accVGPRs, since
@@ -312,7 +339,7 @@ modulo 4; the accVGPR pair selects the row group:
      - 0, 1, 2, 3
 
 :math:`4 \times 4` FP64 layout
---------------------------------
+------------------------------
 
 The :math:`4 \times 4` FP64 tile shape uses four blocks.  Each lane holds one
 FP64 output element in a single accVGPR pair (2 physical accVGPRs, ``v[1:0]``).
@@ -383,8 +410,40 @@ pattern repeats for rows 1---3 at lane offsets of 16, 32, and 48:
      - 48---63
      - 0 (``v[1:0]``)
 
+Register types used in this reference
+=====================================
+
+The signatures below use the following type aliases, which you can declare with
+C++ attributes in any HIP translation unit:
+
+.. code-block:: cpp
+
+   using v4float   = float [[clang::ext_vector_type(4)]];
+   using v16float  = float [[clang::ext_vector_type(16)]];
+   using v32float  = float [[clang::ext_vector_type(32)]];
+   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
+   using v4int     = int [[clang::ext_vector_type(4)]];
+   using v16int    = int [[clang::ext_vector_type(16)]];
+   using v32int    = int [[clang::ext_vector_type(32)]];
+   using v2bfloat  = short [[clang::ext_vector_type(2)]];  // bf16 storage
+   using v4bfloat  = short [[clang::ext_vector_type(4)]];  // bf16 storage
+   using v4double  = double [[clang::ext_vector_type(4)]];
+
+Each type alias maps one-to-one to the corresponding LLVM vector type used in
+the intrinsic definition.  The number in the name is the element count per
+lane; the total VGPR count equals the element count multiplied by the element
+size in 32-bit words.
+
+.. _cdna2-mfma-common-parameters:
+
+Common parameters
+=================
+
+See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
+``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
+
 Using MFMA intrinsics as a compute policy
-==========================================
+=========================================
 
 The matrix multiplication tutorial in
 :ref:`matrix-multiply-optimization` uses a ``ComputePolicy`` type
@@ -397,6 +456,10 @@ The example below implements ``MfmaCdna2F64Policy`` using
 available on CDNA2 (``gfx90a``, MI200 series).  Each wavefront computes a
 single :math:`16 \times 16` output tile; one block is active, giving 4
 FP64 accVGPR pairs (8 physical accVGPRs) per lane.
+
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna2_mfma.hip <../../tools/example_codes/matrix_multiply_cdna2_mfma.hip>`
 
 .. rubric:: Policy constants
 
@@ -429,7 +492,7 @@ offset ``lane_id mod 16`` selects one of the 16 :math:`\pmb{A}`-rows (or
    must all be passed as ``0``.  ``v_mfma_f64_16x16x4f64`` does not support
    the ``cbsz``/``abid`` broadcast mechanism or the ``blgp`` lane-group
    pattern modifier.  Additionally, the instruction cannot co-execute with
-   VALU instructions in the same wavefront.
+   vector ALU (VALU) instructions in the same wavefront.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna2_mfma.hip
    :language: cuda
@@ -472,64 +535,6 @@ The policy aliases and launch configuration from the example file are:
    ``--offload-arch=gfx90a`` to select the correct architecture.  On other
    targets the ``#if defined(__gfx90a__)`` guard selects ``ScalarFMADPolicy``
    automatically, so the file compiles without modification.
-
-Naming convention
-=================
-
-All MFMA intrinsics follow the pattern:
-
-.. code-block:: text
-
-   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>[_1k]
-
-``out_type``
-    Accumulator element type (``f32``, ``f64``, or ``i32``).
-
-``M``, ``N``, ``K``
-    Tile dimensions in elements.  The instruction computes the
-    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
-    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
-    :math:`M \times N` output tile.  Each instruction processes one K step;
-    the caller loops over K to accumulate a full matrix product.
-
-``in_type``
-    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, or ``i8``).
-
-``_1k`` (optional)
-    Suffix present on BF16 variants that deliver 1024 Flops/cycle/CU peak
-    throughput, twice the 512 Flops/cycle/CU of the non-``_1k`` BF16 variants.
-
-Register types used in this reference
-======================================
-
-The signatures below use the following type aliases, which you can declare with
-C++ attributes in any HIP translation unit:
-
-.. code-block:: cpp
-
-   using v4float   = float [[clang::ext_vector_type(4)]];
-   using v16float  = float [[clang::ext_vector_type(16)]];
-   using v32float  = float [[clang::ext_vector_type(32)]];
-   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
-   using v4int     = int [[clang::ext_vector_type(4)]];
-   using v16int    = int [[clang::ext_vector_type(16)]];
-   using v32int    = int [[clang::ext_vector_type(32)]];
-   using v2bfloat  = short [[clang::ext_vector_type(2)]];  // bf16 storage
-   using v4bfloat  = short [[clang::ext_vector_type(4)]];  // bf16 storage
-   using v4double  = double [[clang::ext_vector_type(4)]];
-
-Each type alias maps one-to-one to the corresponding LLVM vector type used in
-the intrinsic definition.  The number in the name is the element count per
-lane; the total VGPR count equals the element count multiplied by the element
-size in 32-bit words.
-
-.. _cdna2-mfma-common-parameters:
-
-Common parameters
-=================
-
-See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
-``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics.
 
 .. _cdna2-mfma-instruction-throughput:
 
@@ -756,6 +761,8 @@ inputs, and accumulate into INT32 output fragments.
 
 INT8 matrix inputs
 ^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT8 matrix inputs.
 
 .. include:: mfma-ref/i32-32x32x4i8.rst
 .. include:: mfma-ref/i32-16x16x4i8.rst

@@ -3,7 +3,9 @@
    Include via: .. include:: wmma-ref/i32-16x16x16iu4-rdna4.rst
 
 ``__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32_gfx12``
-""""""""""""""""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 

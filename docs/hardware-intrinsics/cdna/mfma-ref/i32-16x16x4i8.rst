@@ -3,7 +3,9 @@
    Include via: .. include:: mfma-ref/i32-16x16x4i8.rst
 
 ``__builtin_amdgcn_mfma_i32_16x16x4i8``
-""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this intrinsic.
 
 .. code-block:: cpp
 

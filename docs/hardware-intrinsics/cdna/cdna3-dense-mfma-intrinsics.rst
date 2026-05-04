@@ -1,5 +1,5 @@
 .. meta::
-   :description: Reference for CDNA3 (gfx942, MI300 series) matrix fused multiply-add intrinsics, covering all supported __builtin_amdgcn_mfma_* variants, parameters, and output layouts.
+   :description: Reference for CDNA3 (gfx942, MI300) dense MFMA intrinsics, covering all supported matrix multiply-accumulate variants, parameters, and output layouts.
    :keywords: CDNA3, gfx942, MI300, MFMA, matrix core, HIP intrinsics, FP32, FP64, BF16, INT8, FP8, BF8, XF32, accumulator, __builtin_amdgcn_mfma
 
 .. _cdna3-dense-mfma-intrinsics:
@@ -19,7 +19,8 @@ sequence of scalar fused multiply-add (FMA) instructions.
 CDNA3 supports the same FP32, FP16, INT8, and FP64 shapes as CDNA2 and adds
 eXtended Float32 (XF32), FP8, and BF8 input formats. The BF16 and narrower-K
 INT8 intrinsics from CDNA1 and CDNA2 are not available on CDNA3; the underlying
-ISA instructions have been replaced with K-doubled variants that do not yet have
+instruction set architecture (ISA) instructions have been replaced with
+K-doubled variants that do not yet have
 corresponding HIP intrinsics.
 
 Architecture availability
@@ -29,9 +30,52 @@ The intrinsics on this page target CDNA3 (``gfx942``, MI300 series) exclusively.
 Equivalent intrinsics for other CDNA generations are documented on their own
 reference pages:
 
-* :ref:`cdna-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
-* :ref:`cdna2-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
+* :ref:`cdna-dense-mfma-intrinsics` -- CDNA (``gfx908``, MI100 series)
+* :ref:`cdna2-dense-mfma-intrinsics` -- CDNA2 (``gfx90a``, MI200 series)
 * :ref:`cdna4-dense-mfma-intrinsics` -- CDNA4 (``gfx950``, MI350 series)
+
+Naming convention
+=================
+
+All MFMA intrinsics follow the pattern:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
+
+For FP8 and BF8 intrinsics, where the :math:`\pmb{A}` and :math:`\pmb{B}`
+input types can differ, the pattern is:
+
+.. code-block:: text
+
+   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K>_<typeA>_<typeB>
+
+``out_type``
+    Accumulator element type (``f32``, ``f64``, or ``i32``).
+
+``M``, ``N``, ``K``
+    Tile dimensions in elements.  The instruction computes the
+    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
+    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
+    :math:`M \times N` output tile.  Each instruction processes one K step;
+    the caller loops over K to accumulate a full matrix product.
+
+``in_type``
+    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, ``i8``,
+    or ``xf32``).
+
+``typeA``, ``typeB``
+    For FP8 and BF8 intrinsics: the element type of the :math:`\pmb{A}` and
+    :math:`\pmb{B}` matrices respectively.  Each is one of ``fp8`` (E4M3
+    format) or ``bf8`` (E5M2 format).
+
+.. note::
+
+   CDNA3 renames several underlying ISA instructions to include an explicit
+   block count (for example, ``v_mfma_f32_32x32x1f32`` becomes
+   ``v_mfma_f32_32x32x1_2b_f32`` in the CDNA3 ISA).  The HIP intrinsic names
+   (``__builtin_amdgcn_mfma_*``) are unchanged; the rename is transparent to
+   HIP device code.
 
 .. _cdna3-dense-mfma-accumulator-layout:
 
@@ -255,7 +299,7 @@ Conversely, given lane :math:`L` and accVGPR index :math:`G`:
    b &= \lfloor \frac{L}{4} \rfloor
 
 :math:`16 \times 16` FP64 layout
-----------------------------------
+--------------------------------
 
 The :math:`16 \times 16` FP64 tile shape uses one block.  Each lane holds
 four FP64 output elements across 4 accVGPR pairs (8 physical accVGPRs, since
@@ -315,7 +359,7 @@ modulo 4; the accVGPR pair selects the row group:
      - 0, 1, 2, 3
 
 :math:`4 \times 4` FP64 layout
---------------------------------
+------------------------------
 
 The :math:`4 \times 4` FP64 tile shape uses four blocks.  Each lane holds one
 FP64 output element in a single accVGPR pair (2 physical accVGPRs, ``v[1:0]``).
@@ -386,8 +430,45 @@ pattern repeats for rows 1---3 at lane offsets of 16, 32, and 48:
      - 48---63
      - 0 (``v[1:0]``)
 
+Register types used in this reference
+=====================================
+
+The signatures below use the following type aliases, which you can declare with
+C++ attributes in any HIP translation unit:
+
+.. code-block:: cpp
+
+   using v2float   = float [[clang::ext_vector_type(2)]];   // xf32 storage
+   using v4float   = float [[clang::ext_vector_type(4)]];
+   using v16float  = float [[clang::ext_vector_type(16)]];
+   using v32float  = float [[clang::ext_vector_type(32)]];
+   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
+   using v4int     = int [[clang::ext_vector_type(4)]];
+   using v16int    = int [[clang::ext_vector_type(16)]];
+   using v32int    = int [[clang::ext_vector_type(32)]];
+   using v2bfloat  = short [[clang::ext_vector_type(2)]];   // bf16 storage
+   using v4bfloat  = short [[clang::ext_vector_type(4)]];   // bf16 storage
+   using v4double  = double [[clang::ext_vector_type(4)]];
+
+FP8 and BF8 input operands, and the wider-K INT8 operands, are passed as a
+64-bit integer (``long long``) that packs eight 8-bit values per lane.
+
+Each type alias maps one-to-one to the corresponding LLVM vector type used in
+the intrinsic definition.  The number in the name is the element count per
+lane; the total VGPR count equals the element count multiplied by the element
+size in 32-bit words.
+
+.. _cdna3-dense-mfma-common-parameters:
+
+Common parameters
+=================
+
+See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
+``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics, including the
+CDNA3-specific ``blgp`` behaviour for FP64 intrinsics.
+
 Using MFMA intrinsics as a compute policy
-==========================================
+=========================================
 
 The matrix multiplication tutorial in
 :ref:`matrix-multiply-optimization` uses a ``ComputePolicy`` type
@@ -400,6 +481,10 @@ The example below implements ``MfmaCdna3XF32Policy`` using
 available on CDNA3 (``gfx942``, MI300 series).  Each wavefront
 computes a single :math:`16 \times 16` output tile; one block is active,
 giving 4 FP32 accVGPRs per lane.
+
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna3_mfma.hip <../../tools/example_codes/matrix_multiply_cdna3_mfma.hip>`
 
 .. rubric:: Policy constants
 
@@ -478,86 +563,6 @@ The policy aliases and launch configuration from the example file are:
    ``ScalarFMAPolicy`` automatically, so the file compiles without
    modification.
 
-Naming convention
-=================
-
-All MFMA intrinsics follow the pattern:
-
-.. code-block:: text
-
-   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K><in_type>
-
-For FP8 and BF8 intrinsics, where the :math:`\pmb{A}` and :math:`\pmb{B}`
-input types may differ, the pattern is:
-
-.. code-block:: text
-
-   __builtin_amdgcn_mfma_<out_type>_<M>x<N>x<K>_<typeA>_<typeB>
-
-``out_type``
-    Accumulator element type (``f32``, ``f64``, or ``i32``).
-
-``M``, ``N``, ``K``
-    Tile dimensions in elements.  The instruction computes the
-    contribution of a K-wide panel of :math:`\pmb{A}` (:math:`M \times K`) and
-    a K-wide panel of :math:`\pmb{B}` (:math:`K \times N`) to an
-    :math:`M \times N` output tile.  Each instruction processes one K step;
-    the caller loops over K to accumulate a full matrix product.
-
-``in_type``
-    Input element type (``f32``, ``f64``, ``f16``, ``bf16``, ``i8``,
-    or ``xf32``).
-
-``typeA``, ``typeB``
-    For FP8 and BF8 intrinsics: the element type of the :math:`\pmb{A}` and
-    :math:`\pmb{B}` matrices respectively.  Each is one of ``fp8`` (E4M3
-    format) or ``bf8`` (E5M2 format).
-
-.. note::
-
-   CDNA3 renames several underlying ISA instructions to include an explicit
-   block count (for example, ``v_mfma_f32_32x32x1f32`` becomes
-   ``v_mfma_f32_32x32x1_2b_f32`` in the CDNA3 ISA).  The HIP intrinsic names
-   (``__builtin_amdgcn_mfma_*``) are unchanged; the rename is transparent to
-   HIP device code.
-
-Register types used in this reference
-======================================
-
-The signatures below use the following type aliases, which you can declare with
-C++ attributes in any HIP translation unit:
-
-.. code-block:: cpp
-
-   using v2float   = float [[clang::ext_vector_type(2)]];   // xf32 storage
-   using v4float   = float [[clang::ext_vector_type(4)]];
-   using v16float  = float [[clang::ext_vector_type(16)]];
-   using v32float  = float [[clang::ext_vector_type(32)]];
-   using v4half    = _Float16 [[clang::ext_vector_type(4)]];
-   using v4int     = int [[clang::ext_vector_type(4)]];
-   using v16int    = int [[clang::ext_vector_type(16)]];
-   using v32int    = int [[clang::ext_vector_type(32)]];
-   using v2bfloat  = short [[clang::ext_vector_type(2)]];   // bf16 storage
-   using v4bfloat  = short [[clang::ext_vector_type(4)]];   // bf16 storage
-   using v4double  = double [[clang::ext_vector_type(4)]];
-
-FP8 and BF8 input operands, and the wider-K INT8 operands, are passed as a
-64-bit integer (``long long``) that packs eight 8-bit values per lane.
-
-Each type alias maps one-to-one to the corresponding LLVM vector type used in
-the intrinsic definition.  The number in the name is the element count per
-lane; the total VGPR count equals the element count multiplied by the element
-size in 32-bit words.
-
-.. _cdna3-dense-mfma-common-parameters:
-
-Common parameters
-=================
-
-See :doc:`mfma-common-parameters` for a complete description of the ``cbsz``,
-``abid``, and ``blgp`` modifiers shared by all MFMA intrinsics, including the
-CDNA3-specific ``blgp`` behaviour for FP64 intrinsics.
-
 .. _cdna3-dense-mfma-throughput:
 
 Instruction throughput
@@ -566,9 +571,10 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  Instructions that support VALU co-execution allow
-the compiler to overlap matrix and vector work; the VALU co-execution cycle
-count gives the number of VALU cycles available during the MFMA latency
+\text{clock frequency}`.  Instructions that support vector ALU (VALU)
+co-execution allow the compiler to overlap matrix and vector work; the VALU
+co-execution cycle count gives the number of VALU cycles available during the
+MFMA latency
 window.  A value of 0 means VALU co-execution is not supported.
 
 .. list-table::
@@ -773,7 +779,7 @@ values packed into a ``v2float`` register for both :math:`\pmb{A}` and
 .. include:: mfma-ref/f32-16x16x8xf32.rst
 
 FP8 and BF8 matrix inputs
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following intrinsics accept eight 8-bit floating-point values per lane
 packed into a ``long long`` register.  Two 8-bit formats are supported:
@@ -781,7 +787,7 @@ packed into a ``long long`` register.  Two 8-bit formats are supported:
 * **FP8** (``fp8``): E4M3 format (1 sign, 4 exponent, 3 mantissa bits).
 * **BF8** (``bf8``): E5M2 format (1 sign, 5 exponent, 2 mantissa bits).
 
-The :math:`\pmb{A}` and :math:`\pmb{B}` matrices may use different formats,
+The :math:`\pmb{A}` and :math:`\pmb{B}` matrices can use different formats,
 giving four combinations per tile shape.
 
 .. include:: mfma-ref/f32-32x32x16fp8-fp8.rst

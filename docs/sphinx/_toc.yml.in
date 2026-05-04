@@ -28,16 +28,29 @@ subtrees:
     subtrees:
     - entries:
       - file: hardware-intrinsics/cross-arch/arithmetic-intrinsics
+        subtrees:
+        - entries:
+          - file: hardware-intrinsics/cross-arch/arithmetic-ref/sad-intrinsics
+          - file: hardware-intrinsics/cross-arch/arithmetic-ref/dot-integer-intrinsics
+          - file: hardware-intrinsics/cross-arch/arithmetic-ref/dot-float-intrinsics
+          - file: hardware-intrinsics/cross-arch/arithmetic-ref/conversion-packing-intrinsics
       - file: hardware-intrinsics/cross-arch/direct-to-lds-intrinsics
       - file: hardware-intrinsics/cross-arch/warp-intrinsics
+        subtrees:
+        - entries:
+          - file: hardware-intrinsics/cross-arch/warp-ref/shuffle-intrinsics
+          - file: hardware-intrinsics/cross-arch/warp-ref/dpp-intrinsics
+          - file: hardware-intrinsics/cross-arch/warp-ref/permlane-intrinsics
+          - file: hardware-intrinsics/cross-arch/warp-ref/wave-reduce-intrinsics
+          - file: hardware-intrinsics/cross-arch/warp-ref/vote-intrinsics
       - file: hardware-intrinsics/cdna/mfma-intrinsics
         subtrees:
         - entries:
           - file: hardware-intrinsics/cdna/dense-mfma-intrinsics
             subtrees:
             - entries:
-              - file: hardware-intrinsics/cdna/cdna-mfma-intrinsics
-              - file: hardware-intrinsics/cdna/cdna2-mfma-intrinsics
+              - file: hardware-intrinsics/cdna/cdna-dense-mfma-intrinsics
+              - file: hardware-intrinsics/cdna/cdna2-dense-mfma-intrinsics
               - file: hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics
               - file: hardware-intrinsics/cdna/cdna4-dense-mfma-intrinsics
           - file: hardware-intrinsics/cdna/sparse-mfma-intrinsics
@@ -54,6 +67,6 @@ subtrees:
           - file: hardware-intrinsics/rdna/dense-wmma-intrinsics
             subtrees:
             - entries:
-              - file: hardware-intrinsics/rdna/rdna3-wmma-intrinsics
+              - file: hardware-intrinsics/rdna/rdna3-dense-wmma-intrinsics
               - file: hardware-intrinsics/rdna/rdna4-dense-wmma-intrinsics
-          - file: hardware-intrinsics/rdna/rdna4-swmmac-intrinsics
+          - file: hardware-intrinsics/rdna/rdna4-sparse-wmma-intrinsics

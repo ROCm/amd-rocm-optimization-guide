@@ -1,6 +1,5 @@
 .. meta::
-   :description: Reference documentation for sparse MFMA (SMFMAC) intrinsics on
-      AMD CDNA GPUs, covering all CDNA generations with 4:2 structured sparsity.
+   :description: Reference for sparse MFMA (SMFMAC) intrinsics on AMD CDNA GPUs, covering 4:2 structured sparsity variants across CDNA, CDNA2, CDNA3, and CDNA4 generations.
    :keywords: AMD, ROCm, HIP, CDNA, MFMA, sparse MFMA, SMFMAC, matrix cores,
       intrinsics, structured sparsity, matrix multiply-accumulate
 

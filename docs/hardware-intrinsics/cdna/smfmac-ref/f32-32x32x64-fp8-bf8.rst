@@ -5,6 +5,8 @@
 ``__builtin_amdgcn_smfmac_f32_32x32x64_fp8_bf8``
 """"""""""""""""""""""""""""""""""""""""""""""""
 
+Signature and parameters for this intrinsic.
+
 .. code-block:: cpp
 
    v16float __builtin_amdgcn_smfmac_f32_32x32x64_fp8_bf8(

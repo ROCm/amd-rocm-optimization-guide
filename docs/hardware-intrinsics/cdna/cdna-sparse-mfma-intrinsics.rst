@@ -1,5 +1,5 @@
 .. meta::
-   :description: Reference for CDNA (gfx908, gfx90a) sparse matrix fused multiply-accumulate (SMFMAC) intrinsics, covering FP16, BF16, and INT8 variants with 4:2 structured sparsity.
+   :description: Reference for CDNA and CDNA2 sparse MFMA (SMFMAC) intrinsics, covering FP16, BF16, and INT8 variants with 4:2 structured sparsity on gfx908 and gfx90a.
    :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA, CDNA2, gfx908, gfx90a, MI100, MI200
 
 .. _cdna-sparse-mfma-intrinsics:
@@ -108,7 +108,7 @@ The formulas in the subsections below use the following notation:
 * **VGPR** -- zero-based index into that lane's accumulator register file
 
 :math:`16 \times 16` layout
-----------------------------
+---------------------------
 
 The :math:`16 \times 16` output tile occupies 4 VGPRs per lane (``v4float``
 or ``v4int``).
@@ -183,7 +183,7 @@ The row-to-lane mapping:
      - 0---3
 
 :math:`32 \times 32` layout
-----------------------------
+---------------------------
 
 The :math:`32 \times 32` output tile occupies 16 VGPRs per lane
 (``v16float`` or ``v16int``).
@@ -293,8 +293,15 @@ in the intrinsic definition.  The number in the name is the element count
 per lane; the total VGPR count equals the element count multiplied by the
 element size in 32-bit words.
 
-Example kernels
-===============
+Common parameters
+=================
+
+The SMFMAC intrinsics do not use the ``cbsz``, ``abid``, or ``blgp``
+modifiers from the dense MFMA family.  See :doc:`mfma-common-parameters`
+for a description of those modifiers in the dense context.
+
+Using sparse MFMA intrinsics as a compute policy
+================================================
 
 The following example kernels demonstrate SMFMAC intrinsics in the context
 of a tiled matrix multiplication.  Each kernel loads tiles of the compressed
@@ -302,8 +309,12 @@ of a tiled matrix multiplication.  Each kernel loads tiles of the compressed
 then calls the SMFMAC intrinsic to replace the inner-product loop of a
 conventional scalar kernel.
 
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna_sparse_mfma.hip <../../tools/example_codes/matrix_multiply_cdna_sparse_mfma.hip>`
+
 FP16 16×16 sparse kernel
--------------------------
+------------------------
 
 This kernel uses ``__builtin_amdgcn_smfmac_f32_16x16x32_f16`` to compute
 a :math:`16 \times 16` sparse matrix multiply-accumulate with :math:`K=32`
@@ -326,11 +337,11 @@ instruction.  The 4-element FP32 result vector maps to four rows of the
 column.
 
 FP16 32×32 sparse kernel
--------------------------
+------------------------
 
 This kernel uses ``__builtin_amdgcn_smfmac_f32_32x32x16_f16`` to compute
 a :math:`32 \times 32` sparse matrix multiply-accumulate with :math:`K=16`
-per instruction.  The CTA tile grows to 64×64 to accommodate the larger
+per instruction.  The Cooperative Thread Array (CTA) tile grows to 64×64 to accommodate the larger
 32×32 warp tiles.  The accumulator is a 16-element FP32 vector.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_sparse_mfma.hip
@@ -344,6 +355,20 @@ the :math:`16 \times 16` variant: each lane's 16 result elements are
 distributed across four groups of four consecutive rows, with the group
 stride determined by the lane's position within the wavefront.
 
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx908 \
+       matrix_multiply_cdna_sparse_mfma.hip -o mm_cdna_sparse_mfma
+   ./mm_cdna_sparse_mfma
+
+.. note::
+
+   This example requires a CDNA or CDNA2 GPU (``gfx908`` or ``gfx90a``).
+   Compile with ``--offload-arch=gfx908`` or ``--offload-arch=gfx90a`` to
+   select the correct architecture.
+
 .. _cdna-smfmac-instruction-throughput:
 
 Instruction throughput
@@ -352,7 +377,7 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  All SMFMAC instructions support VALU
+\text{clock frequency}`.  All SMFMAC instructions support vector ALU (VALU)
 co-execution; the VALU co-execution cycle count gives the number of VALU
 cycles available during the SMFMAC latency window.
 
@@ -430,6 +455,8 @@ accumulate into INT32 output fragments.
 
 INT8 matrix inputs
 ^^^^^^^^^^^^^^^^^^
+
+The following intrinsics use INT8 matrix inputs.
 
 .. include:: smfmac-ref/i32-16x16x64-i8.rst
 .. include:: smfmac-ref/i32-32x32x32-i8.rst

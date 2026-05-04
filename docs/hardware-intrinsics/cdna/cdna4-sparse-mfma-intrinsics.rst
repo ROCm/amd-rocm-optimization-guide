@@ -1,5 +1,5 @@
 .. meta::
-   :description: Reference for CDNA4 (gfx950, MI350 series) sparse matrix fused multiply-accumulate (SMFMAC) intrinsics, covering doubled-K variants with 4:2 structured sparsity.
+   :description: Reference for CDNA4 (gfx950, MI350 series) sparse MFMA (SMFMAC) intrinsics, covering FP16, BF16, INT8, FP8, and BF8 doubled-K variants with 4:2 sparsity.
    :keywords: AMD, ROCm, HIP, intrinsics, sparse, MFMA, SMFMAC, structured sparsity, matrix multiply, CDNA4, gfx950, MI350, FP16, BF16, INT8, FP8, BF8
 
 .. _cdna4-sparse-mfma-intrinsics:
@@ -27,7 +27,7 @@ earlier generations.
 Architecture availability
 =========================
 
-The intrinsics on this page target CDNA4 (gfx950 architecture also known as AMD Instinct MI350 Series)
+The intrinsics on this page target CDNA4 (gfx950 architecture also known as AMD Instinct MI350 series)
 exclusively.  Equivalent intrinsics for other CDNA generations are documented
 on their own reference pages:
 
@@ -112,7 +112,7 @@ The formulas in the subsections below use the following notation:
 * **VGPR** -- zero-based index into that lane's accumulator register file
 
 :math:`16 \times 16` layout
-----------------------------
+---------------------------
 
 The :math:`16 \times 16` output tile occupies 4 VGPRs per lane (``v4float``
 or ``v4int``).
@@ -154,7 +154,7 @@ The row-to-lane mapping:
      - 0---3
 
 :math:`32 \times 32` layout
-----------------------------
+---------------------------
 
 The :math:`32 \times 32` output tile occupies 16 VGPRs per lane
 (``v16float`` or ``v16int``).
@@ -233,8 +233,15 @@ in the intrinsic definition.  The number in the name is the element count
 per lane; the total VGPR count equals the element count multiplied by the
 element size in 32-bit words.
 
-Example kernels
-===============
+Common parameters
+=================
+
+The SMFMAC intrinsics do not use the ``cbsz``, ``abid``, or ``blgp``
+modifiers from the dense MFMA family.  See :doc:`mfma-common-parameters`
+for a description of those modifiers in the dense context.
+
+Using sparse MFMA intrinsics as a compute policy
+================================================
 
 The following example kernel demonstrates the doubled-K FP8 SMFMAC
 intrinsic in the context of a tiled matrix multiplication.  The kernel loads
@@ -242,8 +249,12 @@ tiles of the compressed :math:`\pmb{A}` matrix and the dense :math:`\pmb{B}`
 matrix into LDS, then calls the SMFMAC intrinsic to replace the inner-product
 loop of a conventional scalar kernel.
 
+The complete source file is available for download:
+
+* :download:`matrix_multiply_cdna4_sparse_mfma.hip <../../tools/example_codes/matrix_multiply_cdna4_sparse_mfma.hip>`
+
 FP8 16×16 sparse kernel (K=128)
----------------------------------
+-------------------------------
 
 This kernel uses ``__builtin_amdgcn_smfmac_f32_16x16x128_fp8_fp8`` to
 compute a :math:`16 \times 16` sparse matrix multiply-accumulate with
@@ -261,6 +272,19 @@ The byte-packing pattern is the same as the K=64 variant, but each lane now
 loads twice as many bytes.  The sparsity index expands to a full 32-bit
 value (``0x88888888``) to cover the 128-element K dimension.
 
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 --offload-arch=gfx950 \
+       matrix_multiply_cdna4_sparse_mfma.hip -o mm_cdna4_sparse_mfma
+   ./mm_cdna4_sparse_mfma
+
+.. note::
+
+   This example requires a CDNA4 GPU (``gfx950``).
+   Compile with ``--offload-arch=gfx950`` to select the correct architecture.
+
 .. _cdna4-smfmac-instruction-throughput:
 
 Instruction throughput
@@ -269,7 +293,7 @@ Instruction throughput
 The cycle count below is the value used to compute theoretical peak
 throughput: :math:`\text{peak throughput} =
 \frac{\text{ops per instruction}}{\text{cycle count}} \times
-\text{clock frequency}`.  All SMFMAC instructions support VALU
+\text{clock frequency}`.  All SMFMAC instructions support vector ALU (VALU)
 co-execution; the VALU co-execution cycle count gives the number of VALU
 cycles available during the SMFMAC latency window.
 
@@ -368,7 +392,7 @@ These use native ``__bf16`` register types rather than ``short`` storage.
 .. include:: smfmac-ref/f32-32x32x32-bf16.rst
 
 FP8 and BF8 matrix inputs
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following doubled-K FP8 and BF8 variants are available on ``gfx950``
 only.
