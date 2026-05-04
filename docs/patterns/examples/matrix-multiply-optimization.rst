@@ -98,7 +98,9 @@ For :math:`M = N = K = n` this simplifies to :math:`\frac{n}{6}`.  With
 ridge point of any current AMD GPU.  GEMM is therefore **compute-bound** in
 principle—but only if data is supplied fast enough to keep the compute units
 busy.  The naive kernel falls well below the roofline because it is
-*memory-bound in practice*: global memory latency stalls dominate.
+*memory-bound in practice*: global memory latency stalls dominate
+(see :ref:`roofline_model` for background on roofline analysis and
+:ref:`performance bottlenecks <performance_bottlenecks>`).
 
 The optimization steps that follow progressively close the gap between actual
 and theoretical throughput by improving data reuse and instruction-level
@@ -494,9 +496,10 @@ Step 4: Double buffering
 
 Every iteration of the K-strip loop stalls at ``__syncthreads()`` waiting for
 LDS tile loads to complete before compute can begin.  Software double buffering
-hides this latency by maintaining two LDS buffer pairs (a *ping* and a *pong*)
-and loading the next tile into the background buffer while the current buffer
-is being consumed.
+hides this latency by maintaining two pairs of LDS buffers — one pair for
+**A** tiles and one for **B** tiles — each with a *ping* and a *pong* slot.
+The next tile is loaded into the background slot while the current slot is
+being consumed.
 
 Both buffering strategies are hidden behind a ``TilePolicy`` interface so that
 the kernel body is identical regardless of the chosen approach.

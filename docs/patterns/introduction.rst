@@ -78,11 +78,3 @@ Before working through this chapter, you should be familiar with:
 * GPU architecture fundamentals: threads, warps or waves, workgroups, and
   memory hierarchy
 * C++ programming and basic parallel programming concepts
-
-What comes next
-===============
-
-The optimization patterns in this chapter use standard HIP programming
-constructs. After mastering these patterns, you will be ready to explore
-hardware intrinsics that provide direct access to specialized GPU units,
-achieving even greater performance through architecture-specific acceleration.

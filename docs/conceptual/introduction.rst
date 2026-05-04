@@ -69,7 +69,7 @@ foundational concepts to practical patterns to hardware-specific
 techniques.
 
 The guide begins with fundamental performance concepts and general optimization
-guidelines that apply across most GPU workloads. You will learn to understand
+guidelines that apply across most GPU workloads. You will examine
 performance metrics, identify bottlenecks, and apply proven optimization
 strategies for memory access and thread organization.
 
