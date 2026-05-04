@@ -71,6 +71,47 @@ Hardware intrinsics are most beneficial when:
   When you know your target architecture (CDNA or RDNA), you can use its
   specialized capabilities to maximize performance.
 
+However, intrinsics introduce trade-offs that you should weigh against the
+performance benefits:
+
+**Reduced portability across architectures**
+  Intrinsics tie your code to specific GPU architectures or architecture
+  families. Code using MFMA intrinsics will not compile for RDNA targets, and
+  WMMA intrinsics will not compile for CDNA targets. If your application must
+  run across multiple architectures, you need separate code paths or an
+  abstraction layer.
+
+**Increased maintenance burden**
+  Intrinsic interfaces can change between architecture generations. New GPU
+  families may introduce different intrinsics for the same operation, requiring
+  you to update and test multiple code paths. Standard HIP code, by contrast,
+  benefits from compiler improvements automatically.
+
+**Lower code readability**
+  Intrinsic calls are harder to read and reason about than equivalent
+  high-level code. Operations expressed as
+  ``__builtin_amdgcn_mfma_f32_32x32x8f16`` are less self-documenting than a
+  straightforward nested loop. This increases the cost of bringing new team
+  members up to speed and reviewing changes.
+
+**Harder debugging and validation**
+  Debugging intrinsic-heavy code requires architecture-specific knowledge of
+  register layouts, lane assignments, and hardware execution semantics.
+  Standard debugging techniques such as printf-based inspection become more
+  difficult when data is distributed across wavefront lanes in
+  hardware-defined patterns.
+
+**Premature optimization risk**
+  Using intrinsics before profiling can waste development effort on code paths
+  that are not performance bottlenecks. Always profile first to confirm that a
+  particular operation is the dominant cost, then apply intrinsics to that
+  specific bottleneck rather than rewriting an entire application.
+
+Start with standard HIP constructs and the optimization patterns in the
+preceding chapters. Introduce intrinsics selectively where profiling shows
+clear opportunities, and isolate intrinsic code behind abstraction boundaries
+to limit the impact on portability and maintenance.
+
 Connection to optimization patterns
 ===================================
 
