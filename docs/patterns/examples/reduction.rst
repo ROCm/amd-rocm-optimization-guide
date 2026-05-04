@@ -353,7 +353,7 @@ Further reading
 
 The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
 
-* `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
+* :doc:`rocPRIM <rocprim:index>`
   — production-quality reduction primitives that handle edge cases and
   automatically apply architecture-specific tuning.
 * :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
