@@ -20,7 +20,7 @@ and multi-GPU programming.
 * {doc}`./conceptual/introduction`
 * {doc}`./conceptual/introduction/understand`
 * {doc}`./conceptual/introduction/guidelines`
-* {doc}`./how-to/multi-gpu_programming`
+* {doc}`./how-to/multi-gpu-programming`
 
 **Performance optimization patterns**
 

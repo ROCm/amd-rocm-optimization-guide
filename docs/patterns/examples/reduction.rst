@@ -1,12 +1,12 @@
 .. meta::
-  :description: HIP reduction optimization tutorial
+  :description: Optimize a HIP reduction kernel step by step by eliminating thread divergence, resolving bank conflicts, and using vectorized loads on AMD GPUs.
   :keywords: AMD, ROCm, HIP, reduction, shared memory, bank conflicts, warp, wavefront, vectorized loads, tutorial
 
 .. _reduction:
 
-*************************************************************
-Reduction
-*************************************************************
+********************************************************************************
+Optimizing reduction in HIP
+********************************************************************************
 
 Reduction is a fundamental operation that uses a parallel pattern to combine a range of input
 values into a single scalar using a binary operation such as sum, maximum, or product.
@@ -19,6 +19,26 @@ of floating-point values, with each step addressing a specific performance
 bottleneck. Starting from a naive interleaved-addressing kernel, each version
 eliminates a specific bottleneck: thread divergence, shared-memory bank
 conflicts, redundant synchronization barriers, and finally memory bandwidth.
+
+The complete source file for all kernels is available at:
+
+* :download:`Reduction kernels <../../tools/example_codes/reduction.hip>`
+
+.. note::
+
+   All kernels target a large array of single-precision floating-point values
+   and are validated against a sequential reference sum.  They compile with
+   ``amdclang++ -O3 -std=c++17`` and run on any ROCm-supported GPU architecture.
+
+Prerequisites
+=============
+
+Before starting this tutorial, ensure the following are in place.
+
+* ROCm installed and ``amdclang++`` available on ``PATH``.
+* Familiarity with the HIP execution model (grids, blocks, warps) and its
+  mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
+* :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
 Reduction fundamentals
 ======================
@@ -46,6 +66,23 @@ result. Repeating this process on successive output arrays until only one
 element remains completes the device-wide reduction without requiring global
 synchronization within a single kernel launch.
 
+**Compile and run:**
+
+.. code-block:: bash
+
+   amdclang++ -O3 -std=c++17 reduction.hip -o reduction
+   ./reduction
+
+**Profile wall-clock time with rocprofv3:**
+
+.. code-block:: bash
+
+   rocprofv3 --kernel-trace --output-format csv -- ./reduction
+
+The ``--kernel-trace`` CSV reports ``End_Timestamp - Start_Timestamp`` (both in
+nanoseconds) for each kernel dispatch.  Compare the duration column across
+kernel variants to measure the impact of each optimization step.
+
 Naive kernel
 ============
 
@@ -72,6 +109,22 @@ active long after the majority of their lanes have stopped doing useful work.
    :start-after: [Sphinx reduction naive kernel start]
    :end-before: [Sphinx reduction naive kernel end]
 
+What to observe
+---------------
+
+Profile the naive kernel and record the following counter.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` establishes the baseline.  This is the
+       slowest variant because interleaved addressing keeps warps partially active
+       at every tree level.
+
 Reducing thread divergence
 ==========================
 
@@ -89,10 +142,13 @@ This pattern, however, introduces a new problem: bank conflicts.
 Resolving bank conflicts
 ========================
 
-With AMD GPUs, shared memory (Local Data Store, or LDS) is organized into 32
-banks of 4 bytes each. A bank conflict occurs when two or more threads in the
-same warp access different addresses that map to the same bank, causing
-those accesses to be serialized.
+With AMD GPUs, shared memory (Local Data Share, or LDS) is organized into
+banks of 4 bytes each.  On CDNA GPUs each Compute Unit has 32 banks.  On RDNA
+GPUs the Work Group Processor has 64 banks, sub-divided into two sets of 32
+banks each affiliated with a pair of SIMD32 units; a wavefront executes on one
+SIMD32 and maps its accesses to the affiliated 32-bank set.  A bank conflict
+occurs when two or more threads in the same warp access different addresses
+that map to the same bank, causing those accesses to be serialized.
 
 The reduced-divergence pattern still causes conflicts because the stride
 between active threads' memory accesses doesn't align with the bank layout.
@@ -118,6 +174,24 @@ and access consecutive banks.
    :linenos:
    :start-after: [Sphinx reduction sequential kernel start]
    :end-before: [Sphinx reduction sequential kernel end]
+
+What to observe
+---------------
+
+Compare the following counters against the naive kernel baseline.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` should drop versus the naive kernel.
+       Sequential addressing eliminates both thread divergence and bank conflicts.
+   * - ``LDSBankConflict``
+     - Should be at or near zero, confirming that consecutive active threads
+       access consecutive LDS banks.
 
 Warp reduction
 ==============
@@ -201,6 +275,25 @@ share the same LDS instance. Compile with ``-mcumode`` to enable CU mode on
 RDNA GPUs. Memory-bandwidth-bound kernels such as the vectorized loads
 kernel are unaffected by this setting.
 
+What to observe
+---------------
+
+Compare the following counters against the sequential-addressing kernel.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` should drop versus the sequential
+       kernel.  Eliminating unnecessary ``__syncthreads()`` barriers removes
+       synchronization overhead.
+   * - ``SQ_WAIT_INST_LDS``
+     - Reduction in LDS stall cycles (fewer barriers mean less time waiting
+       for shared memory to become consistent).
+
 Vectorized loads
 ================
 
@@ -221,6 +314,25 @@ then enters the same warp reduction as before.
    The ``float4`` reinterpret cast requires the input pointer to be 16-byte
    aligned. Allocations from ``hipMalloc`` satisfy this requirement.
 
+What to observe
+---------------
+
+Compare the following counters against the warp reduction kernel.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Counter
+     - What to look for
+   * - Kernel duration (kernel-trace CSV)
+     - ``End_Timestamp - Start_Timestamp`` should drop versus the warp
+       reduction kernel.  Each thread moves four times as much data per
+       instruction.
+   * - ``SQ_INST_CYCLES_VMEM`` (RDNA) / ``SQ_INST_CYCLES_VMEM_RD`` (CDNA)
+     - Reduction in VMEM instruction cycles (fewer instructions for the same
+       total data moved).
+
 Device-level reduction
 ======================
 
@@ -236,8 +348,16 @@ completes in log\ :sub:`B`\(N) passes.
    :start-after: [Sphinx reduction device level start]
    :end-before: [Sphinx reduction device level end]
 
-For production use, `rocPRIM <https://rocm.docs.amd.com/projects/rocPRIM/en/latest/index.html>`_
-provides highly optimized reduction primitives that handle edge cases and
-automatically apply architecture-specific tuning. The kernels in this tutorial
-are intended to build intuition for the optimization principles that those
-primitives apply internally.
+Further reading
+===============
+
+The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
+
+* :doc:`rocPRIM <rocprim:index>`
+  — production-quality reduction primitives that handle edge cases and
+  automatically apply architecture-specific tuning.
+* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
+  guide to timeline and counter profiling.
+* `AMD GPU architecture guides (ISA references) <https://gpuopen.com/amd-gpu-architecture-programming-documentation/>`_
+  — VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
+  architecture family.

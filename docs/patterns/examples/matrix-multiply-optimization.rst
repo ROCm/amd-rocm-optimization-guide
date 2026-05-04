@@ -1,11 +1,11 @@
 .. meta::
-  :description: Optimize a HIP GEMM kernel step by step: LDS tiling, register tiling, double buffering, vectorized loads, occupancy tuning, and a generic policy-based kernel for AMD Instinct and AMD Radeon GPUs.
+  :description: Optimize a HIP GEMM kernel step by step with LDS tiling, register tiling, double buffering, vectorized loads, and occupancy tuning on AMD GPUs.
   :keywords: AMD, ROCm, HIP, GEMM, matrix multiplication, LDS, register tiling, double buffering, vectorized loads, launch_bounds, occupancy, generic kernel, MFMA, WMMA, CDNA, RDNA
 
 .. _matrix-multiply-optimization:
 
 ********************************************************************************
-Optimizing matrix multiplication: a step-by-step guide
+Optimizing GEMM in HIP
 ********************************************************************************
 
 Matrix multiplication is one of the most fundamental GPU workloads.  It
@@ -18,7 +18,7 @@ learn how GPU hardware resources interact.
 
 This tutorial walks through seven progressive optimization steps applied to a
 general-purpose single-precision (FP32) matrix multiplication kernel
-(GEMM: :math:`\pmb{C} = \pmb{A} \times \pmb{B}`).  Each step builds on the
+(General Matrix Multiply, or GEMM: :math:`\pmb{C} = \pmb{A} \times \pmb{B}`).  Each step builds on the
 previous one, introducing a specific technique and explaining how to measure its
 effect with the ROCm performance analysis stack.
 
@@ -81,7 +81,7 @@ element, eliminating the *m* and *n* loops entirely and leaving only the
 *k* reduction loop inside each thread.  With :math:`M \times N` output
 elements and a modern AMD GPU fielding tens of thousands of concurrent threads,
 the full output matrix can be computed in a single dispatch — provided data
-can be supplied fast enough to keep the compute units busy.
+can be supplied fast enough to keep the Compute Units (CUs) busy.
 
 Background: the GEMM arithmetic intensity
 ==========================================
@@ -98,7 +98,9 @@ For :math:`M = N = K = n` this simplifies to :math:`\frac{n}{6}`.  With
 ridge point of any current AMD GPU.  GEMM is therefore **compute-bound** in
 principle—but only if data is supplied fast enough to keep the compute units
 busy.  The naive kernel falls well below the roofline because it is
-*memory-bound in practice*: global memory latency stalls dominate.
+*memory-bound in practice*: global memory latency stalls dominate
+(see :ref:`roofline_model` for background on roofline analysis and
+:ref:`performance bottlenecks <performance_bottlenecks>`).
 
 The optimization steps that follow progressively close the gap between actual
 and theoretical throughput by improving data reuse and instruction-level
@@ -123,14 +125,16 @@ total DRAM traffic is a large multiple of the minimum required bandwidth
 memory-bound despite GEMM's high arithmetic intensity in principle.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_naive.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx naive kernel start]
    :end-before: [Sphinx naive kernel end]
 
 Launch configuration:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_naive.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx naive launch config start]
    :end-before: [Sphinx naive launch config end]
    :dedent:
@@ -173,14 +177,16 @@ and :math:`\pmb{B}` in LDS lets all ``TILE_SIZE²`` threads in a block reuse
 that data without touching global memory again.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx LDS tile size start]
    :end-before: [Sphinx LDS tile size end]
 
 **Shared memory allocation:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx LDS shared memory start]
    :end-before: [Sphinx LDS shared memory end]
    :dedent:
@@ -188,7 +194,8 @@ that data without touching global memory again.
 **Load phase (cooperative, one element per thread):**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx LDS load phase start]
    :end-before: [Sphinx LDS load phase end]
    :dedent:
@@ -196,7 +203,8 @@ that data without touching global memory again.
 **Compute phase (inner product from LDS):**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_lds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx LDS compute phase start]
    :end-before: [Sphinx LDS compute phase end]
    :dedent:
@@ -252,9 +260,18 @@ The number of LDS banks varies across AMD GPU architectures:
      - 64
      - 512
 
+.. note::
+
+   On RDNA GPUs the 64 banks are sub-divided into two sets of 32 banks, each
+   affiliated with a pair of SIMD32 units within the WGP.  A wavefront
+   executes on one SIMD32 and maps its accesses to the affiliated 32-bank set.
+   In CU mode (``-mcumode``), a workgroup runs on a single CU and accesses one
+   set of 32 banks; in WGP mode (the default) the workgroup spans the full
+   WGP.
+
 For this kernel's compute phase—an inner product over the K-strip:
 
-.. code-block:: cuda
+.. code-block:: cpp
 
    sum += tile_a[ty][i] * tile_b[i][tx];
 
@@ -288,7 +305,7 @@ understanding now, however, because it becomes a real concern later.
    rocprofv3 --kernel-trace --output-format csv -- ./mm_lds
 
 Compare ``End_Timestamp - Start_Timestamp`` against the Step 1 baseline.  To
-measure L2-to-HBM read traffic on CDNA GPUs:
+measure L2-to-High Bandwidth Memory (HBM) read traffic on CDNA GPUs:
 
 .. code-block:: bash
 
@@ -297,6 +314,8 @@ measure L2-to-HBM read traffic on CDNA GPUs:
 
 What to observe after this step
 -------------------------------
+
+Compare the following counters against the Step 1 naive kernel baseline.
 
 .. list-table::
    :header-rows: 1
@@ -333,7 +352,8 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **Tile parameters:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx register tiling params start]
    :end-before: [Sphinx register tiling params end]
 
@@ -366,7 +386,8 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **LDS allocation:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx register tiling shared memory start]
    :end-before: [Sphinx register tiling shared memory end]
    :dedent:
@@ -374,7 +395,8 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **Cooperative tile load:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx register tiling load phase start]
    :end-before: [Sphinx register tiling load phase end]
    :dedent:
@@ -382,7 +404,8 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **Outer-product accumulation:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx register tiling compute phase start]
    :end-before: [Sphinx register tiling compute phase end]
    :dedent:
@@ -390,7 +413,8 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 **Write-back:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_register_tiling.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx register tiling store start]
    :end-before: [Sphinx register tiling store end]
    :dedent:
@@ -417,6 +441,8 @@ For LDS and arithmetic instruction counts:
 What to observe
 ---------------
 
+Compare the following counters against the LDS tiling kernel from Step 2.
+
 .. list-table::
    :header-rows: 1
    :widths: auto
@@ -424,7 +450,8 @@ What to observe
    * - Counter
      - What to look for
    * - ``VALUInsts`` (RDNA, CDNA, CDNA2) / ``SQ_INSTS_VALU`` (CDNA3, CDNA4)
-     - Increase in VALU instructions per wave (more FMAs per LDS read).
+     - Increase in VALU instructions per wave (more Fused Multiply-Accumulate
+       (FMA) operations per LDS read).
    * - ``SQ_INSTS_LDS``
      - Reduction in LDS instructions per wave (``THREAD_TILE_M + THREAD_TILE_N``
        instead of ``2 × THREAD_TILE_M × THREAD_TILE_N``).
@@ -453,7 +480,8 @@ values depend on several interacting constraints:
 **Register file**
    Each thread holds a ``THREAD_TILE_M × THREAD_TILE_N`` accumulator array
    plus fragment temporaries.  Larger thread tiles increase arithmetic
-   intensity but consume more VGPRs, reducing occupancy.  Step 6 addresses
+   intensity but consume more Vector General-Purpose Registers (VGPRs),
+   reducing occupancy.  Step 6 addresses
    this tradeoff directly.
 
 **Architecture-to-architecture variation**
@@ -468,9 +496,10 @@ Step 4: Double buffering
 
 Every iteration of the K-strip loop stalls at ``__syncthreads()`` waiting for
 LDS tile loads to complete before compute can begin.  Software double buffering
-hides this latency by maintaining two LDS buffer pairs (a *ping* and a *pong*)
-and loading the next tile into the background buffer while the current buffer
-is being consumed.
+hides this latency by maintaining two pairs of LDS buffers — one pair for
+**A** tiles and one for **B** tiles — each with a *ping* and a *pong* slot.
+The next tile is loaded into the background slot while the current slot is
+being consumed.
 
 Both buffering strategies are hidden behind a ``TilePolicy`` interface so that
 the kernel body is identical regardless of the chosen approach.
@@ -499,28 +528,32 @@ the kernel body is identical regardless of the chosen approach.
 **Single-buffer policy** (baseline — same logic as Step 3):
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **Software double-buffer policy:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
 
 **Compile-time policy validation:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx tile policy static assert start]
    :end-before: [Sphinx tile policy static assert end]
 
 **Unified kernel template:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx double buffer kernel start]
    :end-before: [Sphinx double buffer kernel end]
 
@@ -561,6 +594,8 @@ To measure LDS stall cycles (RDNA3 and all CDNA):
 
 What to observe
 ---------------
+
+Compare the following counters against the register tiling kernel from Step 3.
 
 .. list-table::
    :header-rows: 1
@@ -664,14 +699,16 @@ Two vector widths are shown alongside the scalar baseline:
 **Vector type helper:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx vector type start]
    :end-before: [Sphinx vector type end]
 
 **Vectorized load function:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx vector load function start]
    :end-before: [Sphinx vector load function end]
 
@@ -690,7 +727,8 @@ A runtime check is included in the example to catch misaligned user-supplied
 pointers:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_vectorized.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx alignment check start]
    :end-before: [Sphinx alignment check end]
 
@@ -769,6 +807,8 @@ To compare VMEM instruction cycles across scalar and vector variants:
 What to observe
 ---------------
 
+Compare the following counters against the double-buffered kernel from Step 4.
+
 .. list-table::
    :header-rows: 1
    :widths: auto
@@ -804,14 +844,16 @@ Three kernel variants illustrate the tradeoff:
 **No annotation (compiler decides freely):**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx no hint kernel start]
    :end-before: [Sphinx no hint kernel end]
 
 **``__launch_bounds__``:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx launch bounds kernel start]
    :end-before: [Sphinx launch bounds kernel end]
 
@@ -823,7 +865,8 @@ wavefronts can be resident per EU simultaneously, given
 **``[[clang::amdgpu_waves_per_eu]]``:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_launch_bounds.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx amdgpu waves per eu kernel start]
    :end-before: [Sphinx amdgpu waves per eu kernel end]
 
@@ -887,6 +930,9 @@ Finding optimal values with rocprofv3
 What to observe
 ---------------
 
+Compare the following counters across the three kernel variants (no annotation,
+``__launch_bounds__``, and ``[[clang::amdgpu_waves_per_eu]]``).
+
 .. list-table::
    :header-rows: 1
    :widths: auto
@@ -914,10 +960,11 @@ intensity, software double buffering to hide load latency, and vectorized loads
 to reduce memory transaction overhead.  For many workloads this is sufficient.
 
 Squeezing out the last few percent of throughput, however, requires
-architecture-specific matrix-multiply instructions: MFMA on CDNA GPUs and WMMA
-on RDNA3 and RDNA4.  These instructions perform a small matrix multiply directly in
-hardware and deliver substantially higher FLOP/s than an equivalent sequence of
-scalar FMAs.
+architecture-specific matrix-multiply instructions: Matrix Fused Multiply-Accumulate
+(MFMA) on CDNA GPUs and Wave Matrix Multiply-Accumulate (WMMA) on RDNA3 and
+RDNA4.  These instructions perform a small matrix multiply directly in hardware
+and deliver substantially higher FLOP/s than an equivalent sequence of scalar
+FMAs.
 
 Steps 1–6 produced a well-optimized scalar GEMM kernel, but repeating the same
 work for each architecture-specific instruction set—MFMA on CDNA, WMMA on RDNA3,
@@ -1058,14 +1105,16 @@ Both policy interfaces are validated with C++17 ``static_assert`` traits:
 **TilePolicy traits:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx tile policy traits start]
    :end-before: [Sphinx tile policy traits end]
 
 **ComputePolicy traits:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx compute policy traits start]
    :end-before: [Sphinx compute policy traits end]
 
@@ -1078,7 +1127,8 @@ trait instantiation site.  C++20 ``requires`` clauses provide a more ergonomic
 alternative:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx cpp20 concept start]
    :end-before: [Sphinx cpp20 concept end]
 
@@ -1092,21 +1142,24 @@ Concrete policies
 **ScalarFMAPolicy** — portable scalar FP32 outer-product (no intrinsics):
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx scalar fma policy start]
    :end-before: [Sphinx scalar fma policy end]
 
 **SingleBufferTilePolicy** — single LDS buffer pair, equivalent to Step 3:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
 **SoftwareDoubleBufferTilePolicy** — ping-pong LDS buffers, equivalent to Step 4:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx double buffer policy start]
    :end-before: [Sphinx double buffer policy end]
 
@@ -1114,7 +1167,8 @@ Generic kernel template
 -----------------------
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx gemm kernel start]
    :end-before: [Sphinx gemm kernel end]
 
@@ -1122,18 +1176,21 @@ Architecture dispatch
 ---------------------
 
 A compile-time dispatch block selects the appropriate ``ComputePolicy`` based
-on the target ISA.  The architecture-specific MFMA and WMMA policies are stubs
+on the target Instruction Set Architecture (ISA).  The architecture-specific
+MFMA and WMMA policies are stubs
 to be filled by follow-up architecture-specific sections:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx arch dispatch start]
    :end-before: [Sphinx arch dispatch end]
 
 **Policy aliases used in this example:**
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx policy aliases start]
    :end-before: [Sphinx policy aliases end]
 
@@ -1179,7 +1236,7 @@ On CDNA3 and CDNA4, the ``__builtin_amdgcn_global_load_lds`` intrinsic
 transfers data from global memory directly into LDS without staging in vector
 registers:
 
-.. code-block:: cuda
+.. code-block:: cpp
 
    // Gather 64 floats from global memory into 64 contiguous LDS locations.
    // Each lane provides its own global source address (per-lane VADDR).
@@ -1236,7 +1293,8 @@ instruction = 32 chunks.  With 4 wavefronts: **8 instructions per wavefront**
 to fill the entire tile.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
-   :language: cuda
+   :language: cpp
+   :linenos:
    :start-after: [Sphinx direct load policy start]
    :end-before: [Sphinx direct load policy end]
 

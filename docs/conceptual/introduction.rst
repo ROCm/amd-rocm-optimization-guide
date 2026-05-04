@@ -25,7 +25,7 @@ application first to identify actual bottlenecks, then apply targeted
 optimizations to address those specific issues. Begin with the foundational
 chapters on understanding GPU performance and general optimization guidelines.
 Then work through the optimization patterns to see practical techniques in
-action. Finally, explore hardware intrinsics to leverage architecture-specific
+action. Finally, explore hardware intrinsics to use architecture-specific
 features for maximum performance.
 
 Why GPU performance optimization matters
@@ -40,7 +40,7 @@ can yield order-of-magnitude performance improvements.
 AMD GPUs have sophisticated memory hierarchies, execution pipelines, and
 resource constraints. Understanding these architectural details enables you to
 make informed optimization decisions. Additionally, performance that scales
-well on one problem size or architecture may not scale to others, making it
+well on one problem size or architecture might not scale to others, making it
 essential to understand fundamental optimization principles rather than
 architecture-specific tricks.
 
@@ -54,7 +54,7 @@ optimization. You will benefit most from this material if you:
 * Have existing HIP or NVIDIA CUDA code that you want to optimize
 * Are designing GPU-accelerated applications with performance requirements
 * Need to understand performance profiling and analysis techniques
-* Want to learn practical optimization patterns and best practices
+* Want to learn practical optimization patterns and recommended practices
 
 Performance engineers and GPU programmers will find practical techniques for
 identifying and resolving performance bottlenecks. HPC and AI practitioners
@@ -69,7 +69,7 @@ foundational concepts to practical patterns to hardware-specific
 techniques.
 
 The guide begins with fundamental performance concepts and general optimization
-guidelines that apply across most GPU workloads. You will learn to understand
+guidelines that apply across most GPU workloads. You will examine
 performance metrics, identify bottlenecks, and apply proven optimization
 strategies for memory access and thread organization.
 
@@ -81,7 +81,7 @@ to production-quality code.
 
 Finally, the guide introduces hardware intrinsics and specialized instructions
 that provide direct access to GPU features that compilers cannot automatically
-utilize. You will learn to leverage architecture-specific capabilities for
+generate. You will learn to use architecture-specific capabilities for
 maximum performance on CDNA and RDNA GPUs.
 
 What you will learn
