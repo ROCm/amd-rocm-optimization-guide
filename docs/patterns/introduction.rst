@@ -1,11 +1,11 @@
 .. meta::
-  :description: Learn proven GPU optimization patterns for reduction, histogram, and matrix multiplication in HIP, with step-by-step profiling on AMD GPUs.
+  :description: Introduction to GPU optimization patterns for reduction, histogram, and matrix multiplication in HIP, with step-by-step profiling on AMD GPUs.
   :keywords: AMD, ROCm, HIP, performance patterns, GPU optimization, reduction, histogram, matrix multiplication, parallel algorithms, tiling
 
 .. _performance-optimization-patterns:
 
 ********************************************************************************
-HIP performance optimization patterns
+Introduction to optimization patterns
 ********************************************************************************
 
 This chapter takes a patterns-based approach to GPU optimization. Rather than
