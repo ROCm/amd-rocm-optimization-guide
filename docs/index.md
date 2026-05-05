@@ -25,44 +25,42 @@ and multi-GPU programming.
 **Performance optimization patterns**
 
 * {doc}`./patterns/introduction`
-
-  * {doc}`./patterns/examples/reduction`
-  * {doc}`./patterns/examples/histogram`
-  * {doc}`./patterns/examples/matrix-multiply-optimization`
+* {doc}`./patterns/examples/reduction`
+* {doc}`./patterns/examples/histogram`
+* {doc}`./patterns/examples/matrix-multiply-optimization`
 
 **Hardware intrinsics**
 
 * {doc}`./hardware-intrinsics/introduction`
-
-  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/sad-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/dot-integer-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/dot-float-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/conversion-packing-intrinsics`
-  * {doc}`./hardware-intrinsics/cross-arch/direct-to-lds-intrinsics`
-  * {doc}`./hardware-intrinsics/cross-arch/warp-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/warp-ref/shuffle-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/warp-ref/dpp-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/warp-ref/permlane-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/warp-ref/wave-reduce-intrinsics`
-    * {doc}`./hardware-intrinsics/cross-arch/warp-ref/vote-intrinsics`
-  * {doc}`./hardware-intrinsics/cdna/mfma-intrinsics`
-    * {doc}`./hardware-intrinsics/cdna/dense-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna-dense-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna2-dense-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna4-dense-mfma-intrinsics`
-    * {doc}`./hardware-intrinsics/cdna/sparse-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna-sparse-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna3-sparse-mfma-intrinsics`
-      * {doc}`./hardware-intrinsics/cdna/cdna4-sparse-mfma-intrinsics`
-    * {doc}`./hardware-intrinsics/cdna/cdna4-mfma-lds-intrinsics`
-    * {doc}`./hardware-intrinsics/cdna/mfma-common-parameters`
-  * {doc}`./hardware-intrinsics/rdna/wmma-intrinsics`
-    * {doc}`./hardware-intrinsics/rdna/dense-wmma-intrinsics`
-      * {doc}`./hardware-intrinsics/rdna/rdna3-dense-wmma-intrinsics`
-      * {doc}`./hardware-intrinsics/rdna/rdna4-dense-wmma-intrinsics`
-    * {doc}`./hardware-intrinsics/rdna/rdna4-sparse-wmma-intrinsics`
+* {doc}`./hardware-intrinsics/cross-arch/arithmetic-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/sad-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/dot-integer-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/dot-float-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/arithmetic-ref/conversion-packing-intrinsics`
+* {doc}`./hardware-intrinsics/cross-arch/direct-to-lds-intrinsics`
+* {doc}`./hardware-intrinsics/cross-arch/warp-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/warp-ref/shuffle-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/warp-ref/dpp-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/warp-ref/permlane-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/warp-ref/wave-reduce-intrinsics`
+  * {doc}`./hardware-intrinsics/cross-arch/warp-ref/vote-intrinsics`
+* {doc}`./hardware-intrinsics/cdna/mfma-intrinsics`
+  * {doc}`./hardware-intrinsics/cdna/dense-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna-dense-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna2-dense-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna4-dense-mfma-intrinsics`
+  * {doc}`./hardware-intrinsics/cdna/sparse-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna-sparse-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna3-sparse-mfma-intrinsics`
+    * {doc}`./hardware-intrinsics/cdna/cdna4-sparse-mfma-intrinsics`
+  * {doc}`./hardware-intrinsics/cdna/cdna4-mfma-lds-intrinsics`
+  * {doc}`./hardware-intrinsics/cdna/mfma-common-parameters`
+* {doc}`./hardware-intrinsics/rdna/wmma-intrinsics`
+  * {doc}`./hardware-intrinsics/rdna/dense-wmma-intrinsics`
+    * {doc}`./hardware-intrinsics/rdna/rdna3-dense-wmma-intrinsics`
+    * {doc}`./hardware-intrinsics/rdna/rdna4-dense-wmma-intrinsics`
+  * {doc}`./hardware-intrinsics/rdna/rdna4-sparse-wmma-intrinsics`
 
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
 

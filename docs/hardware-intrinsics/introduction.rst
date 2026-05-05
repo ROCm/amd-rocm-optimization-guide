@@ -1,11 +1,11 @@
 .. meta::
-   :description: Explore AMD ROCm hardware intrinsics and specialized GPU instructions, including MFMA matrix cores, WMMA, and dot product operations for CDNA and RDNA GPUs.
+   :description: Introduction to AMD ROCm hardware intrinsics and specialized GPU instructions, including MFMA matrix cores, WMMA, and dot product operations for CDNA and RDNA GPUs.
    :keywords: AMD, ROCm, HIP, hardware intrinsics, GPU optimization, specialized instructions, CDNA, RDNA, MFMA, WMMA, dot product, wave-level operations
 
 .. _hardware_intrinsics:
 
 ********************************************************************************
-Hardware intrinsics and specialized instructions
+Introduction to hardware intrinsics
 ********************************************************************************
 
 In the previous chapters, you learned optimization patterns using standard HIP

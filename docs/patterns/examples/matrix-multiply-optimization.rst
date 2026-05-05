@@ -1119,7 +1119,7 @@ Both policy interfaces are validated with C++17 ``static_assert`` traits:
    :end-before: [Sphinx compute policy traits end]
 
 C++17 versus C++20: concept syntax
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``static_assert`` approach above is portable to C++17 but requires the
 traits struct to be instantiated explicitly, and error messages appear at the
@@ -1300,13 +1300,13 @@ to fill the entire tile.
 
 .. note::
 
-Because the arithmetic is unchanged (full FP32 scalar outer-product), the
-``DirectLoadPolicy`` variant produces results identical to the other two.
-The only difference is the data path during the tile load phase.
+   Because the arithmetic is unchanged (full FP32 scalar outer-product), the
+   ``DirectLoadPolicy`` variant produces results identical to the other two.
+   The only difference is the data path during the tile load phase.
 
-For the full intrinsic reference — signatures, parameter tables, address
-calculation formulas, and cache policy encoding — see
-:ref:`direct-to-lds-intrinsics`.
+   For the full intrinsic reference — signatures, parameter tables, address
+   calculation formulas, and cache policy encoding — see
+   :ref:`direct-to-lds-intrinsics`.
 
 **What to observe:**
 
