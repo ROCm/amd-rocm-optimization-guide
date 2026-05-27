@@ -1,0 +1,28 @@
+# AMD ROCm Optimization Guide
+
+> Performance optimization techniques for AMD GPUs using the HIP programming language. Covers parallel workload optimization patterns (reduction, histogram, matrix multiply), multi-GPU programming, and hardware intrinsics for CDNA and RDNA architectures including MFMA, WMMA, warp, and arithmetic intrinsics.
+
+## Getting started
+
+- [Introduction](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/conceptual/introduction.html): Overview of GPU performance optimization on AMD hardware with HIP.
+- [Understand the hardware](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/conceptual/introduction/understand.html): Background on AMD GPU architecture relevant to writing performant HIP code.
+- [Optimization guidelines](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/conceptual/introduction/guidelines.html): General guidelines and best practices for optimizing HIP workloads on AMD GPUs.
+- [Multi-GPU programming](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/how-to/multi-gpu-programming.html): How to design and implement HIP applications that scale across multiple AMD GPUs.
+
+## Performance optimization patterns
+
+- [Patterns introduction](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/patterns/introduction.html): Overview of common GPU optimization patterns and how to apply them.
+- [Reduction](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/patterns/examples/reduction.html): Efficient parallel reduction implementations on AMD GPUs.
+- [Histogram](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/patterns/examples/histogram.html): Optimized histogram computation patterns using HIP.
+- [Matrix multiply optimization](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/patterns/examples/matrix-multiply-optimization.html): Step-by-step optimization of GEMM kernels on AMD GPUs.
+
+## Hardware intrinsics
+
+- [Hardware intrinsics introduction](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/introduction.html): Overview of HIP hardware intrinsics available across AMD GPU architectures.
+- [Arithmetic intrinsics](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/cross-arch/arithmetic-intrinsics.html): Cross-architecture arithmetic intrinsics including SAD, dot product, and conversion/packing operations.
+- [Direct-to-LDS intrinsics](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/cross-arch/direct-to-lds-intrinsics.html): Intrinsics for loading data directly into Local Data Share (LDS) memory.
+- [Warp intrinsics](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/cross-arch/warp-intrinsics.html): Cross-architecture warp-level intrinsics including shuffle, DPP, permlane, wave reduce, and vote.
+- [MFMA intrinsics (CDNA)](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/cdna/mfma-intrinsics.html): Matrix Fused Multiply-Add intrinsics for AMD CDNA architectures, covering dense and sparse variants and LDS-aware MFMA on CDNA4.
+- [WMMA intrinsics (RDNA)](https://rocm.docs.amd.com/projects/amd-rocm-optimization-guide/en/latest/hardware-intrinsics/rdna/wmma-intrinsics.html): Wave Matrix Multiply-Accumulate intrinsics for AMD RDNA3 and RDNA4 architectures, including dense and sparse variants.
+
+---
