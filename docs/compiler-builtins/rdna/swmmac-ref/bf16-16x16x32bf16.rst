@@ -1,0 +1,42 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32
+   Include via: .. include:: swmmac-ref/bf16-16x16x32bf16.rst
+
+``__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32``
+""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v8short __builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32(
+       v8short  srcA,
+       v16short srcB,
+       v8short  srcC,
+       int      index);
+
+Computes one step of a sparse :math:`16 \times 16` BF16 accumulation. Both
+inputs and the accumulator are BF16 (stored as ``short``).
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v8short
+     - Eight compressed BF16 elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - v16short
+     - Sixteen dense BF16 elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v8short
+     - Accumulator input: eight BF16 elements per lane (stored as ``short``).
+   * - ``index``
+     - int
+     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
+
+**Returns** ``v8short`` -- updated accumulator (BF16 stored as ``short``)
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).

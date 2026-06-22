@@ -1,0 +1,50 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32
+   Include via: .. include:: wmma-ref/bf16-16x16x16bf16-rdna3.rst
+
+``__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32``
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v16short __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32(
+       v16short srcA,
+       v16short srcB,
+       v16short srcC,
+       bool     opsel);
+
+Computes one step of a dense :math:`16 \times 16` BF16 accumulation.  Both
+inputs and the accumulator are BF16 (stored as ``short``).  The ``opsel``
+parameter selects the storage half of the accumulator register (see
+:ref:`rdna3-wmma-common-parameters`).
+
+The accumulator is a 16-element vector (``v16short``, 8 VGPRs × 2 BF16);
+the 8 result elements occupy either the low (``opsel = false``) or high
+(``opsel = true``) half of each VGPR pair.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v16short
+     - Sixteen BF16 elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - v16short
+     - Sixteen BF16 elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v16short
+     - Accumulator input: sixteen BF16 elements per lane (8 VGPRs, stored
+       as ``short``).  Only the half selected by ``opsel`` is read.
+   * - ``opsel``
+     - ``bool`` (compile-time constant)
+     - Selects accumulator half.  ``false`` = low half of each VGPR pair;
+       ``true`` = high half.
+
+**Returns** ``v16short`` -- updated accumulator (BF16 stored as ``short``)
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).

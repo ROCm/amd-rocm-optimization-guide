@@ -1,0 +1,66 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_mfma_f32_16x16x32_bf16 (CDNA4 / gfx950)
+   Include via: .. include:: mfma-ref/f32-16x16x32-bf16.rst
+
+``__builtin_amdgcn_mfma_f32_16x16x32_bf16``
+"""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v4float __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+       v8bfloat srcA,
+       v8bfloat srcB,
+       v4float  srcC,
+       int      cbsz,
+       int      abid,
+       int      blgp);
+
+Computes one step of a :math:`16 \times 16` BF16→FP32 matrix
+multiply-accumulate. Each instruction processes :math:`K=32` BF16 column
+elements of :math:`\pmb{A}`
+and :math:`K=32` BF16 row elements of :math:`\pmb{B}`, accumulating into a
+:math:`16 \times 16` FP32 tile. Each lane holds eight BF16 values packed into
+one ``v8bfloat`` register (stored as ``short``) for each of :math:`\pmb{A}` and
+:math:`\pmb{B}`.
+
+This is a **single-block** variant. The result is a ``v4float`` (4 FP32 elements
+per lane) using accVGPRs 0--3 in the :math:`16 \times 16` layout.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v8bfloat
+     - Eight BF16 elements of :math:`\pmb{A}` per lane, stored as
+       ``short``, packed into a 128-bit register.
+   * - ``srcB``
+     - v8bfloat
+     - Eight BF16 elements of :math:`\pmb{B}` per lane, stored as
+       ``short``, packed into a 128-bit register.
+   * - ``srcC``
+     - v4float
+     - Accumulator input: 4 FP32 elements per lane.
+   * - ``cbsz``
+     - int
+     - Reserved. Must be ``0`` (single-block variant; broadcast modifier
+       not supported).
+   * - ``abid``
+     - int
+     - Reserved. Must be ``0`` (single-block variant; block ID modifier
+       not supported).
+   * - ``blgp``
+     - int
+     - Lane-group pattern modifier. See :ref:`cdna-mfma-common-parameters`.
+
+**Returns** ``v4float`` -- updated accumulator.
+
+.. note::
+
+   This single-block variant does not support the ``cbsz`` and ``abid``
+   broadcast modifiers; both must be ``0``.

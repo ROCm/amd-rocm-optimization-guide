@@ -1,0 +1,38 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32_gfx12
+   Include via: .. include:: wmma-ref/bf16-16x16x16bf16-rdna4.rst
+
+``__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32_gfx12``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v8short __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32_gfx12(
+       v8short srcA,
+       v8short srcB,
+       v8short srcC);
+
+Computes one step of a dense :math:`16 \times 16` BF16 accumulation.  Both
+inputs and the accumulator are BF16 (stored as ``short``).
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v8short
+     - Eight BF16 elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - v8short
+     - Eight BF16 elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v8short
+     - Accumulator input: eight BF16 elements per lane (stored as ``short``).
+
+**Returns** ``v8short`` -- updated accumulator (BF16 stored as ``short``)
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).

@@ -373,7 +373,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
 2. **Bank-conflict safety for sub-4-byte types**: In Step 2's simple
    inner-product loop, each ``float`` occupies exactly one 4-byte LDS bank slot,
    so bank conflicts cannot arise regardless of tile dimensions.  This property
-   does not hold for smaller data types. When architecture-specific intrinsics
+   does not hold for smaller data types. When architecture-specific builtins
    introduce half-precision (FP16, 2 bytes) or quarter-precision (FP8, 1 byte)
    data in follow-up sections, multiple elements pack into a single 4-byte bank
    slot.  If the row stride of ``tile_b`` equals or is a multiple of the bank
@@ -737,7 +737,7 @@ pointers:
    Only the A-tile load is vectorized because its elements are contiguous in
    global memory (row-major, stride 1).  The B-tile is loaded column-by-column
    (stride N in global memory), which is not amenable to simple vector loads.
-   Architecture-specific intrinsics (MFMA and WMMA), covered in follow-up sections,
+   Architecture-specific builtins (MFMA and WMMA), covered in follow-up sections,
    address this asymmetry.
 
 Vectorized loads and smaller data types
@@ -778,7 +778,7 @@ half a line.
 This is why the ``TilePolicy`` parameterizes the vector load width: the
 optimal width depends on both the element type and the target architecture.
 For the FP32 case in this tutorial, the benefit is modest, but for the
-low-precision intrinsics introduced in follow-up sections, vectorized loads
+low-precision builtins introduced in follow-up sections, vectorized loads
 become essential to avoid wasting memory bandwidth.
 
 **Compile and run:**
@@ -974,7 +974,7 @@ improvement (a new tiling strategy, a wider vector load, a different buffering
 depth) would have to be applied to every copy independently.
 
 The goal of this step is to factor the kernel so that the **optimized
-orchestration is written once** and architecture-specific intrinsics can be
+orchestration is written once** and architecture-specific builtins can be
 **dropped in later as a policy**, without touching any kernel code.
 
 The insight from the preceding steps is that all the work decomposes into
@@ -988,7 +988,7 @@ exactly two independent concerns:
 
 2. **Arithmetic** (``ComputePolicy``) — how a thread's register fragment is
    loaded from LDS and how the output accumulator is updated.  This is the only
-   part that differs between scalar code and architecture-specific intrinsics.
+   part that differs between scalar code and architecture-specific builtins.
 
 Following the principle of *lifting* an algorithm into its most general form,
 these two responsibilities are encapsulated in two orthogonal *policy classes*:
@@ -1000,7 +1000,7 @@ The kernel presented here uses ``ScalarFMAPolicy`` as the ``ComputePolicy``.
 It already incorporates all the optimizations from the preceding steps: LDS
 tiling, register tiling, software double buffering, and vectorized loads.  When
 an MFMA or WMMA ``ComputePolicy`` is provided in one of the
-architecture-specific intrinsics chapters, the same data-movement infrastructure
+architecture-specific builtins chapters, the same data-movement infrastructure
 and the same kernel orchestration are reused unchanged—only the inner arithmetic
 changes.
 
@@ -1047,7 +1047,7 @@ The key design decisions are:
        ``__half``); the kernel loop is fully templated on these.
    * - ``k_step``
      - Number of k-indices consumed per ``mma()`` call (1 for scalar FMA;
-       higher values for intrinsics that process multiple k-indices per call);
+       higher values for builtins that process multiple k-indices per call);
        the kernel loop advances ``ki`` by this amount.
    * - ``load_a``, ``load_b``, ``mma``, ``store_c``
      - Fragment load, multiply-accumulate, and write-back.
@@ -1068,7 +1068,7 @@ However, two things are not yet parameterized and are hardcoded to
 * The **global memory pointer type** — the kernel signature takes
   ``const float* A``, ``const float* B``, ``float* C``.
 
-This means two distinct cases arise when introducing intrinsics in follow-up
+This means two distinct cases arise when introducing builtins in follow-up
 sections:
 
 .. list-table::
@@ -1139,7 +1139,7 @@ a clear "constraint not satisfied" diagnostic.
 Concrete policies
 -----------------
 
-**ScalarFMAPolicy** — portable scalar FP32 outer-product (no intrinsics):
+**ScalarFMAPolicy** — portable scalar FP32 outer-product (no builtins):
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cpp
@@ -1209,7 +1209,7 @@ The program launches three variants:
    (CDNA3 and CDNA4 only)
 
 The first two differ only in their ``TilePolicy``; the third replaces the
-standard cooperative load with a hardware-specific intrinsic.  All three share
+standard cooperative load with a hardware-specific builtin.  All three share
 the same kernel template and ``ComputePolicy``.
 
 **Profile wall-clock time with rocprofv3:**
@@ -1225,11 +1225,11 @@ confirm the expected differences in register and LDS usage.
 
 .. _direct-load-drop-in:
 
-Intrinsic drop-in: ``DirectLoadTilePolicy``
+Builtin drop-in: ``DirectLoadTilePolicy``
 -------------------------------------------
 
 The ``DirectLoadTilePolicy`` demonstrates how an architecture-specific
-intrinsic can be used as a drop-in ``TilePolicy`` without touching the kernel
+builtin can be used as a drop-in ``TilePolicy`` without touching the kernel
 template or the ``ComputePolicy``.
 
 On CDNA3 and CDNA4, the ``__builtin_amdgcn_global_load_lds`` intrinsic
@@ -1304,9 +1304,9 @@ to fill the entire tile.
    ``DirectLoadPolicy`` variant produces results identical to the other two.
    The only difference is the data path during the tile load phase.
 
-   For the full intrinsic reference — signatures, parameter tables, address
+   For the full builtin reference — signatures, parameter tables, address
    calculation formulas, and cache policy encoding — see
-   :ref:`direct-to-lds-intrinsics`.
+   :ref:`direct-to-lds-builtins`.
 
 **What to observe:**
 

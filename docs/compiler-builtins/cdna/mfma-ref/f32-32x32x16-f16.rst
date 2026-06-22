@@ -1,0 +1,65 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_mfma_f32_32x32x16_f16 (CDNA4 / gfx950)
+   Include via: .. include:: mfma-ref/f32-32x32x16-f16.rst
+
+``__builtin_amdgcn_mfma_f32_32x32x16_f16``
+""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v16float __builtin_amdgcn_mfma_f32_32x32x16_f16(
+       v8half   srcA,
+       v8half   srcB,
+       v16float srcC,
+       int      cbsz,
+       int      abid,
+       int      blgp);
+
+Computes one step of a :math:`32 \times 32` FP16→FP32 matrix
+multiply-accumulate. Each instruction processes :math:`K=16` FP16 column
+elements of :math:`\pmb{A}`
+and :math:`K=16` FP16 row elements of :math:`\pmb{B}`, accumulating into a
+:math:`32 \times 32` FP32 tile. Each lane holds eight FP16 values packed into
+one ``v8half`` register for each of :math:`\pmb{A}` and :math:`\pmb{B}`.
+
+This is a **single-block** variant. The result is a ``v16float`` (16 FP32
+elements per lane) using accVGPRs 0--15 in the :math:`32 \times 32` layout.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v8half
+     - Eight FP16 elements of :math:`\pmb{A}` per lane, packed into a
+       128-bit register.
+   * - ``srcB``
+     - v8half
+     - Eight FP16 elements of :math:`\pmb{B}` per lane, packed into a
+       128-bit register.
+   * - ``srcC``
+     - v16float
+     - Accumulator input: 16 FP32 elements per lane.
+   * - ``cbsz``
+     - int
+     - Reserved. Must be ``0`` (single-block variant; broadcast modifier
+       not supported).
+   * - ``abid``
+     - int
+     - Reserved. Must be ``0`` (single-block variant; block ID modifier
+       not supported).
+   * - ``blgp``
+     - int
+     - Lane-group pattern modifier. See :ref:`cdna-mfma-common-parameters`.
+
+**Returns** ``v16float`` -- updated accumulator.
+
+.. note::
+
+   This single-block variant does not support the ``cbsz`` and ``abid``
+   broadcast modifiers; both must be ``0``.

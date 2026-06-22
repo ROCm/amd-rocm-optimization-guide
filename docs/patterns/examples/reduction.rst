@@ -237,7 +237,7 @@ warp then reduces the staging area, again without barriers.
    same result can be achieved without shared memory traffic using shuffle
    instructions or Data Parallel Primitives (DPP), which exchange values
    between lanes entirely in registers. These techniques are covered in the
-   :doc:`../../hardware-intrinsics/introduction` chapter.
+   :doc:`../../compiler-builtins/introduction` chapter.
 
 WGP mode and CU mode on RDNA GPUs
 ----------------------------------

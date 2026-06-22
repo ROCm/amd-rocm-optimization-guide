@@ -25,7 +25,7 @@ application first to identify actual bottlenecks, then apply targeted
 optimizations to address those specific issues. Begin with the foundational
 chapters on understanding GPU performance and general optimization guidelines.
 Then work through the optimization patterns to see practical techniques in
-action. Finally, explore hardware intrinsics to use architecture-specific
+action. Finally, explore Compiler builtins to use architecture-specific
 features for maximum performance.
 
 Why GPU performance optimization matters
@@ -79,7 +79,7 @@ computations, and matrix multiplication using standard HIP constructs. Each
 pattern demonstrates a specific optimization journey from naive implementation
 to production-quality code.
 
-Finally, the guide introduces hardware intrinsics and specialized instructions
+Finally, the guide introduces Compiler builtins and specialized instructions
 that provide direct access to GPU features that compilers cannot automatically
 generate. You will learn to use architecture-specific capabilities for
 maximum performance on CDNA and RDNA GPUs.
@@ -92,7 +92,7 @@ Working through this guide will help you:
 * Understand fundamental GPU performance concepts and identify bottlenecks
 * Apply memory access optimizations and efficient thread organization
 * Implement efficient parallel algorithms using proven patterns
-* Use hardware intrinsics for architecture-specific acceleration
+* Use Compiler builtins for architecture-specific acceleration
 * Measure optimization impact and make data-driven decisions
 
 Each chapter includes complete, runnable examples with performance

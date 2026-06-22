@@ -20,49 +20,49 @@ subtrees:
   - file: patterns/examples/histogram
   - file: patterns/examples/matrix-multiply-optimization
 
-- caption: Hardware intrinsics
+- caption: Compiler builtins
   entries:
-  - file: hardware-intrinsics/introduction
-  - file: hardware-intrinsics/cross-arch/arithmetic-intrinsics
+  - file: compiler-builtins/introduction
+  - file: compiler-builtins/cross-arch/arithmetic-builtins
     subtrees:
     - entries:
-      - file: hardware-intrinsics/cross-arch/arithmetic-ref/sad-intrinsics
-      - file: hardware-intrinsics/cross-arch/arithmetic-ref/dot-integer-intrinsics
-      - file: hardware-intrinsics/cross-arch/arithmetic-ref/dot-float-intrinsics
-      - file: hardware-intrinsics/cross-arch/arithmetic-ref/conversion-packing-intrinsics
-  - file: hardware-intrinsics/cross-arch/direct-to-lds-intrinsics
-  - file: hardware-intrinsics/cross-arch/warp-intrinsics
+      - file: compiler-builtins/cross-arch/arithmetic-ref/sad-builtins
+      - file: compiler-builtins/cross-arch/arithmetic-ref/dot-integer-builtins
+      - file: compiler-builtins/cross-arch/arithmetic-ref/dot-float-builtins
+      - file: compiler-builtins/cross-arch/arithmetic-ref/conversion-packing-builtins
+  - file: compiler-builtins/cross-arch/direct-to-lds-builtins
+  - file: compiler-builtins/cross-arch/warp-builtins
     subtrees:
     - entries:
-      - file: hardware-intrinsics/cross-arch/warp-ref/shuffle-intrinsics
-      - file: hardware-intrinsics/cross-arch/warp-ref/dpp-intrinsics
-      - file: hardware-intrinsics/cross-arch/warp-ref/permlane-intrinsics
-      - file: hardware-intrinsics/cross-arch/warp-ref/wave-reduce-intrinsics
-      - file: hardware-intrinsics/cross-arch/warp-ref/vote-intrinsics
-  - file: hardware-intrinsics/cdna/mfma-intrinsics
+      - file: compiler-builtins/cross-arch/warp-ref/shuffle-builtins
+      - file: compiler-builtins/cross-arch/warp-ref/dpp-builtins
+      - file: compiler-builtins/cross-arch/warp-ref/permlane-builtins
+      - file: compiler-builtins/cross-arch/warp-ref/wave-reduce-builtins
+      - file: compiler-builtins/cross-arch/warp-ref/vote-builtins
+  - file: compiler-builtins/cdna/mfma-builtins
     subtrees:
     - entries:
-      - file: hardware-intrinsics/cdna/dense-mfma-intrinsics
+      - file: compiler-builtins/cdna/dense-mfma-builtins
         subtrees:
         - entries:
-          - file: hardware-intrinsics/cdna/cdna-dense-mfma-intrinsics
-          - file: hardware-intrinsics/cdna/cdna2-dense-mfma-intrinsics
-          - file: hardware-intrinsics/cdna/cdna3-dense-mfma-intrinsics
-          - file: hardware-intrinsics/cdna/cdna4-dense-mfma-intrinsics
-      - file: hardware-intrinsics/cdna/sparse-mfma-intrinsics
+          - file: compiler-builtins/cdna/cdna-dense-mfma-builtins
+          - file: compiler-builtins/cdna/cdna2-dense-mfma-builtins
+          - file: compiler-builtins/cdna/cdna3-dense-mfma-builtins
+          - file: compiler-builtins/cdna/cdna4-dense-mfma-builtins
+      - file: compiler-builtins/cdna/sparse-mfma-builtins
         subtrees:
         - entries:
-          - file: hardware-intrinsics/cdna/cdna-sparse-mfma-intrinsics
-          - file: hardware-intrinsics/cdna/cdna3-sparse-mfma-intrinsics
-          - file: hardware-intrinsics/cdna/cdna4-sparse-mfma-intrinsics
-      - file: hardware-intrinsics/cdna/cdna4-mfma-lds-intrinsics
-      - file: hardware-intrinsics/cdna/mfma-common-parameters
-  - file: hardware-intrinsics/rdna/wmma-intrinsics
+          - file: compiler-builtins/cdna/cdna-sparse-mfma-builtins
+          - file: compiler-builtins/cdna/cdna3-sparse-mfma-builtins
+          - file: compiler-builtins/cdna/cdna4-sparse-mfma-builtins
+      - file: compiler-builtins/cdna/cdna4-mfma-lds-builtins
+      - file: compiler-builtins/cdna/mfma-common-parameters
+  - file: compiler-builtins/rdna/wmma-builtins
     subtrees:
     - entries:
-      - file: hardware-intrinsics/rdna/dense-wmma-intrinsics
+      - file: compiler-builtins/rdna/dense-wmma-builtins
         subtrees:
         - entries:
-          - file: hardware-intrinsics/rdna/rdna3-dense-wmma-intrinsics
-          - file: hardware-intrinsics/rdna/rdna4-dense-wmma-intrinsics
-      - file: hardware-intrinsics/rdna/rdna4-sparse-wmma-intrinsics
+          - file: compiler-builtins/rdna/rdna3-dense-wmma-builtins
+          - file: compiler-builtins/rdna/rdna4-dense-wmma-builtins
+      - file: compiler-builtins/rdna/rdna4-sparse-wmma-builtins
