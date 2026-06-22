@@ -1,0 +1,60 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8 (CDNA3 / gfx942)
+   Include via: .. include:: mfma-ref/f32-32x32x16bf8-fp8.rst
+
+``__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8``
+""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v16float __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
+       long long srcA,
+       long long srcB,
+       v16float  srcC,
+       int       cbsz,
+       int       abid,
+       int       blgp);
+
+Computes one step of a :math:`32 \times 32` FP32 outer-product accumulation.
+Each instruction processes :math:`K=16` BF8 column elements of :math:`\pmb{A}`
+and :math:`K=16` FP8 row elements of :math:`\pmb{B}`, accumulating into a
+:math:`32 \times 32` FP32 tile held across 16 accVGPRs per lane. This builtin
+operates on a single input block.
+
+:math:`\pmb{A}` uses the BF8 (E5M2) format and :math:`\pmb{B}` uses the FP8
+(E4M3) format; eight 8-bit values are packed into a ``long long`` register per
+lane for each operand.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - long long
+     - Eight BF8 (E5M2) elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - long long
+     - Eight FP8 (E4M3) elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v16float
+     - Accumulator input: 16 FP32 elements per lane.
+   * - ``cbsz``
+     - int
+     - Control Broadcast Size modifier, see :ref:`cdna-mfma-common-parameters`.
+       Must be ``0``.
+   * - ``abid``
+     - int
+     - :math:`\pmb{A}`-matrix Broadcast Identifier,
+       see :ref:`cdna-mfma-common-parameters`.
+       Must be ``0``.
+   * - ``blgp``
+     - int
+     - Must be ``0``.
+
+**Returns** ``v16float`` -- updated accumulator
+(:math:`\text{srcA} \times \text{srcB} + \text{srcC}`).

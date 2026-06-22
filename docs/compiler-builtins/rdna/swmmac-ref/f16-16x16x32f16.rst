@@ -1,0 +1,43 @@
+.. RST include fragment -- do not add to toctree.
+   Intrinsic: __builtin_amdgcn_swmmac_f16_16x16x32_f16_w32
+   Include via: .. include:: swmmac-ref/f16-16x16x32f16.rst
+
+``__builtin_amdgcn_swmmac_f16_16x16x32_f16_w32``
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+Signature and parameters for this builtin.
+
+.. code-block:: cpp
+
+   v8fp16 __builtin_amdgcn_swmmac_f16_16x16x32_f16_w32(
+       v8fp16  srcA,
+       v16fp16 srcB,
+       v8fp16  srcC,
+       int     index);
+
+Computes one step of a sparse :math:`16 \times 16` FP16 accumulation. Both
+inputs and the accumulator are FP16. Operand sizes and the sparsity index are
+identical to the FP32-accumulate FP16 variant.
+
+.. list-table::
+   :header-rows: 1
+   :widths: auto
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``srcA``
+     - v8fp16
+     - Eight compressed FP16 elements of :math:`\pmb{A}` per lane.
+   * - ``srcB``
+     - v16fp16
+     - Sixteen dense FP16 elements of :math:`\pmb{B}` per lane.
+   * - ``srcC``
+     - v8fp16
+     - Accumulator input: eight FP16 elements per lane.
+   * - ``index``
+     - int
+     - Sparsity index, see :ref:`rdna4-swmmac-common-parameters`.
+
+**Returns** ``v8fp16`` -- updated accumulator
+(:math:`\text{expand}(\text{srcA}, \text{index}) \times \text{srcB} + \text{srcC}`).
