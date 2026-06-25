@@ -31,14 +31,14 @@ subtrees:
       - file: compiler-builtins/cross-arch/arithmetic-ref/dot-float-builtins
       - file: compiler-builtins/cross-arch/arithmetic-ref/conversion-packing-builtins
   - file: compiler-builtins/cross-arch/direct-to-lds-builtins
-  - file: compiler-builtins/cross-arch/warp-builtins
+  - file: compiler-builtins/cross-arch/wavefront-builtins
     subtrees:
     - entries:
-      - file: compiler-builtins/cross-arch/warp-ref/shuffle-builtins
-      - file: compiler-builtins/cross-arch/warp-ref/dpp-builtins
-      - file: compiler-builtins/cross-arch/warp-ref/permlane-builtins
-      - file: compiler-builtins/cross-arch/warp-ref/wave-reduce-builtins
-      - file: compiler-builtins/cross-arch/warp-ref/vote-builtins
+      - file: compiler-builtins/cross-arch/wavefront-ref/shuffle-builtins
+      - file: compiler-builtins/cross-arch/wavefront-ref/dpp-builtins
+      - file: compiler-builtins/cross-arch/wavefront-ref/permlane-builtins
+      - file: compiler-builtins/cross-arch/wavefront-ref/wave-reduce-builtins
+      - file: compiler-builtins/cross-arch/wavefront-ref/vote-builtins
   - file: compiler-builtins/cdna/mfma-builtins
     subtrees:
     - entries:

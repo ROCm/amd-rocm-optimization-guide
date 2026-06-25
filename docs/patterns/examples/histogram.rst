@@ -42,7 +42,7 @@ Prerequisites
 Before starting this tutorial, ensure the following are in place.
 
 * ROCm installed and ``amdclang++`` available on ``PATH``.
-* Familiarity with the HIP execution model (grids, blocks, warps) and its
+* Familiarity with the HIP execution model (grids, blocks, wavefronts) and its
   mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
 * :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
@@ -174,9 +174,9 @@ Two factors make contention worse in practice:
   receive a disproportionate share of increments. Every thread targeting a hot
   bin serializes against every other thread.
 
-- **Warp serialization:** Within a warp, if multiple lanes map to the same bin,
+- **Wavefront serialization:** Within a wavefront, if multiple lanes map to the same bin,
   the hardware issues their atomic operations one at a time, stalling the whole
-  warp until each completes.
+  wavefront until each completes.
 
 The example code uses a skewed input where every fourth element is fixed to
 bin 1, to reflect a realistic distribution in which one bin is significantly
@@ -226,7 +226,7 @@ The kernel has three phases:
    :end-before: [Sphinx histogram shared kernel end]
 
 The inner loop uses the stride ``i * blockDim.x``, so consecutive threads in a
-warp always read consecutive memory addresses in each iteration, so the access
+wavefront always read consecutive memory addresses in each iteration, so the access
 pattern remains coalesced throughout. Because ``ITEMS_PER_THREAD`` is a
 compile-time constant, ``#pragma unroll`` allows the compiler to eliminate the
 loop counter and branch overhead.
@@ -310,7 +310,7 @@ consisting of ``block_size`` threads. Every thread accumulates data from every
 ``blockDim.x``-th partial block into a register accumulator. It then writes the
 result to shared memory and participates in the tree reduction process. The
 access pattern ``partial_histogram[i * num_bins + bin]`` strides by ``num_bins``
-between iterations, so consecutive threads in a warp read consecutive addresses
+between iterations, so consecutive threads in a wavefront read consecutive addresses
 so the reads are coalesced.
 
 .. note::

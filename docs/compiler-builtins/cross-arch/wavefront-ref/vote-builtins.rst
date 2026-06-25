@@ -1,20 +1,20 @@
 .. meta::
-   :description: Reference for AMD GPU warp voting and synchronization builtins,
+   :description: Reference for AMD GPU wavefront voting and synchronization builtins,
       including ballot, inverse_ballot, mbcnt, and wave_barrier with architecture support.
-   :keywords: AMD, ROCm, HIP, ballot, mbcnt, warp voting, wave_barrier, synchronization, builtins, CDNA, RDNA
+   :keywords: AMD, ROCm, HIP, ballot, mbcnt, wavefront voting, wave_barrier, synchronization, builtins, CDNA, RDNA
 
 .. _vote-builtins:
 
 ********************************************************************************
-Warp voting and synchronization builtins
+Wavefront voting and synchronization builtins
 ********************************************************************************
 
-Warp voting builtins answer the question "which lanes satisfy a condition?"
+Wavefront voting builtins answer the question "which lanes satisfy a condition?"
 by converting per-lane predicates into bitmasks, and vice versa.  The
 ``ballot`` builtin captures a predicate as a bitmask; ``mbcnt`` counts the
 number of set bits below the current lane to produce a compaction index.
 Together, ballot and mbcnt form the standard mechanism for stream compaction
-within a warp: filtering values, computing unique sequential indices, and
+within a wavefront: filtering values, computing unique sequential indices, and
 writing contiguously to an output buffer without shared memory or barriers.
 
 Common parameters
@@ -293,7 +293,7 @@ across the full 64-bit mask.
 Synchronization
 ---------------
 
-These builtins provide warp-level synchronization and identification.
+These builtins provide wavefront-level synchronization and identification.
 
 .. _vote-wave-barrier:
 
@@ -306,7 +306,7 @@ Signature and parameters for this builtin.
 
    void __builtin_amdgcn_wave_barrier();
 
-Synchronizes all lanes within the warp.  Guarantees that all lanes have
+Synchronizes all lanes within the wavefront.  Guarantees that all lanes have
 reached this point before any lane proceeds past it.  This is a compiler
 scheduling barrier, not a memory fence.
 
@@ -323,6 +323,6 @@ Signature and parameters for this builtin.
 
    unsigned int __builtin_amdgcn_wave_id();
 
-Returns the warp's index within the workgroup.
+Returns the wavefront's index within the workgroup.
 
-**Returns** ``unsigned int`` -- the warp index.
+**Returns** ``unsigned int`` -- the wavefront index.

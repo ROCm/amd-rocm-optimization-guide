@@ -243,7 +243,7 @@ __global__ void broadcast_readlane(const int *input, int *output, int n)
 }
 // [Sphinx readlane end]
 
-// [Sphinx warp rotate start]
+// [Sphinx wave rotate start]
 // wave_ror:1 (CDNA): rotates the entire warp right by one lane.
 // row_ror:1 (RDNA): rotates within each row of 16; ds_bpermute fixes wrap-around.
 #ifdef HAS_DPP_BROADCAST
@@ -287,9 +287,9 @@ __global__ void rotate_warp(const int *input, int *output, int n)
         output[gid] = val;
     }
 }
-// [Sphinx warp rotate end]
+// [Sphinx wave rotate end]
 
-// [Sphinx warp rotate shfl start]
+// [Sphinx wave rotate shfl start]
 __device__ int warp_rotate_right_shfl(int val)
 {
     int lane = threadIdx.x % warpSize;
@@ -315,7 +315,7 @@ __global__ void rotate_warp_shfl(const int *input, int *output, int n)
         output[gid] = val;
     }
 }
-// [Sphinx warp rotate shfl end]
+// [Sphinx wave rotate shfl end]
 
 // [Sphinx ds swizzle start]
 // ds_swizzle mask layout: bits [14:10]=and_mask, [9:5]=or_mask, [4:0]=xor_mask.

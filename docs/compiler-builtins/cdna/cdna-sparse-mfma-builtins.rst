@@ -342,7 +342,7 @@ FP16 32×32 sparse kernel
 This kernel uses ``__builtin_amdgcn_smfmac_f32_32x32x16_f16`` to compute
 a :math:`32 \times 32` sparse matrix multiply-accumulate with :math:`K=16`
 per instruction.  The Cooperative Thread Array (CTA) tile grows to 64×64 to accommodate the larger
-32×32 warp tiles.  The accumulator is a 16-element FP32 vector.
+32×32 wavefront tiles.  The accumulator is a 16-element FP32 vector.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_cdna_sparse_mfma.hip
    :language: cpp

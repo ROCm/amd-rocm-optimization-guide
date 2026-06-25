@@ -1,6 +1,6 @@
 .. meta::
   :description: Optimize a HIP reduction kernel step by step by eliminating thread divergence, resolving bank conflicts, and using vectorized loads on AMD GPUs.
-  :keywords: AMD, ROCm, HIP, reduction, shared memory, bank conflicts, warp, wavefront, vectorized loads, tutorial
+  :keywords: AMD, ROCm, HIP, reduction, shared memory, bank conflicts, wavefront, vectorized loads, tutorial
 
 .. _reduction:
 
@@ -36,7 +36,7 @@ Prerequisites
 Before starting this tutorial, ensure the following are in place.
 
 * ROCm installed and ``amdclang++`` available on ``PATH``.
-* Familiarity with the HIP execution model (grids, blocks, warps) and its
+* Familiarity with the HIP execution model (grids, blocks, wavefronts) and its
   mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
 * :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
@@ -96,11 +96,11 @@ The following kernel implements this pattern:
 .. figure:: ../../data/tutorial/reduction/naive_reduction.svg
   :alt: Diagram demonstrating the naive interleaved addressing reduction pattern.
 
-This causes thread divergence. Within a warp, all lanes must execute the
+This causes thread divergence. Within a wavefront, all lanes must execute the
 same instruction at the same time. When some lanes take a branch, and others do
 not, the hardware must execute both paths serially with the inactive lanes
-masked off. In the interleaved pattern, at least one lane in each warp
-hits the ``if`` statement at every level of the tree, so warps remain
+masked off. In the interleaved pattern, at least one lane in each wavefront
+hits the ``if`` statement at every level of the tree, so wavefronts remain
 active long after the majority of their lanes have stopped doing useful work.
 
 .. literalinclude:: ../../tools/example_codes/reduction.hip
@@ -122,7 +122,7 @@ Profile the naive kernel and record the following counter.
      - What to look for
    * - Kernel duration (kernel-trace CSV)
      - ``End_Timestamp - Start_Timestamp`` establishes the baseline.  This is the
-       slowest variant because interleaved addressing keeps warps partially active
+       slowest variant because interleaved addressing keeps wavefronts partially active
        at every tree level.
 
 Reducing thread divergence
@@ -130,7 +130,7 @@ Reducing thread divergence
 
 Reduce divergence by reassigning which threads are active so that
 inactive threads accumulate uniformly toward the upper end of the thread index
-range. Once an entire warp is inactive, it can skip directly to
+range. Once an entire wavefront is inactive, it can skip directly to
 ``__syncthreads()``, rather than executing the branch with all lanes masked.
 
 .. figure:: ../../data/tutorial/reduction/reduced_divergence_reduction.svg
@@ -147,7 +147,7 @@ banks of 4 bytes each.  On CDNA GPUs each Compute Unit has 32 banks.  On RDNA
 GPUs the Work Group Processor has 64 banks, sub-divided into two sets of 32
 banks each affiliated with a pair of SIMD32 units; a wavefront executes on one
 SIMD32 and maps its accesses to the affiliated 32-bank set.  A bank conflict
-occurs when two or more threads in the same warp access different addresses
+occurs when two or more threads in the same wavefront access different addresses
 that map to the same bank, causing those accesses to be serialized.
 
 The reduced-divergence pattern still causes conflicts because the stride
@@ -163,7 +163,7 @@ and access consecutive banks.
 .. note::
 
    To avoid bank conflicts, read and write shared memory in a coalesced manner,
-   where each lane in a warp accesses a consecutive location. For more
+   where each lane in a wavefront accesses a consecutive location. For more
    details, see the data share operations chapter of the
    `CDNA3 ISA <https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf>`_
    or
@@ -193,31 +193,31 @@ Compare the following counters against the naive kernel baseline.
      - Should be at or near zero, confirming that consecutive active threads
        access consecutive LDS banks.
 
-Warp reduction
-==============
+Wavefront reduction
+===================
 
 Every ``__syncthreads()`` operation in the reduction loop is necessary while threads from
-different warps are cooperating. Within a single warp, however,
+different wavefronts are cooperating. Within a single wavefront, however,
 threads execute in lockstep: they all advance through instructions together, so
 a write by one lane is immediately visible to all other lanes in the same
-warp without a barrier. Once the active thread count drops to one
-warp, the remaining barriers are unnecessary overhead.
+wavefront without a barrier. Once the active thread count drops to one
+wavefront, the remaining barriers are unnecessary overhead.
 
-The warp reduction kernel exploits this by restructuring the algorithm into
-two phases. First, each warp independently reduces its own slice of shared
+The wavefront reduction kernel exploits this by restructuring the algorithm into
+two phases. First, each wavefront independently reduces its own slice of shared
 memory without any barriers.
 
-.. figure:: ../../data/tutorial/reduction/warp_reduction.svg
-  :alt: Diagram showing each warp independently reducing its own slice of
+.. figure:: ../../data/tutorial/reduction/wavefront_reduction.svg
+  :alt: Diagram showing each wavefront independently reducing its own slice of
         shared memory in parallel.
 
-Lane 0 of each warp then writes its partial result into a compact staging area,
+Lane 0 of each wavefront then writes its partial result into a compact staging area,
 and a single ``__syncthreads()`` makes all partial results visible. The first
-warp then reduces the staging area, again without barriers.
+wavefront then reduces the staging area, again without barriers.
 
-.. figure:: ../../data/tutorial/reduction/warp_reduction_with_shared.svg
-  :alt: Diagram showing warp partial results written to shared memory and
-        reduced by a single warp.
+.. figure:: ../../data/tutorial/reduction/wavefront_reduction_with_shared.svg
+  :alt: Diagram showing wavefront partial results written to shared memory and
+        reduced by a single wavefront.
 
 .. literalinclude:: ../../tools/example_codes/reduction.hip
    :language: cpp
@@ -233,7 +233,7 @@ warp then reduces the staging area, again without barriers.
 
 .. note::
 
-   The warp-level reduction shown here uses shared memory. On AMD GPUs, the
+   The wavefront-level reduction shown here uses shared memory. On AMD GPUs, the
    same result can be achieved without shared memory traffic using shuffle
    instructions or Data Parallel Primitives (DPP), which exchange values
    between lanes entirely in registers. These techniques are covered in the
@@ -247,30 +247,30 @@ For a full list of supported GPUs, see the
 
 On CDNA GPUs, the array is organized as a set of Compute Unit (CU) pipelines.
 Each CU contains four SIMD64 units and its own Local Data Share (LDS), which
-threads from warps running on that CU can access. CDNA does not offer Work Group Processor
+threads from wavefronts running on that CU can access. CDNA does not offer Work Group Processor
 mode as RDNA does, so the following information does not apply.
 
 On RDNA GPUs, the array is organized as a set of Work Group Processor (WGP)
 pipelines. Each WGP contains two CUs, each with two SIMD32 units. The LDS is
-attached to the WGP, so threads from different warps can access the same LDS
+attached to the WGP, so threads from different wavefronts can access the same LDS
 if they run on CUs within the same WGP.
 
-Warps are dispatched in one of two modes. These control whether warps are
+Wavefronts are dispatched in one of two modes. These control whether wavefronts are
 distributed across two SIMD32s within a single CU (CU mode) or across all
 four SIMD32s within a WGP (WGP mode).
 
-CU mode executes two warps per block on a CU and provides only half
-the LDS to each warp. Independence between CUs can improve performance for
-workloads that avoid inter-warp communication.
+CU mode executes two wavefronts per block on a CU and provides only half
+the LDS to each wavefront. Independence between CUs can improve performance for
+workloads that avoid inter-wavefront communication.
 
-WGP mode executes four warps per block on a WGP with a shared LDS. It can
+WGP mode executes four wavefronts per block on a WGP with a shared LDS. It can
 increase occupancy and improve performance for workloads without heavy
-inter-warp communication, but it can degrade performance for programs that rely
-on atomics or extensive inter-warp communication through shared memory.
+inter-wavefront communication, but it can degrade performance for programs that rely
+on atomics or extensive inter-wavefront communication through shared memory.
 
-The warp reduction kernel communicates partial results between warps through
-shared memory, making it sensitive to this distinction. The inter-warp staging
-step benefits from CU mode because all warps in the block are guaranteed to
+The wavefront reduction kernel communicates partial results between wavefronts through
+shared memory, making it sensitive to this distinction. The inter-wavefront staging
+step benefits from CU mode because all wavefronts in the block are guaranteed to
 share the same LDS instance. Compile with ``-mcumode`` to enable CU mode on
 RDNA GPUs. Memory-bandwidth-bound kernels such as the vectorized loads
 kernel are unaffected by this setting.
@@ -288,7 +288,7 @@ Compare the following counters against the sequential-addressing kernel.
      - What to look for
    * - Kernel duration (kernel-trace CSV)
      - ``End_Timestamp - Start_Timestamp`` should drop versus the sequential
-       kernel.  Eliminating unnecessary ``__syncthreads()`` barriers removes
+       kernel. Eliminating unnecessary ``__syncthreads()`` barriers removes
        synchronization overhead.
    * - ``SQ_WAIT_INST_LDS``
      - Reduction in LDS stall cycles (fewer barriers mean less time waiting
@@ -301,7 +301,7 @@ All kernels so far issue one 32-bit load per thread. The GPU memory system can
 issue 128-bit loads at the same cost, so replacing four scalar loads with a
 single ``float4`` read quadruples the data moved per instruction. Each thread
 loads four consecutive elements, reduces them to a scalar in registers, and
-then enters the same warp reduction as before.
+then enters the same wavefront reduction as before.
 
 .. literalinclude:: ../../tools/example_codes/reduction.hip
    :language: cpp
@@ -317,7 +317,7 @@ then enters the same warp reduction as before.
 What to observe
 ---------------
 
-Compare the following counters against the warp reduction kernel.
+Compare the following counters against the wavefront reduction kernel.
 
 .. list-table::
    :header-rows: 1
@@ -326,8 +326,8 @@ Compare the following counters against the warp reduction kernel.
    * - Counter
      - What to look for
    * - Kernel duration (kernel-trace CSV)
-     - ``End_Timestamp - Start_Timestamp`` should drop versus the warp
-       reduction kernel.  Each thread moves four times as much data per
+     - ``End_Timestamp - Start_Timestamp`` should drop versus the wavefront
+       reduction kernel. Each thread moves four times as much data per
        instruction.
    * - ``SQ_INST_CYCLES_VMEM`` (RDNA) / ``SQ_INST_CYCLES_VMEM_RD`` (CDNA)
      - Reduction in VMEM instruction cycles (fewer instructions for the same

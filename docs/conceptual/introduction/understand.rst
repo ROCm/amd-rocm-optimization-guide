@@ -11,7 +11,7 @@ Understanding GPU performance
    :repo: ROCm/rocm-systems
    :path: projects/hip/docs/understand/performance_optimization.rst
    :start_line: 11
-   :replace: :doc:`../how-to/performance_guidelines`|:ref:`Performance guidelines <hip_book_performance_guidelines>`
+   :replace: :doc:`../how-to/performance_guidelines`|:ref:`Performance guidelines <hip_book_performance_guidelines>`;;warpSize|__WARPSIZE__;;warps|wavefronts;;Warps|Wavefronts;;Warp (Wavefront)|Wavefront;;warp|wavefront;;Warp|Wavefront;;__WARPSIZE__|warpSize
    :default_branch: develop
    :tag_prefix: docs/
    :project_name: HIP

@@ -45,7 +45,7 @@ Prerequisites
 Before starting this tutorial, ensure the following are in place.
 
 * ROCm installed and ``amdclang++`` available on ``PATH``.
-* Familiarity with the HIP execution model (grids, blocks, warps) and its
+* Familiarity with the HIP execution model (grids, blocks, wavefronts) and its
   mapping to AMD GPU hardware (dispatches, workgroups, wavefronts).
 * :ref:`rocprofiler-sdk:using-rocprofv3` installed for performance analysis.
 
