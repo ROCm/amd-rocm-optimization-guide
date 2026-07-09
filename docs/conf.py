@@ -50,6 +50,9 @@ docs_core.setup()
 
 external_projects_current_project = "amd-rocm-optimization-guide"
 
+# Generate llms.txt and llms-full.txt (requires the rocm-docs-core[llms] extra).
+rocm_docs_generate_llms = True
+
 # Add the following replacements to every RST file.
 rst_prolog = f"""
 .. |rocm_version| replace:: {rocm_version}
