@@ -4,12 +4,10 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import re
 import os
 import sys
 from pathlib import Path
 from subprocess import run
-from pathlib import Path
 from typing import Any, Dict, List
 
 from rocm_docs import ROCmDocs
@@ -130,126 +128,6 @@ html_theme_options = {
     },
     "use_download_button": True,
 }
-
-html_extra_path = ["llms.txt"]
-
-EXCLUDED_DIRS = {
-    "_build",
-    "_templates",
-    "_static",
-    ".git",
-    ".venv",
-}
-
-MARKUP_PREFIXES = (
-    ":::",
-    "```{",
-    "```",
-    ":img-top:",
-    ":class",
-    ":link:",
-    ":link-type:",
-    ":shadow:",
-    ":columns:",
-    ":padding:",
-    ":gutter:",
-    ":open:",
-    ":name:",
-    ":header-rows:",
-    ":alt:",
-    "+++",
-    "<",
-    "-->",
-    "{bdg-",
-)
-
-_BARE_DIRECTIVE_RE = re.compile(r"^[a-z][a-z_-]*:\s*\S*$")
-_ANCHOR_LABEL_RE = re.compile(r"^\(\w[\w-]*\)=$")
-_RST_UNDERLINE_RE = re.compile(r"^[=\-~^\"\'#*+]{3,}$")
-
-MIN_PROSE_LINES = 10
-
-
-def should_skip(path: Path) -> bool:
-    return any(part in EXCLUDED_DIRS for part in path.parts)
-
-
-def is_prose_line(line: str) -> bool:
-    stripped = line.strip()
-    if not stripped:
-        return False
-    if stripped.startswith(MARKUP_PREFIXES):
-        return False
-    if _BARE_DIRECTIVE_RE.match(stripped):
-        return False
-    if _ANCHOR_LABEL_RE.match(stripped):
-        return False
-    if re.search(r"</?[a-zA-Z]", stripped):
-        return False
-    if stripped.startswith(".."):
-        return False
-    if re.match(r"^:[A-Za-z]", stripped):
-        return False
-    if _RST_UNDERLINE_RE.match(stripped):
-        return False
-    return True
-
-
-def generate_combined_markdown(app, exception):
-    if exception:
-        return
-
-    docs_root = Path(app.srcdir)
-    output_file = Path(app.outdir) / "llms-full.txt"
-    base_file = docs_root / "llms.txt"
-
-    combined = []
-
-    if base_file.exists():
-        base_text = base_file.read_text(encoding="utf-8").rstrip().rstrip("-").rstrip()
-        combined.append(base_text)
-    else:
-        combined.append("# AMD ROCm Optimization Guide")
-
-    all_files = sorted(
-        list(docs_root.rglob("*.md")) + list(docs_root.rglob("*.rst"))
-    )
-
-    for doc_file in all_files:
-        if should_skip(doc_file):
-            continue
-
-        if doc_file == base_file:
-            continue
-
-        try:
-            content = doc_file.read_text(encoding="utf-8")
-        except Exception:
-            continue
-
-        lines = content.splitlines()
-        prose_lines = [line for line in lines if is_prose_line(line)]
-
-        if len(prose_lines) < MIN_PROSE_LINES:
-            continue
-
-        relative = doc_file.relative_to(docs_root)
-        cleaned = "\n".join(
-            line for line in lines
-            if line.strip() == "" or is_prose_line(line)
-        )
-
-        combined.append(f"\n\n---\n\n# {relative}\n")
-        combined.append(cleaned.strip())
-
-    output_file.write_text(
-        "\n".join(combined) + "\n",
-        encoding="utf-8",
-    )
-
-
-def setup(app):
-    app.connect("build-finished", generate_combined_markdown)
 
 html_context["official_branch"] = official_branch
 html_context["version"] = version
