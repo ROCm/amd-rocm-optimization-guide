@@ -1,14 +1,14 @@
 .. meta::
-   :description: Reference for AMD GPU single-instruction warp reduction builtins, including wave_reduce_add, wave_reduce_min, wave_reduce_max, and architecture availability.
-   :keywords: AMD, ROCm, HIP, wave reduce, warp reduction, wave_reduce_add, wave_reduce_min, wave_reduce_max, builtins, CDNA, RDNA
+   :description: Reference for AMD GPU single-instruction wavefront reduction builtins, including wave_reduce_add, wave_reduce_min, wave_reduce_max, and architecture availability.
+   :keywords: AMD, ROCm, HIP, wave reduce, wavefront reduction, wave_reduce_add, wave_reduce_min, wave_reduce_max, builtins, CDNA, RDNA
 
 .. _wave-reduce-builtins:
 
 ********************************************************************************
-Warp reduction builtins
+Wavefront reduction builtins
 ********************************************************************************
 
-The warp reduction builtins compute a single scalar result from per-lane
+The wavefront reduction builtins compute a single scalar result from per-lane
 values across all active lanes in a single builtin call.  They encapsulate
 the butterfly reduction pattern --- exchanging values with increasingly
 distant partners --- without requiring the caller to manage Data Parallel Primitives (DPP) control words
@@ -17,7 +17,7 @@ or architecture-specific code paths.
 Common parameters
 =================
 
-All warp reduction builtins share the same two-parameter interface:
+All wavefront reduction builtins share the same two-parameter interface:
 
 ``src`` (per-lane input)
    The value contributed by each lane.  The type (``unsigned int``,

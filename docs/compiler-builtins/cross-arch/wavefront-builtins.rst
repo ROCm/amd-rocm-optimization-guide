@@ -1,36 +1,36 @@
 .. meta::
-   :description: Explore warp-level HIP builtins for AMD GPUs, including
-      shuffle operations, cross-row permutations, warp reductions, and voting with CDNA and RDNA support.
-   :keywords: AMD, ROCm, HIP, warp, Compiler builtins, DPP, warp-level operations
+   :description: Explore wavefront-level HIP builtins for AMD GPUs, including
+      shuffle operations, cross-row permutations, wavefront reductions, and voting with CDNA and RDNA support.
+   :keywords: AMD, ROCm, HIP, wavefront, Compiler builtins, DPP, wavefront-level operations
 
-.. _warp_builtins:
+.. _wavefront_builtins:
 
 ********************************************************************************
-Warp-level builtins for AMD GPUs
+Wavefront-level builtins for AMD GPUs
 ********************************************************************************
 
-Warp-level operations give you direct access to the hardware mechanisms that move and
-aggregate data within a warp. The builtins in this topic work across both
-CDNA (AMD Instinct) and RDNA (AMD Radeon) architectures, and cover three areas: lane operations, warp
-reductions, and warp voting.
+Wavefront-level operations give you direct access to the hardware mechanisms that move and
+aggregate data within a wavefront. The builtins in this topic work across both
+CDNA (AMD Instinct) and RDNA (AMD Radeon) architectures, and cover three areas: lane operations, wavefront
+reductions, and wavefront voting.
 
 Architecture availability
 =========================
 
-Most warp-level builtins are available on all AMD Instinct (CDNA) and AMD
+Most wavefront-level builtins are available on all AMD Instinct (CDNA) and AMD
 Radeon (RDNA) architectures.  Some builtins --- particularly Data Parallel Primitives (DPP) DPP8,
 cross-row permutations, and ballot width variants --- are limited to specific
 generations.  For per-builtin availability, see the architecture tables in
-the :ref:`reference pages <warp_builtin_reference>` below.
+the :ref:`reference pages <wavefront_builtin_reference>` below.
 
 The complete source file is available for download:
 
-* :download:`warp_builtins.hip <../../tools/example_codes/warp_builtins.hip>`
+* :download:`wavefront_builtins.hip <../../tools/example_codes/wavefront_builtins.hip>`
 
 Lane operations
 ===============
 
-Within a warp, lanes execute the same instruction simultaneously, but each holds
+Within a wavefront, lanes execute the same instruction simultaneously, but each holds
 its own register values. Many algorithms require lanes to exchange or replicate
 those values — to share a computed result, apply a cyclic shift, or reorganize
 data before the next computation step. The builtins in this topic cover the
@@ -42,49 +42,49 @@ choosing the right one affects both correctness and performance.
 Broadcasting from a specific lane with ``readlane``
 ---------------------------------------------------
 
-When a single lane holds a value that every other lane needs — a warp-wide
+When a single lane holds a value that every other lane needs — a wavefront-wide
 maximum, a shared configuration parameter, a count computed by one thread —
 the most direct way to share it is ``__builtin_amdgcn_readlane``. Unlike a
 shuffle, which requires every lane to participate with a relative offset,
 ``readlane`` reads from one named lane regardless of who is calling, making it
 the natural choice when the source is fixed rather than relative. The example
-here uses it to broadcast a warp maximum after a ``__shfl_down`` reduction,
+here uses it to broadcast a wavefront maximum after a ``__shfl_down`` reduction,
 which is a representative case: one lane holds the answer, and all others need
 it.
 
 ``__builtin_amdgcn_readlane(val, lane)`` returns the value of ``val`` held by
 the lane specified by ``lane``. Unlike ``readfirstlane``, which always reads
 the first active lane, ``readlane`` accepts a runtime lane index. The lane
-index must be uniform --- the same value across all lanes in the warp at the
+index must be uniform --- the same value across all lanes in the wavefront at the
 point of the call. If the index is derived from per-lane data, use
 ``readfirstlane`` to promote it to a uniform value first. ``readfirstlane``
-reads from the first active lane of the warp, which is a deterministic choice,
-so every lane in the warp receives the same index value and the uniformity
+reads from the first active lane of the wavefront, which is a deterministic choice,
+so every lane in the wavefront receives the same index value and the uniformity
 requirement is satisfied.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx readlane start]
    :end-before: [Sphinx readlane end]
 
-After a ``__shfl_down`` reduction, lane 0 holds the warp maximum. Passing the
+After a ``__shfl_down`` reduction, lane 0 holds the wavefront maximum. Passing the
 literal ``0`` as the lane index satisfies the uniformity requirement and
-broadcasts that value to every lane in the warp.
+broadcasts that value to every lane in the wavefront.
 
 For the full signatures and parameter details, see
 :ref:`readlane <shuffle-readlane>` and
 :ref:`readfirstlane <shuffle-readfirstlane>` in the shuffle and lane access
 reference.
 
-Warp rotation using ``mov_dpp`` and ``ds_bpermute``
----------------------------------------------------
+Wavefront rotation using ``mov_dpp`` and ``ds_bpermute``
+--------------------------------------------------------
 
-Rotation shifts every lane's value one position around the warp, so lane
+Rotation shifts every lane's value one position around the wavefront, so lane
 ``i`` receives what lane ``i - 1`` held, and lane 0 wraps around to receive
 what the last lane held. This cyclic movement is a building block for
 algorithms that scan or pipeline values across lanes, such as prefix operations
-or producer-consumer patterns within a warp. Data Parallel Primitives (DPP) is the hardware-native way to
+or producer-consumer patterns within a wavefront. Data Parallel Primitives (DPP) is the hardware-native way to
 express rotation on AMD GPUs, executing in a dedicated unit without consuming
 the general instruction pipeline. On CDNA-based GPUs, a single ``wave_ror:1`` instruction
 covers the entire wave64 atomically. On RDNA-based GPUs, where ``wave_ror`` is not
@@ -92,11 +92,11 @@ available on gfx11xx and later, the same result requires two steps: a
 ``row_ror:1`` rotates within each 16-lane row, and ``ds_bpermute`` supplies
 the wrap-around value at the boundary of each row.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
-   :start-after: [Sphinx warp rotate start]
-   :end-before: [Sphinx warp rotate end]
+   :start-after: [Sphinx wave rotate start]
+   :end-before: [Sphinx wave rotate end]
 
 ``ds_bpermute`` uses byte addressing: to read from lane ``k``, pass ``k * 4``
 as the index. Lane 0 of the first row reads from lane 31 (address 124), and
@@ -107,8 +107,8 @@ For the full signatures and parameter details, see
 :ref:`mov_dpp <dpp-mov-dpp>` and :ref:`ds_bpermute <dpp-ds-bpermute>` in the
 DPP and data-share permutation reference.
 
-Warp rotation using ``__shfl``
-------------------------------
+Wavefront rotation using ``__shfl``
+-----------------------------------
 
 The DPP rotation above is the preferred approach on AMD hardware, but the same
 pattern can be expressed using ``__shfl``. This is useful when the performance
@@ -117,11 +117,11 @@ difference is not significant for your workload. Each lane computes its source i
 lane index, the modular arithmetic produces the wrap-around without the
 architecture-specific workaround that the DPP path requires.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
-   :start-after: [Sphinx warp rotate shfl start]
-   :end-before: [Sphinx warp rotate shfl end]
+   :start-after: [Sphinx wave rotate shfl start]
+   :end-before: [Sphinx wave rotate shfl end]
 
 The DPP and ``__shfl`` kernels produce identical output and can be verified against
 the same CPU reference.
@@ -140,9 +140,9 @@ Lane swap using ``ds_swizzle``
 ------------------------------
 
 While ``readlane`` and rotation address individual lanes or shift the whole
-warp by one, some algorithms need a fixed, symmetric rearrangement of groups —
+wavefront by one, some algorithms need a fixed, symmetric rearrangement of groups —
 for example, swapping pairs of lanes, or exchanging two halves of a tile (a
-fixed-size contiguous sub-group of lanes within a warp).
+fixed-size contiguous sub-group of lanes within a wavefront).
 ``__builtin_amdgcn_ds_swizzle`` is designed exactly for this: the permutation
 is encoded entirely in a compile-time mask, so that the hardware can apply it in a
 single instruction with no per-lane index computation. The mask specifies a
@@ -160,7 +160,7 @@ computed as ``(lane & and_mask) | or_mask ^ xor_mask``. Setting
 of that bit. The example demonstrates the swap pattern; the mask value and how
 it determines group size are explained in the prose below.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx ds swizzle start]
@@ -168,7 +168,7 @@ it determines group size are explained in the prose below.
 
 The mask ``0x101F`` sets ``xor_mask = 0x04``, which applies a bitwise XOR between each lane index and
 4. Lanes 0--3 read from lanes 4--7 and vice versa, lanes 8--11 read from lanes
-12--15, and so on across the warp. Shifting the set bit changes the group size:
+12--15, and so on across the wavefront. Shifting the set bit changes the group size:
 ``0x041F`` swaps neighboring pairs, ``0x081F`` swaps groups of two, ``0x201F``
 swaps groups of eight, and ``0x401F`` swaps groups of sixteen.
 
@@ -176,10 +176,10 @@ For the full signature and parameter details, see
 :ref:`ds_swizzle <dpp-ds-swizzle>` in the DPP and data-share permutation
 reference.
 
-Warp reductions
-===============
+Wavefront reductions
+====================
 
-A warp reduction combines a value held by each lane into a single scalar
+A wavefront reduction combines a value held by each lane into a single scalar
 result. This pattern appears constantly in GPU kernels — summing partial
 products, finding a maximum across a tile, counting active threads — and the
 efficiency of the reduction matters because it often sits in the critical path
@@ -196,7 +196,7 @@ performance requirements.
 Reduction using ``__shfl_down``
 -------------------------------
 
-``__shfl_down`` is the most readable starting point for warp reductions. It
+``__shfl_down`` is the most readable starting point for wavefront reductions. It
 reads from a lane a fixed offset ahead of the current lane, which maps directly
 onto the butterfly pattern when called in a loop that halves the offset on each
 step. The code structure closely mirrors the algorithm's logical structure,
@@ -208,15 +208,15 @@ code adapt to wave32 and wave64 without modification. This makes
 simplicity matter, or as a reference implementation against which a more
 hardware-specific version can be verified.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx shfl down reduce start]
    :end-before: [Sphinx shfl down reduce end]
 
-After the loop, lane 0 holds the sum of all lanes in the warp. The kernel uses
-a two-phase structure: each warp reduces its slice independently, lane 0 writes
-its partial result to shared memory, and the first warp reduces those partials
+After the loop, lane 0 holds the sum of all lanes in the wavefront. The kernel uses
+a two-phase structure: each wavefront reduces its slice independently, lane 0 writes
+its partial result to shared memory, and the first wavefront reduces those partials
 to the block result.
 
 Reduction using ``mov_dpp``
@@ -233,7 +233,7 @@ broadcast instructions are available on gfx9xx targets (CDNA), but not on
 gfx10xx and later (RDNA, wave32), so the ``HAS_DPP_BROADCAST`` macro selects the
 appropriate path at compile time.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx dpp reduce start]
@@ -245,7 +245,7 @@ rotation wraps lanes within the row boundary, whereas a shift leaves destination
 registers undefined when the source is out of range. On RDNA, where DPP
 broadcasts are unavailable, ``ds_swizzle`` with mask ``0x1e0`` replicates the
 value held by lane 15 across lanes 16--31, combining the two rows of the wave32
-warp in a single instruction. The control word constants used in the example
+wavefront in a single instruction. The control word constants used in the example
 (``0xb1``, ``0x4e``, ``0x124``, and so on) are user-defined values derived from
 the DPP control word encoding; they are not predefined by HIP or LLVM. For the
 full DPP control word encoding and available patterns, refer to the Data Parallel
@@ -268,7 +268,7 @@ rather than by your code. Note that the wave reduce builtins currently cover
 integer and bitwise operations; for float workloads, the DPP path above remains the recommended
 approach.
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx wave reduce start]
@@ -278,20 +278,20 @@ The second argument is a strategy hint: ``0`` lets the compiler choose, ``1``
 requests the iterative strategy, and ``2`` requests the DPP-based strategy.
 
 For the full signature and parameter details, see
-:ref:`wave_reduce_add_u32 <wave-reduce-add-u32>` in the warp reduction
+:ref:`wave_reduce_add_u32 <wave-reduce-add-u32>` in the wavefront reduction
 reference.
 
-Warp voting
-===========
+Wavefront voting
+================
 
-Lane operations move data between lanes, and reductions aggregate it. Warp
+Lane operations move data between lanes, and reductions aggregate it. Wavefront
 voting answers a different question: which lanes satisfy a condition, and what
-can the warp do with that information collectively? The ``ballot`` builtin
+can the wavefront do with that information collectively? The ``ballot`` builtin
 captures the answer as a bitmask — one bit per lane — which can then be
 inspected, counted, or used to coordinate writes. The ``mbcnt`` builtin
 builds on this by counting the number of lanes before the current one that have their bit
 set, giving each qualifying lane a unique sequential index. Together, ballot and
-mbcnt is the standard mechanism for stream compaction within a warp: filtering
+mbcnt is the standard mechanism for stream compaction within a wavefront: filtering
 a set of values to only those that pass a predicate, and writing them
 contiguously to an output buffer without gaps or collisions, all without shared
 memory or barriers.
@@ -299,7 +299,7 @@ memory or barriers.
 Compaction index using ``ballot`` and ``mbcnt``
 -----------------------------------------------
 
-.. literalinclude:: ../../tools/example_codes/warp_builtins.hip
+.. literalinclude:: ../../tools/example_codes/wavefront_builtins.hip
    :language: cpp
    :linenos:
    :start-after: [Sphinx ballot mbcnt start]
@@ -313,15 +313,15 @@ is false receive an index, too, but should not write to the output.
 For the full signatures and parameter details, see
 :ref:`ballot_w64 <vote-ballot-w64>` and
 :ref:`mbcnt_lo <vote-mbcnt-lo>` / :ref:`mbcnt_hi <vote-mbcnt-hi>` in the
-warp voting reference.
+wavefront voting reference.
 
 **Compile and run:**
 
 .. code-block:: bash
 
    amdclang++ -O3 -std=c++17 --offload-arch=gfx942 \
-       warp_builtins.hip -o warp_builtins
-   ./warp_builtins
+       wavefront_builtins.hip -o wavefront_builtins
+   ./wavefront_builtins
 
 .. note::
 
@@ -333,7 +333,7 @@ warp voting reference.
 Naming convention
 =================
 
-Warp-level builtins come in two families:
+Wavefront-level builtins come in two families:
 
 **HIP wrappers** use the ``__shfl`` prefix:
 
@@ -359,21 +359,21 @@ Key operation names:
 * ``mov_dpp`` / ``update_dpp`` / ``mov_dpp8`` -- Data Parallel Primitives
 * ``ds_swizzle`` / ``ds_permute`` / ``ds_bpermute`` -- data-share permutations
 * ``permlane16`` / ``permlanex16`` / ``permlane64`` -- cross-row permutations
-* ``ballot_w64`` / ``ballot_w32`` -- warp voting
+* ``ballot_w64`` / ``ballot_w32`` -- wavefront voting
 * ``mbcnt_lo`` / ``mbcnt_hi`` -- masked bit count (compaction index)
-* ``wave_reduce_<op>_<type>`` -- single-instruction warp reductions, where
+* ``wave_reduce_<op>_<type>`` -- single-instruction wavefront reductions, where
   ``<op>`` is ``add``, ``sub``, ``min``, ``max``, ``and``, ``or``, or ``xor``,
   and ``<type>`` is ``u32``, ``u64``, ``i32``, ``i64``, ``b32``, or ``b64``
 
 Use the ``__shfl*`` family for standard shuffle operations.
 Use the ``__builtin_amdgcn_*`` intrinsics when you need a specific hardware
-feature (DPP, ``ds_swizzle``, warp voting) or when the ISA instruction gives
+feature (DPP, ``ds_swizzle``, wavefront voting) or when the ISA instruction gives
 measurable performance benefit.
 
-.. _warp_builtin_reference:
+.. _wavefront_builtin_reference:
 
-Warp builtin reference
-========================
+Wavefront builtin reference
+============================
 
 Each reference page documents the full signature, parameter details, and
 architecture support for every builtin in that family.
@@ -384,17 +384,17 @@ architecture support for every builtin in that family.
 
    * - Family
      - Description
-   * - :doc:`Shuffle and lane access <warp-ref/shuffle-builtins>`
+   * - :doc:`Shuffle and lane access <wavefront-ref/shuffle-builtins>`
      - ``__shfl*`` wrappers and hardware ``readlane``,
        ``readfirstlane``, ``writelane``
-   * - :doc:`DPP and data-share permutations <warp-ref/dpp-builtins>`
+   * - :doc:`DPP and data-share permutations <wavefront-ref/dpp-builtins>`
      - ``mov_dpp``, ``update_dpp``, ``mov_dpp8``, ``ds_swizzle``,
        ``ds_permute``, ``ds_bpermute``
-   * - :doc:`Cross-row permutations <warp-ref/permlane-builtins>`
+   * - :doc:`Cross-row permutations <wavefront-ref/permlane-builtins>`
      - ``permlane16``, ``permlanex16``, ``permlane64``, and runtime/swap
        variants
-   * - :doc:`Warp reductions <warp-ref/wave-reduce-builtins>`
+   * - :doc:`Wavefront reductions <wavefront-ref/wave-reduce-builtins>`
      - ``wave_reduce_<op>_<type>`` for add, sub, min, max, and, or, xor
-   * - :doc:`Warp voting and synchronization <warp-ref/vote-builtins>`
+   * - :doc:`Wavefront voting and synchronization <wavefront-ref/vote-builtins>`
      - ``ballot``, ``inverse_ballot``, ``mbcnt``, ``wave_barrier``,
        ``wave_id``

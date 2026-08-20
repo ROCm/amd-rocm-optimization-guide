@@ -1,7 +1,7 @@
 .. meta::
    :description: Reference for AMD GPU shuffle and lane access builtins,
       including __shfl, readlane, readfirstlane, and writelane with usage and architecture availability.
-   :keywords: AMD, ROCm, HIP, shuffle, readlane, readfirstlane, writelane, warp, lane access, builtins, CDNA, RDNA
+   :keywords: AMD, ROCm, HIP, shuffle, readlane, readfirstlane, writelane, wavefront, lane access, builtins, CDNA, RDNA
 
 .. _shuffle-builtins:
 
@@ -9,7 +9,7 @@
 Shuffle and lane access builtins
 ********************************************************************************
 
-Shuffle builtins copy a value from one lane to another within a warp.  The
+Shuffle builtins copy a value from one lane to another within a wavefront.  The
 ``__shfl*`` family provides a higher-level interface, while the
 ``__builtin_amdgcn_*`` Compiler builtins map directly to AMD Instruction Set Architecture (ISA)
 instructions and offer lower-level control.
@@ -21,10 +21,10 @@ Common parameters
    The value each lane provides.  One lane's value is selected and returned
    to the requesting lane(s) based on the shuffle mode.
 
-``width`` (sub-warp partition size)
-   Divides the warp into independent partitions of ``width`` lanes.  Shuffles
+``width`` (sub-wavefront partition size)
+   Divides the wavefront into independent partitions of ``width`` lanes.  Shuffles
    only move data within a partition, not across partitions.  Must be a power
-   of two.  Defaults to ``warpSize`` (the full warp).
+   of two.  Defaults to ``warpSize`` (the full wavefront).
 
 ``offset`` / ``src_lane`` (source selector)
    Identifies which lane to read from.  The meaning depends on the shuffle
@@ -82,7 +82,7 @@ below.
 HIP shuffles
 ------------
 
-These builtins provide a higher-level interface for copying values between lanes within a warp.
+These builtins provide a higher-level interface for copying values between lanes within a wavefront.
 
 .. _shuffle-shfl:
 
@@ -237,7 +237,7 @@ Signature and parameters for this builtin.
    unsigned int __builtin_amdgcn_readfirstlane(
        unsigned int val);
 
-Returns the value of ``val`` held by the first active lane of the warp.  The
+Returns the value of ``val`` held by the first active lane of the wavefront.  The
 result is uniform (the same value across all lanes), which makes this
 builtin useful for promoting a per-lane value to a uniform value for use as
 an index argument to ``readlane`` or as a scalar operand.
@@ -272,7 +272,7 @@ Signature and parameters for this builtin.
 Returns the value of ``val`` held by the specified lane.  Unlike
 ``readfirstlane``, which always reads the first active lane, ``readlane``
 accepts a runtime lane index.  The lane index must be uniform --- the same
-value across all lanes in the warp at the point of the call.
+value across all lanes in the wavefront at the point of the call.
 
 .. list-table::
    :header-rows: 1

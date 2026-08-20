@@ -75,6 +75,6 @@ Before working through this chapter, you should be familiar with:
 
 * Basic HIP programming concepts, including kernel launches, thread indexing,
   and memory management
-* GPU architecture fundamentals: threads, warps or waves, workgroups, and
+* GPU architecture fundamentals: threads, wavefronts (i.e., CUDA warps), workgroups, and
   memory hierarchy
 * C++ programming and basic parallel programming concepts

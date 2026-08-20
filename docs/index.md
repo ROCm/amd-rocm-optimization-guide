@@ -38,12 +38,12 @@ and multi-GPU programming.
   * {doc}`./compiler-builtins/cross-arch/arithmetic-ref/dot-float-builtins`
   * {doc}`./compiler-builtins/cross-arch/arithmetic-ref/conversion-packing-builtins`
 * {doc}`./compiler-builtins/cross-arch/direct-to-lds-builtins`
-* {doc}`./compiler-builtins/cross-arch/warp-builtins`
-  * {doc}`./compiler-builtins/cross-arch/warp-ref/shuffle-builtins`
-  * {doc}`./compiler-builtins/cross-arch/warp-ref/dpp-builtins`
-  * {doc}`./compiler-builtins/cross-arch/warp-ref/permlane-builtins`
-  * {doc}`./compiler-builtins/cross-arch/warp-ref/wave-reduce-builtins`
-  * {doc}`./compiler-builtins/cross-arch/warp-ref/vote-builtins`
+* {doc}`./compiler-builtins/cross-arch/wavefront-builtins`
+  * {doc}`./compiler-builtins/cross-arch/wavefront-ref/shuffle-builtins`
+  * {doc}`./compiler-builtins/cross-arch/wavefront-ref/dpp-builtins`
+  * {doc}`./compiler-builtins/cross-arch/wavefront-ref/permlane-builtins`
+  * {doc}`./compiler-builtins/cross-arch/wavefront-ref/wave-reduce-builtins`
+  * {doc}`./compiler-builtins/cross-arch/wavefront-ref/vote-builtins`
 * {doc}`./compiler-builtins/cdna/mfma-builtins`
   * {doc}`./compiler-builtins/cdna/dense-mfma-builtins`
     * {doc}`./compiler-builtins/cdna/cdna-dense-mfma-builtins`

@@ -41,7 +41,7 @@ How this chapter is organized
 This chapter organizes builtins by their availability across AMD GPU
 architectures. Cross-architecture builtins work on both CDNA and RDNA
 architectures, providing arithmetic and packing operations (dot products, SAD,
-type conversion), warp-level operations (shuffle, DPP, reductions, permlane,
+type conversion), wavefront-level operations (shuffle, DPP, reductions, permlane,
 vote), and direct-to-Local Data Share (LDS) memory transfers. CDNA-specific builtins cover
 matrix operations (MFMA) with both dense and sparse variants. RDNA-specific
 builtins cover wave-matrix multiply-accumulate (WMMA) operations, including

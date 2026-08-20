@@ -1,7 +1,7 @@
 .. meta::
    :description: Reference for AMD GPU cross-row permutation builtins,
       including permlane16, permlanex16, and permlane64 with usage details and architecture availability.
-   :keywords: AMD, ROCm, HIP, permlane16, permlanex16, permlane64, cross-row permutation, warp, builtins, CDNA, RDNA
+   :keywords: AMD, ROCm, HIP, permlane16, permlanex16, permlane64, cross-row permutation, wavefront, builtins, CDNA, RDNA
 
 .. _permlane-builtins:
 
@@ -36,7 +36,7 @@ Common parameters
 
 ``lanesel_lo``, ``lanesel_hi`` (lane selectors)
    Two 4-bit values that select which lane within each 16-lane group provides
-   the source data for the lower and upper halves of the warp respectively.
+   the source data for the lower and upper halves of the wavefront respectively.
    Only present on the compile-time selector variants (``permlane16``,
    ``permlanex16``).
 
