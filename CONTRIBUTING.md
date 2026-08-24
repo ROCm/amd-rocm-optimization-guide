@@ -39,15 +39,14 @@ General issue guidelines:
 
 ### Pull requests
 
-When you create a pull request, you should target the default branch.  Our
-repositories typically use the `develop` branch as the default integration
-branch.
+When you create a pull request, you should target the default branch. This
+repository uses the `main` branch as the default integration branch.
 
 When creating a PR, use the following process. Note that each repository may include additional,
 project-specific steps. Refer to each repository's PR process for any additional steps.
 
 * Identify the issue you want to fix
-* Target the default branch (usually the **develop** branch) for integration
+* Target the default branch (the **main** branch) for integration
 * Ensure your code builds successfully
 * Each component has a suite of test cases to run; include the log of the successful test run in your PR
 * Do not break existing test cases
@@ -62,13 +61,12 @@ project-specific steps. Refer to each repository's PR process for any additional
 
 > [!IMPORTANT]
 > By creating a PR, you agree to allow your contribution to be licensed under the
-> terms of the LICENSE.txt file in the corresponding repository. Different repositories may use different
-> licenses.
+> terms of the [LICENSE](LICENSE) file in this repository.
 
 You can look up each license on the [ROCm licensing](https://rocm.docs.amd.com/en/latest/about/license.html) page.
 
 ### New feature development
 
-Use the [GitHub Discussion forum](https://github.com/ROCm/ROCm/discussions)
+Use the [GitHub Discussion forum](https://github.com/ROCm/TheRock/discussions)
 (Ideas category) to propose new features. Our maintainers are happy to provide direction and
 feedback on feature development.
