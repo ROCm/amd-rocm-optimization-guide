@@ -41,3 +41,12 @@ python -mvenv .venv
 Navigate to `_build/html/index.html` and open this file in a web browser.
 
 For further information, please check [building documentation](https://rocm.docs.amd.com/en/latest/contribute/building.html).
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development
+workflow, issue tracking, and pull request guidelines.
+
+## Security
+
+To report a security vulnerability, see [SECURITY.md](SECURITY.md).
