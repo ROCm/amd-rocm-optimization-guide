@@ -5,6 +5,9 @@ defaults:
   maxdepth: 6
 root: index
 subtrees:
+- entries:
+  - file: release-notes.rst
+    title: Release notes
 
 - caption: Getting started
   entries:

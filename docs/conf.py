@@ -10,13 +10,13 @@ from pathlib import Path
 from subprocess import run
 from typing import Any, Dict, List
 
-ROCM_VERSION = "7.14.0"
-GA_DATE = "2026-07-15"
+ROCM_VERSION = "1.0.0"
+GA_DATE = "2026-10-05"
 
 # for PDF output on Read the Docs
 project = "AMD ROCm™ Optimization Guide"
 author = "Advanced Micro Devices, Inc."
-copyright = "Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved."
+copyright = "Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved."
 version = ROCM_VERSION
 release = ROCM_VERSION
 latex_engine = "xelatex"
