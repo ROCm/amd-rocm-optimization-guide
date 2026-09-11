@@ -17,28 +17,28 @@
 //   lane = (in_r/2)*8 + (in_c%8)
 //   e    = (in_r%2)*4 + (in_c/8)
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let rose-light = rgb("#f5cccd")   // even rows
 #let grey       = rgb("#bfbfbf")   // odd rows
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
 #let dimmed     = rgb("#777777")
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let cw = 20pt
 #let ch = 24pt
 #let gap = 0pt
 #let lw  = 46pt   // row-label width
 
-// ── Formulas ──────────────────────────────────────────────────────────────
+// -- Formulas --------------------------------------------------------------
 #let lane-of(row, col) = calc.floor(row / 2) * 8 + calc.rem(col, 8)
 #let e-of(row, col)    = calc.rem(row, 2) * 4 + calc.floor(col / 8)
 
-// ── Data grid: 8 rows (K) x 32 columns (N) ─────────────────────────────────
+// -- Data grid: 8 rows (K) x 32 columns (N) ---------------------------------
 #let data-grid = grid(
   columns: (cw,) * 32,
   rows:    (ch,) * 8,
@@ -78,7 +78,7 @@
   )
 )
 
-// ── Legend ────────────────────────────────────────────────────────────────
+// -- Legend ----------------------------------------------------------------
 #let swatch(col, label) = grid(
   columns: (10pt, 3pt, auto),
   column-gutter: 0pt,
@@ -94,7 +94,7 @@
   swatch(grey, [K odd]),
 )
 
-// ── Title and caption ───────────────────────────────────────────────────────
+// -- Title and caption -------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
   GLOBAL_LOAD_TR_B128 (v8f16) per-lane assignment -- wave32 (RDNA4)
 ]
@@ -106,7 +106,7 @@
   e = (K mod 2)·4 + ⌊N/8⌋.
 ]
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(dir: ttb, spacing: 4pt,
     title,

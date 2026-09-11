@@ -1,4 +1,4 @@
-// SMFMAC 32×32×32 — Compression index operand register layout
+// SMFMAC 32×32×32 - Compression index operand register layout
 //
 //   rows = i (0..31), cols = compressed k (0..31)
 //   nibble = ⌊(k mod 16)/4⌋ → n0 [3:0], n1 [7:4], n2 [11:8], n3 [15:12] of v0

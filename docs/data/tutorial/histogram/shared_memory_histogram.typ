@@ -4,11 +4,11 @@
 // Phase 2: Threads atomically increment LDS bins (on-chip, fast)
 // Phase 3: One thread per bin merges LDS count into global histogram
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 14pt, fill: rgb("#262626"))
 #set text(font: "New Computer Modern", fill: rgb("#ffffff"), size: 9pt)
 
-// ── Palette (matches reduction / matrix-multiply diagrams) ───────────────
+// -- Palette (matches reduction / matrix-multiply diagrams) ---------------
 #let bg-dark  = rgb("#262626")
 #let accent   = rgb("#c23555")
 #let grey     = rgb("#5e5b61")
@@ -18,7 +18,7 @@
 #let white    = rgb("#ffffff")
 #let dimmed   = rgb("#9e9e9e")
 
-// ── Geometry ──────────────────────────────────────────────────────────────
+// -- Geometry --------------------------------------------------------------
 #let phase-w = 180pt
 #let phase-h = 100pt
 #let arrow-gap = 20pt
@@ -51,7 +51,7 @@
   )
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────
+// -- Layout ----------------------------------------------------------------
 #align(center,
   stack(dir: ttb, spacing: 12pt,
     // Block label

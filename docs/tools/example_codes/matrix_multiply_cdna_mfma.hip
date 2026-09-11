@@ -246,7 +246,7 @@ struct SingleBufferTilePolicy
 // is guarded by __gfx908__, which is defined only during the device pass.
 struct MfmaCdnaPolicy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wavefront owns a 32×32 output tile.
     // All 64 lanes contribute unique output elements (no lane mirroring).
     static constexpr int thread_tile_m  = 32;
@@ -261,7 +261,7 @@ struct MfmaCdnaPolicy
     using elem_a = float;
     using elem_b = float;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v32float holds 32 accVGPRs per lane:
     //   elements [0,15]  → block 0 accVGPRs 0–15
     //   elements [16,31] → block 1 accVGPRs 16–31
@@ -277,7 +277,7 @@ struct MfmaCdnaPolicy
         acc.regs = v32float{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 32×32 tile belongs to one wavefront; multiple wavefronts
     // in a block cover different 32×32 sub-tiles.  Each wavefront's top-left
     // corner is determined by its wavefront index within the block.
@@ -302,7 +302,7 @@ struct MfmaCdnaPolicy
         *thread_col = wid_x * 32;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads its own A element from LDS.
     //
     // The 32×32 MFMA A-operand distributes 32 rows across the lower 32 lanes:
@@ -337,7 +337,7 @@ struct MfmaCdnaPolicy
         frag[0] = tile_b_T_ptr[col * k_tile_size + ki];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one v_mfma_f32_32x32x1f32 instruction.
     // cbsz=0: use both blocks (no A-broadcast).
     // abid=0: select block 0 as A source.
@@ -353,7 +353,7 @@ struct MfmaCdnaPolicy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 32 accVGPR values to their global-memory positions.
     //
     // Inverse layout (lane L, accVGPR index G in [0,31]):

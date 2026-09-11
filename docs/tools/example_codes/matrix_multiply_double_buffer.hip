@@ -151,7 +151,7 @@ struct SingleBufferTilePolicy
     {
         // tile_idx = t + 1, so the tile to load is t = tile_idx - 1.
         // The loop runs t in [0, num_tiles), so tile_idx in [1, num_tiles],
-        // and load_idx in [0, num_tiles - 1] — always in range.
+        // and load_idx in [0, num_tiles - 1] - always in range.
         const int load_idx = tile_idx - 1;
 
         const int tile_elems_a = BLOCK_TILE_M * K_TILE_SIZE;

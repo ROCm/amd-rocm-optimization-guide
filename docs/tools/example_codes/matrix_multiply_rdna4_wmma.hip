@@ -347,7 +347,7 @@ struct SingleBufferTilePolicyF16
 // Two GLOBAL_LOAD_TR_B128 calls per k-tile step fill the full 16-K
 // strip (one call per 8-K half).  Both waves in the CTA issue
 // identical calls and write the same values to the same LDS positions
-// — functionally redundant but wave-coherent and safe.
+// - functionally redundant but wave-coherent and safe.
 //
 // Hardware permutation (verified empirically; see global_load_tr_wmma.hip):
 //   ptr(lane) = &B_row[(k_tile + lane/4) * N + block_n + (lane%4)*8]
@@ -494,7 +494,7 @@ struct SingleBufferTilePolicyF16TrB
 // [Sphinx wmma rdna4 policy start]
 struct WmmaRdna4F16Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wave32 wavefront owns a 16×16 output tile.
     // All 32 lanes hold unique output elements (8 elements per lane).
     static constexpr int thread_tile_m   = 16;
@@ -511,7 +511,7 @@ struct WmmaRdna4F16Policy
     using elem_a = _Float16;
     using elem_b = _Float16;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // wmma_f8 holds 8 FP32 values per lane (8 output elements per lane in
     // the 16×16 tile, vs 4 per lane in CDNA4's MFMA with wave64).
     using wmma_f8 = float [[clang::ext_vector_type(8)]];
@@ -526,7 +526,7 @@ struct WmmaRdna4F16Policy
         acc.regs = wmma_f8{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16×16 tile belongs to one wave32 wavefront.  Multiple
     // wavefronts in a block cover different 16×16 sub-tiles.
     //
@@ -549,7 +549,7 @@ struct WmmaRdna4F16Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads eight FP16 values from LDS into a half8.
     //
     // wmma_f32_16x16x16_f16_w32 interprets the 32 lanes as 2 groups of 16
@@ -598,7 +598,7 @@ struct WmmaRdna4F16Policy
             frag[e] = tile_b_T_ptr[col * k_tile_size + k_off + e];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one wmma_f32_16x16x16_f16_w32_gfx12 instruction.
     __device__ static void mma(Accumulator&       acc,
                                const elem_a     (&a_frag)[8],
@@ -615,7 +615,7 @@ struct WmmaRdna4F16Policy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 8 accumulator values to their global-memory positions.
     //
     // Inverse layout (lane L, accumulator index G in [0,7]):
@@ -663,7 +663,7 @@ struct WmmaRdna4F16Policy
 // [Sphinx wmma rdna4 tr policy start]
 struct WmmaRdna4F16TrPolicy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     static constexpr int thread_tile_m   = 16;
     static constexpr int thread_tile_n   = 16;
     static constexpr int frag_size_m     = 8;
@@ -704,7 +704,7 @@ struct WmmaRdna4F16TrPolicy
         *thread_col = wid_x * 16;
     }
 
-    // ── load_a ───────────────────────────────────────────────────────────────
+    // -- load_a ---------------------------------------------------------------
     // Scalar load, identical to WmmaRdna4F16Policy::load_a.
     __device__ static void load_a(const _Float16* tile_a_ptr,
                                   int             tile_a_row,
@@ -720,8 +720,8 @@ struct WmmaRdna4F16TrPolicy
             frag[e] = tile_a_ptr[row * k_tile_size + k_off + e];
     }
 
-    // ── load_b ───────────────────────────────────────────────────────────────
-    // Scalar read from tile_b_T[n][k] in LDS — identical to baseline.
+    // -- load_b ---------------------------------------------------------------
+    // Scalar read from tile_b_T[n][k] in LDS - identical to baseline.
     // The global_load_tr hardware transpose already happened in
     // SingleBufferTilePolicyF16TrB::prefetch().
     __device__ static void load_b(const _Float16* tile_b_T_ptr,

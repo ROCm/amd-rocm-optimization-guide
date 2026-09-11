@@ -354,10 +354,10 @@ Further reading
 The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
 
 * :doc:`rocPRIM <rocprim:index>`
-  — production-quality reduction primitives that handle edge cases and
+  - production-quality reduction primitives that handle edge cases and
   automatically apply architecture-specific tuning.
-* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
+* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` - detailed
   guide to timeline and counter profiling.
 * `AMD GPU architecture guides (ISA references) <https://gpuopen.com/amd-gpu-architecture-programming-documentation/>`_
-  — VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
+  - VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
   architecture family.

@@ -1,6 +1,6 @@
 // 16×16 WMMA Accumulator layout (RDNA 3/3.5, wave32)
 //
-// Split into two 8×16 grids — one per lane group — so labels are clean.
+// Split into two 8×16 grids - one per lane group - so labels are clean.
 //
 // Visual encoding
 //   Rose grid → even rows (0,2,4,…,14) held by lanes  0–15
@@ -16,22 +16,22 @@
 //   lane = (i % 2) * 16 + j
 //   VGPR = floor(i / 2)
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let rose-light = rgb("#f5cccd")   // lanes  0–15 (even rows)
 #let grey       = rgb("#bfbfbf")   // lanes 16–31 (odd  rows)
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
 #let dimmed     = rgb("#777777")
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let sz  = 14pt
 #let gap = 0pt
 
-// ── Single cell (uniform color) ──────────────────────────────────────────
+// -- Single cell (uniform color) ------------------------------------------
 #let d-cell(vgpr, bg) = {
   rect(
     width: sz, height: sz, fill: bg,
@@ -42,7 +42,7 @@
   )
 }
 
-// ── Build an 8-row × 16-col grid for one lane group ─────────────────────
+// -- Build an 8-row × 16-col grid for one lane group ---------------------
 #let half-grid(bg, rows-list) = grid(
   columns: (sz,) * 16,
   rows:    (sz,) * 8,
@@ -54,7 +54,7 @@
   }).flatten()
 )
 
-// ── Column header (j = 0 … 15) ──────────────────────────────────────────
+// -- Column header (j = 0 … 15) ------------------------------------------
 #let col-header = grid(
   columns: (sz,) * 16,
   column-gutter: gap,
@@ -63,7 +63,7 @@
   )
 )
 
-// ── Left margin for one half-grid ────────────────────────────────────────
+// -- Left margin for one half-grid ----------------------------------------
 #let margin-w = 105pt
 #let half-margin(rows-list, bg, lane-base) = {
   let lane-last = lane-base + 15
@@ -92,7 +92,7 @@
   )
 }
 
-// ── Caption ──────────────────────────────────────────────────────────────
+// -- Caption --------------------------------------------------------------
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
   Accumulator for all 16×16 WMMA intrinsics on RDNA3/3.5. \
@@ -101,16 +101,16 @@
   Formulas: lane = (_i_ mod 2) · 16 + _j_ ;  VGPR = ⌊_i_/2⌋.
 ]
 
-// ── Title ────────────────────────────────────────────────────────────────
+// -- Title ----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
-  16×16 WMMA accumulator layout — wave32 (RDNA3)
+  16×16 WMMA accumulator layout - wave32 (RDNA3)
 ]
 
-// ── Row sets ─────────────────────────────────────────────────────────────
+// -- Row sets -------------------------------------------------------------
 #let even-rows = (0, 2, 4, 6, 8, 10, 12, 14)
 #let odd-rows  = (1, 3, 5, 7, 9, 11, 13, 15)
 
-// ── Final layout ─────────────────────────────────────────────────────────
+// -- Final layout ---------------------------------------------------------
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(

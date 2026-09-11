@@ -260,7 +260,7 @@ struct SingleBufferTilePolicyF
 // [Sphinx mfma cdna3 policy start]
 struct MfmaCdna3XF32Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wavefront owns a 16×16 output tile.
     // All 64 lanes hold unique output elements (4 elements per lane).
     static constexpr int thread_tile_m   = 16;
@@ -276,7 +276,7 @@ struct MfmaCdna3XF32Policy
     using elem_a = float;
     using elem_b = float;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v4float holds 4 FP32 accVGPRs per lane (accVGPRs 0-3).
     using v4float = float [[clang::ext_vector_type(4)]];
 
@@ -290,7 +290,7 @@ struct MfmaCdna3XF32Policy
         acc.regs = v4float{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16×16 tile belongs to one wavefront.  Multiple wavefronts
     // in a block cover different 16×16 sub-tiles.
     //
@@ -313,7 +313,7 @@ struct MfmaCdna3XF32Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads two floats from LDS into a v2float.
     //
     // v_mfma_f32_16x16x8_xf32 (1-block) interprets the 64 lanes as 4 groups
@@ -357,7 +357,7 @@ struct MfmaCdna3XF32Policy
         frag[1] = tile_b_T_ptr[col * k_tile_size + k_off + 1];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one v_mfma_f32_16x16x8_xf32 instruction.
     // This intrinsic is single-block only; all modifier parameters must be 0.
     // cbsz=0, abid=0: single-block A-operand, no broadcast.
@@ -376,7 +376,7 @@ struct MfmaCdna3XF32Policy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 4 accVGPR values to their global-memory positions.
     //
     // Inverse layout (lane L, accVGPR index G in [0,3]):

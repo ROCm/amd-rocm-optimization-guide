@@ -1,4 +1,4 @@
-// SMFMAC 16×16×64 — A (sparse, 2:4) operand register layout
+// SMFMAC 16×16×64 - A (sparse, 2:4) operand register layout
 //
 //   rows = i (0..15), cols = compressed k (0..63)
 //   VGPR = ⌊k/8⌋ mod 2 → v0 or v1

@@ -9,9 +9,9 @@ Optimizing GEMM in HIP
 ********************************************************************************
 
 Matrix multiplication is one of the most fundamental GPU workloads.  It
-underlies the compute-intensive layers of deep neural networks — fully connected
+underlies the compute-intensive layers of deep neural networks - fully connected
 layers, convolutional layers expressed as implicit GEMMs, and attention
-mechanisms — and is central to scientific computing, computer vision, and
+mechanisms - and is central to scientific computing, computer vision, and
 recommendation systems.  GPUs are heavily optimized for matrix multiplication,
 and understanding how to write an efficient GEMM kernel is an effective way to
 learn how GPU hardware resources interact.
@@ -72,7 +72,7 @@ product of the *i*-th row of :math:`\pmb{A}` and the *j*-th column of
    :alt: Three labeled matrices: A (M×K) with row i highlighted and dimension arrows, B (K×N) with column j highlighted and dimension arrows, and C (M×N) with element c_ij highlighted showing the result of their inner product
 
 A CPU implementation applies three nested loops over *m*, *n*, and *k*,
-performing one multiply-accumulate per iteration — 2 × M × N × K scalar
+performing one multiply-accumulate per iteration - 2 × M × N × K scalar
 operations in total.
 
 A GPU implementation is `embarrassingly parallel <https://en.wikipedia.org/wiki/Embarrassingly_parallel>`_ across the output elements.
@@ -80,14 +80,14 @@ A HIP kernel assigns one thread (or a small tile of threads) to each output
 element, eliminating the *m* and *n* loops entirely and leaving only the
 *k* reduction loop inside each thread.  With :math:`M \times N` output
 elements and a modern AMD GPU fielding tens of thousands of concurrent threads,
-the full output matrix can be computed in a single dispatch — provided data
+the full output matrix can be computed in a single dispatch - provided data
 can be supplied fast enough to keep the Compute Units (CUs) busy.
 
 Background: the GEMM arithmetic intensity
 ==========================================
 
-For an :math:`M \times K \times N` GEMM the arithmetic intensity—floating-point
-operations per byte of DRAM traffic—is:
+For an :math:`M \times K \times N` GEMM the arithmetic intensity - floating-point
+operations per byte of DRAM traffic - is:
 
 .. math::
 
@@ -96,7 +96,7 @@ operations per byte of DRAM traffic—is:
 For :math:`M = N = K = n` this simplifies to :math:`\frac{n}{6}`.  With
 :math:`n = 4096` that gives roughly **683 FLOPs/byte**, far above the roofline
 ridge point of any current AMD GPU.  GEMM is therefore **compute-bound** in
-principle—but only if data is supplied fast enough to keep the compute units
+principle - but only if data is supplied fast enough to keep the compute units
 busy.  The naive kernel falls well below the roofline because it is
 *memory-bound in practice*: global memory latency stalls dominate
 (see :ref:`roofline_model` for background on roofline analysis and
@@ -165,7 +165,7 @@ Step 2: LDS tiling
 The root cause of the naive kernel's cache thrashing is that all threads share
 a single transparent L2 cache with no way to guarantee that a loaded value
 stays resident until every thread that needs it has read it.  AMD GPUs expose
-**Local Data Share (LDS)** — a low-latency, high-bandwidth on-chip memory that
+**Local Data Share (LDS)** - a low-latency, high-bandwidth on-chip memory that
 is explicitly managed by the programmer, functioning as a programmable L1 cache.
 Unlike CPU hardware caches, data placed in LDS stays there until the kernel
 explicitly overwrites or discards it.
@@ -212,7 +212,7 @@ that data without touching global memory again.
 LDS bank conflict analysis
 --------------------------
 
-Moving data into LDS is only half the battle — *how* threads access that data
+Moving data into LDS is only half the battle - *how* threads access that data
 determines whether the LDS delivers its full bandwidth.  LDS is divided into
 independently addressable **banks**.  When threads in the same cycle access
 different addresses that map to the same bank, the hardware must serialize
@@ -223,7 +223,7 @@ takes *k* cycles instead of one).
 Bank mapping is straightforward: consecutive 4-byte words are assigned to
 consecutive banks in round-robin order.  For a 32-bank LDS, word at byte
 address ``a`` maps to bank ``(a / 4) % 32``.  Two threads accessing the
-*same* address are not in conflict — the hardware broadcasts the value to
+*same* address are not in conflict - the hardware broadcasts the value to
 both.
 
 The number of LDS banks varies across AMD GPU architectures:
@@ -269,17 +269,17 @@ The number of LDS banks varies across AMD GPU architectures:
    set of 32 banks; in WGP mode (the default) the workgroup spans the full
    WGP.
 
-For this kernel's compute phase—an inner product over the K-strip:
+For this kernel's compute phase - an inner product over the K-strip:
 
 .. code-block:: cpp
 
    sum += tile_a[ty][i] * tile_b[i][tx];
 
-—the access pattern with ``float`` data is **inherently conflict-free
+- the access pattern with ``float`` data is **inherently conflict-free
 regardless of tile size**:
 
 * ``tile_a[ty][i]``: all threads in a wavefront that share the same ``ty``
-  read the *same address*.  The hardware broadcasts the value — no conflict.
+  read the *same address*.  The hardware broadcasts the value - no conflict.
 * ``tile_b[i][tx]``: each thread has a unique ``tx``, and because each
   ``float`` is exactly 4 bytes (= one bank slot), consecutive ``tx`` values
   always map to consecutive banks.  No two threads in the same cycle can hit
@@ -366,7 +366,7 @@ length-``THREAD_TILE_N`` row fragment of B produces a full
    outer-product pattern, each thread loads a fragment of ``THREAD_TILE_N``
    consecutive elements from ``tile_b_T`` along the ``ki`` dimension.  Because
    the inner dimension of ``tile_b_T`` is ``K_TILE_SIZE``, consecutive ``ki``
-   values are adjacent in memory — stride-1 access. Without transposition
+   values are adjacent in memory - stride-1 access. Without transposition
    (``tile_b[K_TILE_SIZE][BLOCK_TILE_N]``), the fragment load would stride
    across the large ``BLOCK_TILE_N`` dimension, producing
    scattered LDS reads.
@@ -496,8 +496,8 @@ Step 4: Double buffering
 
 Every iteration of the K-strip loop stalls at ``__syncthreads()`` waiting for
 LDS tile loads to complete before compute can begin.  Software double buffering
-hides this latency by maintaining two pairs of LDS buffers — one pair for
-**A** tiles and one for **B** tiles — each with a *ping* and a *pong* slot.
+hides this latency by maintaining two pairs of LDS buffers - one pair for
+**A** tiles and one for **B** tiles - each with a *ping* and a *pong* slot.
 The next tile is loaded into the background slot while the current slot is
 being consumed.
 
@@ -525,7 +525,7 @@ the kernel body is identical regardless of the chosen approach.
    * - ``buf_idx``
      - Return which buffer to read for the current iteration.
 
-**Single-buffer policy** (baseline — same logic as Step 3):
+**Single-buffer policy** (baseline - same logic as Step 3):
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_double_buffer.hip
    :language: cpp
@@ -617,7 +617,7 @@ Step 5: Vectorized loads
 
 Each global memory load instruction in the tile-loading loop fetches one
 ``float`` per thread.  Replacing it with a ``float2`` or ``float4`` load
-fetches 2 or 4 ``float`` values per instruction — the same total data moves
+fetches 2 or 4 ``float`` values per instruction - the same total data moves
 through the cache hierarchy, but in fewer instructions.  This reduces pressure
 on the VMEM instruction-issue pipeline and can improve overall throughput when
 instruction issue is the bottleneck rather than memory bandwidth.
@@ -667,7 +667,7 @@ To put this in context, consider how a single coalesced scalar load of a
      - 32 × 4 B / 128 B = **1**
 
 On RDNA GPUs, a coalesced scalar ``float`` load already fills exactly one cache
-line — wider vector loads do not reduce cache traffic.  On CDNA and CDNA2 a
+line - wider vector loads do not reduce cache traffic.  On CDNA and CDNA2 a
 scalar load spans 4 cache lines. On CDNA3 and CDNA4, it spans 2.  In all cases,
 vector loads do not change the number of cache lines accessed; they reduce
 the number of **instructions** the wavefront must issue to move the same
@@ -769,7 +769,7 @@ or FP8 (1 byte), a scalar load per thread no longer fills a full cache line:
      - 32 × 1 = 32 B
      - **25%** (three quarters wasted)
 
-The wasted portion of each cache line is fetched from DRAM but never used —
+The wasted portion of each cache line is fetched from DRAM but never used -
 this is pure bandwidth overhead.  A 2-wide vector load for FP16 or a 4-wide
 vector load for FP8 restores the full cache line fill.  On CDNA3/CDNA4
 (128 B cache line, 64-wide wavefronts), FP8 scalar loads similarly fill only
@@ -828,7 +828,7 @@ Compare the following counters against the double-buffered kernel from Step 4.
 Step 6: Register pressure and occupancy
 ========================================
 
-GPU occupancy—the ratio of active wavefronts to the hardware maximum—is set by
+GPU occupancy - the ratio of active wavefronts to the hardware maximum - is set by
 the most constrained resource.  For register-tiled GEMM kernels that resource
 is typically the **VGPR file**: each thread holds
 ``THREAD_TILE_M × THREAD_TILE_N`` accumulator registers plus fragment arrays,
@@ -907,7 +907,7 @@ Finding optimal values with rocprofv3
 3. Open both CSVs and note the values of:
 
    * **VGPR_Count** (vector registers allocated per thread, from the kernel-trace CSV)
-   * **Scratch_Size** (>0 means VGPRs are spilling to DRAM—avoid this)
+   * **Scratch_Size** (>0 means VGPRs are spilling to DRAM - avoid this)
    * **MeanOccupancyPerCU** or **SQ_LEVEL_WAVES**:
      mean active wavefronts per CU, from the PMC CSV
 
@@ -916,7 +916,7 @@ Finding optimal values with rocprofv3
 5. If the compiler allocated more VGPRs than necessary and occupancy is below
    the target, add ``__launch_bounds__`` with a ``min_waves_per_eu`` that
    reflects the desired occupancy.
-6. Re-profile and re-check ``Scratch_Size``—if it increases significantly, the
+6. Re-profile and re-check ``Scratch_Size`` - if it increases significantly, the
    compiler was forced to spill and the constraint is too aggressive.
 
 .. note::
@@ -967,8 +967,8 @@ and deliver substantially higher FLOP/s than an equivalent sequence of scalar
 FMAs.
 
 Steps 1–6 produced a well-optimized scalar GEMM kernel, but repeating the same
-work for each architecture-specific instruction set—MFMA on CDNA, WMMA on RDNA3,
-the relaxed WMMA variant on RDNA4—would mean maintaining several near-identical
+work for each architecture-specific instruction set - MFMA on CDNA, WMMA on RDNA3,
+the relaxed WMMA variant on RDNA4 - would mean maintaining several near-identical
 copies of the kernel with only the inner computation swapped out.  Any future
 improvement (a new tiling strategy, a wider vector load, a different buffering
 depth) would have to be applied to every copy independently.
@@ -980,13 +980,13 @@ orchestration is written once** and architecture-specific builtins can be
 The insight from the preceding steps is that all the work decomposes into
 exactly two independent concerns:
 
-1. **Data movement** (``TilePolicy``) — tile shape, LDS layout, vector load
+1. **Data movement** (``TilePolicy``) - tile shape, LDS layout, vector load
    width, and buffering strategy.  These optimizations are identical regardless
    of which instruction is used to compute the output; a ``float4`` load into a
    double-buffered LDS tile is just as beneficial whether the inner loop uses
    scalar FMAs or MFMA.
 
-2. **Arithmetic** (``ComputePolicy``) — how a thread's register fragment is
+2. **Arithmetic** (``ComputePolicy``) - how a thread's register fragment is
    loaded from LDS and how the output accumulator is updated.  This is the only
    part that differs between scalar code and architecture-specific builtins.
 
@@ -1001,7 +1001,7 @@ It already incorporates all the optimizations from the preceding steps: LDS
 tiling, register tiling, software double buffering, and vectorized loads.  When
 an MFMA or WMMA ``ComputePolicy`` is provided in one of the
 architecture-specific builtins chapters, the same data-movement infrastructure
-and the same kernel orchestration are reused unchanged—only the inner arithmetic
+and the same kernel orchestration are reused unchanged - only the inner arithmetic
 changes.
 
 Policy interfaces
@@ -1058,14 +1058,14 @@ Data type scope: policy coverage
 ``elem_a`` and ``elem_b`` parameterize the *register fragment* type and are
 already fully wired through the kernel loop.  A future ``ComputePolicy`` can
 set ``elem_a = __half`` and the float-to-half conversion happens entirely
-inside ``load_a`` / ``load_b``—the kernel body is untouched.
+inside ``load_a`` / ``load_b`` - the kernel body is untouched.
 
 However, two things are not yet parameterized and are hardcoded to
 ``float`` in this file:
 
-* The **LDS storage type** — ``SharedStorage`` in every ``TilePolicy`` holds
+* The **LDS storage type** - ``SharedStorage`` in every ``TilePolicy`` holds
   ``float`` arrays, and the cooperative load helpers write ``float`` into LDS.
-* The **global memory pointer type** — the kernel signature takes
+* The **global memory pointer type** - the kernel signature takes
   ``const float* A``, ``const float* B``, ``float* C``.
 
 This means two distinct cases arise when introducing builtins in follow-up
@@ -1139,7 +1139,7 @@ a clear "constraint not satisfied" diagnostic.
 Concrete policies
 -----------------
 
-**ScalarFMAPolicy** — portable scalar FP32 outer-product (no builtins):
+**ScalarFMAPolicy** - portable scalar FP32 outer-product (no builtins):
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cpp
@@ -1147,7 +1147,7 @@ Concrete policies
    :start-after: [Sphinx scalar fma policy start]
    :end-before: [Sphinx scalar fma policy end]
 
-**SingleBufferTilePolicy** — single LDS buffer pair, equivalent to Step 3:
+**SingleBufferTilePolicy** - single LDS buffer pair, equivalent to Step 3:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cpp
@@ -1155,7 +1155,7 @@ Concrete policies
    :start-after: [Sphinx single buffer policy start]
    :end-before: [Sphinx single buffer policy end]
 
-**SoftwareDoubleBufferTilePolicy** — ping-pong LDS buffers, equivalent to Step 4:
+**SoftwareDoubleBufferTilePolicy** - ping-pong LDS buffers, equivalent to Step 4:
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_generic.hip
    :language: cpp
@@ -1203,9 +1203,9 @@ to be filled by follow-up architecture-specific sections:
 
 The program launches three variants:
 
-1. ``GemmKernel<SingleBufPolicy, ScalarPolicy>`` — single-buffer, scalar FP32
-2. ``GemmKernel<DoubleBufPolicy, ScalarPolicy>`` — double-buffer, scalar FP32
-3. ``GemmKernel<DirectLoadPolicy, ScalarPolicy>`` — direct global-to-LDS loads
+1. ``GemmKernel<SingleBufPolicy, ScalarPolicy>`` - single-buffer, scalar FP32
+2. ``GemmKernel<DoubleBufPolicy, ScalarPolicy>`` - double-buffer, scalar FP32
+3. ``GemmKernel<DirectLoadPolicy, ScalarPolicy>`` - direct global-to-LDS loads
    (CDNA3 and CDNA4 only)
 
 The first two differ only in their ``TilePolicy``; the third replaces the
@@ -1250,7 +1250,7 @@ registers:
 
 There are three distinct benefits:
 
-1. **Instruction count reduction** — each ``global_load_lds_dword`` replaces a
+1. **Instruction count reduction** - each ``global_load_lds_dword`` replaces a
    ``global_load_dword`` into a VGPR followed by a ``ds_write_b32`` from that
    VGPR into LDS.  A single instruction does the work of two, halving the total
    instruction count for the tile-load phase.  For the tile parameters in this
@@ -1259,12 +1259,12 @@ There are three distinct benefits:
    ``global_load_dword`` + 32 ``ds_write_b32`` = 64 instructions.  This
    directly frees instruction-issue bandwidth for the FMA compute phase.
 
-2. **VGPR file bandwidth** — the VGPR file is no longer used as a staging area
+2. **VGPR file bandwidth** - the VGPR file is no longer used as a staging area
    for tile data during the load phase.  Its read/write bandwidth is fully
    available to the outer-product FMA loop, reducing contention between the
    load and compute phases.
 
-3. **VGPR count** — the loaded data never occupies vector registers.  Fewer
+3. **VGPR count** - the loaded data never occupies vector registers.  Fewer
    VGPRs allocated means more wavefronts can be resident per CU simultaneously
    (see Step 6), which improves the hardware's ability to hide memory latency
    through wavefront switching.
@@ -1275,16 +1275,16 @@ can produce speedups larger than VGPR savings alone would suggest.
 
 At the ISA level, ``global_load_lds_dword`` is a **wavefront-wide gather**:
 
-* ``VADDR`` (a vector register) provides each lane's global source address —
+* ``VADDR`` (a vector register) provides each lane's global source address -
   the global pointer need not be wave-uniform.
-* ``M0`` (a scalar register) provides the LDS base address — wave-uniform.
+* ``M0`` (a scalar register) provides the LDS base address - wave-uniform.
 * The LDS write destination is implicitly offset per lane:
   lane *k* writes to ``M0 + offset + k * 4`` (for ``size <= 4``), or
   ``M0 + offset + k * 16`` (for ``size > 4``).
 
 A single ``global_load_lds_dword`` instruction therefore gathers **64 floats**
 (256 bytes) from 64 potentially different global addresses into 64 contiguous
-LDS locations — all without touching VGPRs.
+LDS locations - all without touching VGPRs.
 
 The ``DirectLoadTilePolicy`` treats the tile as a flat array of elements and
 processes it in chunks of 64 (one wavefront width per instruction).  For
@@ -1304,8 +1304,8 @@ to fill the entire tile.
    ``DirectLoadPolicy`` variant produces results identical to the other two.
    The only difference is the data path during the tile load phase.
 
-   For the full builtin reference — signatures, parameter tables, address
-   calculation formulas, and cache policy encoding — see
+   For the full builtin reference - signatures, parameter tables, address
+   calculation formulas, and cache policy encoding - see
    :ref:`direct-to-lds-builtins`.
 
 **What to observe:**
@@ -1331,8 +1331,8 @@ Further reading
 
 The following resources provide deeper coverage of the tools and hardware referenced in this tutorial.
 
-* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` — detailed
+* :ref:`rocprofv3 documentation <rocprofiler-sdk:using-rocprofv3>` - detailed
   guide to timeline and counter profiling.
 * `AMD GPU architecture guides (ISA references) <https://gpuopen.com/amd-gpu-architecture-programming-documentation/>`_
-  — VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
+  - VGPR budgets, LDS bank geometry, and wavefront scheduling details for each
   architecture family.

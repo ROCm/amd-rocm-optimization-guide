@@ -16,11 +16,11 @@
 //
 // Cell value = VGPR index (0–3); column color = lane group.
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let rose-light = rgb("#f5cccd")   // lane group 0 (lanes  0–15)
 #let grey       = rgb("#bfbfbf")   // lane group 1 (lanes 16–31)
 #let white      = rgb("#ffffff")
@@ -28,11 +28,11 @@
 #let dimmed     = rgb("#777777")
 #let rule-major = 0.8pt + rgb("#777777")   // between compressed-K band groups
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let sz  = 14pt
 #let gap = 0pt
 
-// ── Column classification functions ───────────────────────────────────────
+// -- Column classification functions ---------------------------------------
 // Lane group that owns compressed-K column c (0–15):
 //   group 0 (rose): c ∈ {0-3, 8-11}   group 1 (grey): c ∈ {4-7, 12-15}
 #let a-grp(c) = if c < 4 or (c >= 8 and c < 12) { 0 } else { 1 }
@@ -47,7 +47,7 @@
   else           { 2 + calc.floor((c - 12) / 2) }
 }
 
-// ── Single cell: row i, compressed-K column c ─────────────────────────────
+// -- Single cell: row i, compressed-K column c -----------------------------
 #let a-cell(i, c) = {
   let bg  = if a-grp(c) == 0 { rose-light } else { grey }
   // Vertical major rule at the left edge of each 4-column band (except col 0)
@@ -61,7 +61,7 @@
   )
 }
 
-// ── Data grid (16 rows × 16 compressed-K cols) ────────────────────────────
+// -- Data grid (16 rows × 16 compressed-K cols) ----------------------------
 #let data-grid = grid(
   columns: (sz,) * 16,
   rows:    (sz,) * 16,
@@ -70,7 +70,7 @@
   ..range(16).map(i => range(16).map(c => a-cell(i, c))).flatten()
 )
 
-// ── Band header: lane-group label spanning each 4-column group ────────────
+// -- Band header: lane-group label spanning each 4-column group ------------
 // Uses the box(width: 4*sz) / box(width: 0pt) trick to span cells.
 #let band-header = grid(
   columns: (sz,) * 16,
@@ -97,7 +97,7 @@
   })
 )
 
-// ── Column header: compressed-K index (0–15) with left-edge major rules ───
+// -- Column header: compressed-K index (0–15) with left-edge major rules ---
 #let col-header = grid(
   columns: (sz,) * 16,
   column-gutter: gap,
@@ -111,7 +111,7 @@
   })
 )
 
-// ── Left margin: one label per 4 rows ─────────────────────────────────────
+// -- Left margin: one label per 4 rows -------------------------------------
 #let margin-w = 48pt
 #let margin-grid = grid(
   rows: (sz,) * 16,
@@ -127,7 +127,7 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
+// -- Caption ---------------------------------------------------------------
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
   srcA sparse fragment for 16×16×32 SWMMAC (FP16/BF16 inputs), RDNA4. \
@@ -136,12 +136,12 @@
   Both groups cover all 16 rows (row = lane % 16). Column _c_ = compressed-K index.
 ]
 
-// ── Title ─────────────────────────────────────────────────────────────────
+// -- Title -----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
-  16×16×32 SWMMAC srcA layout — wave32 (compressed K, FP16)
+  16×16×32 SWMMAC srcA layout - wave32 (compressed K, FP16)
 ]
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(

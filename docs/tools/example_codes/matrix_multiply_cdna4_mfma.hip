@@ -335,7 +335,7 @@ struct SingleBufferTilePolicyF16
 // [Sphinx mfma cdna4 policy start]
 struct MfmaCdna4F16Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wavefront owns a 16×16 output tile.
     // All 64 lanes hold unique output elements (4 elements per lane).
     static constexpr int thread_tile_m   = 16;
@@ -351,7 +351,7 @@ struct MfmaCdna4F16Policy
     using elem_a = _Float16;
     using elem_b = _Float16;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v4float holds 4 FP32 accVGPRs per lane (accVGPRs 0--3).
     using v4float = float [[clang::ext_vector_type(4)]];
 
@@ -365,7 +365,7 @@ struct MfmaCdna4F16Policy
         acc.regs = v4float{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16×16 tile belongs to one wavefront.  Multiple wavefronts
     // in a block cover different 16×16 sub-tiles.
     //
@@ -388,7 +388,7 @@ struct MfmaCdna4F16Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads eight FP16 values from LDS into a v8half.
     //
     // v_mfma_f32_16x16x32_f16 (1-block) interprets the 64 lanes as 4 groups
@@ -432,7 +432,7 @@ struct MfmaCdna4F16Policy
             frag[e] = tile_b_T_ptr[col * k_tile_size + k_off + e];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one v_mfma_f32_16x16x32_f16 instruction.
     // This intrinsic is single-block only; all modifier parameters must be 0.
     // cbsz=0, abid=0: single-block A-operand, no broadcast.
@@ -453,7 +453,7 @@ struct MfmaCdna4F16Policy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 4 accVGPR values to their global-memory positions.
     //
     // Inverse layout (lane L, accVGPR index G in [0,3]):
@@ -601,7 +601,7 @@ struct SingleBufferTilePolicyF16RowB
 // [Sphinx mfma cdna4 tr policy start]
 struct MfmaCdna4F16TrPolicy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     static constexpr int thread_tile_m   = 16;
     static constexpr int thread_tile_n   = 16;
     static constexpr int frag_size_m     = 8;
@@ -641,7 +641,7 @@ struct MfmaCdna4F16TrPolicy
         *thread_col = wid_x * 16;
     }
 
-    // ── load_a ───────────────────────────────────────────────────────────────
+    // -- load_a ---------------------------------------------------------------
     // Scalar load, identical to MfmaCdna4F16Policy::load_a.
     __device__ static void load_a(const _Float16* tile_a_ptr,
                                   int             tile_a_row,
@@ -657,7 +657,7 @@ struct MfmaCdna4F16TrPolicy
             frag[e] = tile_a_ptr[row * k_tile_size + k_off + e];
     }
 
-    // ── load_b ───────────────────────────────────────────────────────────────
+    // -- load_b ---------------------------------------------------------------
     // Hardware-transposed load using ds_read_tr16_b64_v4f16.
     //
     // tile_b_ptr points to the base of the row-major B tile in LDS:

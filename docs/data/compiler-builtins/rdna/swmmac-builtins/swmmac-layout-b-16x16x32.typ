@@ -17,11 +17,11 @@
 //
 // Cell value = VGPR index (0–7); row color = lane group.
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let rose-light = rgb("#f5cccd")   // lane group 0 (lanes  0–15)
 #let grey       = rgb("#bfbfbf")   // lane group 1 (lanes 16–31)
 #let white      = rgb("#ffffff")
@@ -29,11 +29,11 @@
 #let dimmed     = rgb("#777777")
 #let rule-major = 0.8pt + rgb("#777777")   // between K-row bands
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let sz  = 12pt   // slightly smaller to keep a 32-row grid compact
 #let gap = 0pt
 
-// ── Row classification functions ──────────────────────────────────────────
+// -- Row classification functions ------------------------------------------
 // Lane group that covers K-row k:
 //   group 0 (rose): k ∈ { 0– 7, 16–23}
 //   group 1 (grey): k ∈ { 8–15, 24–31}
@@ -54,7 +54,7 @@
 // Major rule positions: at the start of each 8-row band (k = 8, 16, 24)
 #let b-top-rule(k) = if k == 8 or k == 16 or k == 24 { rule-major } else { none }
 
-// ── Single cell: K-row k, N-column j ──────────────────────────────────────
+// -- Single cell: K-row k, N-column j --------------------------------------
 #let b-cell(k, j) = {
   let bg = if b-grp(k) == 0 { rose-light } else { grey }
   rect(
@@ -66,7 +66,7 @@
   )
 }
 
-// ── Data grid (32 K-rows × 16 N-cols) ────────────────────────────────────
+// -- Data grid (32 K-rows × 16 N-cols) ------------------------------------
 #let data-grid = grid(
   columns: (sz,) * 16,
   rows:    (sz,) * 32,
@@ -75,7 +75,7 @@
   ..range(32).map(k => range(16).map(j => b-cell(k, j))).flatten()
 )
 
-// ── Column header: N index (0–15) ────────────────────────────────────────
+// -- Column header: N index (0–15) ----------------------------------------
 #let col-header = grid(
   columns: (sz,) * 16,
   column-gutter: gap,
@@ -84,7 +84,7 @@
   )
 )
 
-// ── Left margin: one label per 8-row K band ───────────────────────────────
+// -- Left margin: one label per 8-row K band -------------------------------
 #let margin-w = 90pt
 #let margin-grid = grid(
   rows: (sz,) * 32,
@@ -124,7 +124,7 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
+// -- Caption ---------------------------------------------------------------
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
   srcB dense fragment for 16×16×32 SWMMAC (FP16/BF16 inputs), RDNA4. \
@@ -133,12 +133,12 @@
   Both groups cover all 16 columns (col = lane % 16). Row _k_ = dense-K index.
 ]
 
-// ── Title ─────────────────────────────────────────────────────────────────
+// -- Title -----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
-  16×16×32 SWMMAC srcB layout — wave32 (dense K, FP16)
+  16×16×32 SWMMAC srcB layout - wave32 (dense K, FP16)
 ]
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(

@@ -1,4 +1,4 @@
-// SMFMAC 32×32×32 — B (dense) operand register layout
+// SMFMAC 32×32×32 - B (dense) operand register layout
 //
 //   rows = k (0..31), cols = j (0..31)
 //   VGPR = ⌊k/4⌋ mod 4 → v0..v3

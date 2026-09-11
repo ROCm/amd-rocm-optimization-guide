@@ -305,7 +305,7 @@ typedef float  v8float __attribute__((ext_vector_type(8)));
 
 struct SwmmacRdna4F16Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wave32 wavefront owns a 16×16 output tile.
     static constexpr int thread_tile_m   = 16;
     static constexpr int thread_tile_n   = 16;
@@ -316,7 +316,7 @@ struct SwmmacRdna4F16Policy
     using elem_a = __fp16;
     using elem_b = __fp16;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v8float holds 8 FP32 output elements per lane.
     struct Accumulator
     {
@@ -328,7 +328,7 @@ struct SwmmacRdna4F16Policy
         acc.regs = v8float{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16×16 tile belongs to one wavefront. Multiple wavefronts in
     // a block cover different 16×16 sub-tiles.
     //
@@ -349,7 +349,7 @@ struct SwmmacRdna4F16Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads 8 compressed FP16 values and one index int from
     // LDS.
     //
@@ -432,7 +432,7 @@ struct SwmmacRdna4F16Policy
         return frag;
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one swmmac_f32_16x16x32_f16_w32 instruction.
     __device__ static void mma(Accumulator&      acc,
                                const AFragment&  a_frag,
@@ -442,7 +442,7 @@ struct SwmmacRdna4F16Policy
             a_frag.data, b_frag, acc.regs, a_frag.index);
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 8 accumulator values to their global-memory positions.
     //
     // SWMMAC 16x16x32 wave32 output layout (AMD Matrix Instruction Calculator):

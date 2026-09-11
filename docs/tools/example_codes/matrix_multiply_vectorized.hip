@@ -217,7 +217,7 @@ struct VectorizedDoubleBufferTilePolicy
         // within each row are contiguous in global memory (row-major A,
         // stride K), so we vectorise along the column (k) dimension.
         // tile_b_T gathers from stride-N columns of B, which is not
-        // contiguous — scalar fallback is used there.
+        // contiguous - scalar fallback is used there.
 
         const int tile_k_start = tile_idx * K_TILE_SIZE;
 
@@ -231,7 +231,7 @@ struct VectorizedDoubleBufferTilePolicy
         // tile_a load: flat-strided across BLOCK_TILE_M * K_TILE_SIZE elements.
         // Each vector load reads LoadWidth contiguous floats.  Because
         // K_TILE_SIZE % LoadWidth == 0, a vector load never crosses a row
-        // boundary in the LDS tile — the flat vector index maps cleanly
+        // boundary in the LDS tile - the flat vector index maps cleanly
         // to (row, col) within the tile.
         {
             using Vec                       = typename VectorType<LoadWidth>::type;

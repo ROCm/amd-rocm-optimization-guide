@@ -353,7 +353,7 @@ struct SingleBufferTilePolicyF16
 // [Sphinx wmma rdna3 policy start]
 struct WmmaRdna3F16Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wavefront (wave32) owns a 16x16 output tile.
     // All 32 lanes hold unique output elements (8 elements per lane).
     static constexpr int thread_tile_m   = 16;
@@ -364,14 +364,14 @@ struct WmmaRdna3F16Policy
     // Lanes 0--15 and 16--31 mirror each other (matrix replication).
     static constexpr int k_step          = 16;
 
-    // ── Vector types ────────────────────────────────────────────────────────
+    // -- Vector types --------------------------------------------------------
     using v16half = _Float16 [[clang::ext_vector_type(16)]];
     using v8float = float    [[clang::ext_vector_type(8)]];
 
     using elem_a = _Float16;
     using elem_b = _Float16;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v8float holds 8 FP32 VGPRs per lane (VGPRs 0--7).
     struct Accumulator
     {
@@ -383,7 +383,7 @@ struct WmmaRdna3F16Policy
         acc.regs = v8float{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16x16 tile belongs to one wavefront (wave32).  Multiple
     // wavefronts in a block cover different 16x16 sub-tiles.
     //
@@ -406,7 +406,7 @@ struct WmmaRdna3F16Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads 16 FP16 values from LDS into the fragment
     // array.  The 16-element _Float16 array has the same layout as v16half
     // and is reinterpreted as such in mma().
@@ -448,7 +448,7 @@ struct WmmaRdna3F16Policy
             frag[e] = tile_b_T_ptr[col * k_tile_size + ki + e];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one v_wmma_f32_16x16x16_f16 instruction.
     //
     // The _Float16[16] fragment arrays share the same in-register layout as
@@ -467,7 +467,7 @@ struct WmmaRdna3F16Policy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 8 VGPR values to their global-memory positions.
     //
     // Inverse layout (lane L, VGPR index G in [0,7]):

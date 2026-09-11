@@ -10,27 +10,27 @@
 //   lane    = 4b + j      (j = column within the tile, 0–3)
 //   accVGPR = i           (= tile row, 0–3)
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
-#let teal-light   = rgb("#cceef5")   // even blocks — light teal tint
-#let grey   = rgb("#bfbfbf")   // odd  blocks — grey tint
+// -- Palette ---------------------------------------------------------------
+#let teal-light   = rgb("#cceef5")   // even blocks - light teal tint
+#let grey   = rgb("#bfbfbf")   // odd  blocks - grey tint
 #let white  = rgb("#ffffff")
 #let ink    = rgb("#1e1e1e")
 #let dimmed = rgb("#444444")
 #let rule-block = 0.8pt + rgb("#777777")   // between blocks (every 4 cols)
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let sz  = 18pt
 #let gap = 0pt
 
-// ── Derived quantities ────────────────────────────────────────────────────
+// -- Derived quantities ----------------------------------------------------
 // lane (= column of the full grid) → block index
 #let block-of(lane) = calc.floor(lane / 4)
 
-// ── Single cell: row = accVGPR index i (0–3), col = lane (0–63) ──────────
+// -- Single cell: row = accVGPR index i (0–3), col = lane (0–63) ----------
 #let mfma-cell(i, lane) = {
   let b  = block-of(lane)
   let bg = if calc.rem(b, 2) == 0 { teal-light } else { grey }
@@ -45,7 +45,7 @@
   )
 }
 
-// ── Data grid (4 rows × 64 cols) ──────────────────────────────────────────
+// -- Data grid (4 rows × 64 cols) ------------------------------------------
 #let data-grid = grid(
   columns: (sz,) * 64,
   rows:    (sz,) * 4,
@@ -54,7 +54,7 @@
   ..range(4).map(i => range(64).map(lane => mfma-cell(i, lane))).flatten()
 )
 
-// ── Column header: block number above each 4-lane group ──────────────────
+// -- Column header: block number above each 4-lane group ------------------
 // Show block index centred over each 4-column group
 #let block-header = grid(
   columns: (sz,) * 64,
@@ -69,13 +69,13 @@
         align(center, text(size: 9pt, fill: dimmed)[b=#b])
       )
     } else {
-      // empty cells already consumed by the box above — emit nothing
+      // empty cells already consumed by the box above - emit nothing
       box(width: 0pt)
     }
   })
 )
 
-// ── Left margin: row index label (= accVGPR = tile row i) ─────────────────
+// -- Left margin: row index label (= accVGPR = tile row i) -----------------
 #let margin-w = 80pt
 #let margin-grid = grid(
   rows: (sz,) * 4,
@@ -92,7 +92,7 @@
   })
 )
 
-// ── Lane axis label row (below block header, above data) ──────────────────
+// -- Lane axis label row (below block header, above data) ------------------
 // Print lane number every 4 columns
 #let lane-header = grid(
   columns: (sz,) * 64,
@@ -109,7 +109,7 @@
   })
 )
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(

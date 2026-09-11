@@ -14,11 +14,11 @@
 //   lane = (i / 8) * 16 + j
 //   VGPR = i % 8
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let rose-light = rgb("#f5cccd")   // lanes  0–15 (rows 0–7)
 #let grey       = rgb("#bfbfbf")   // lanes 16–31 (rows 8–15)
 #let white      = rgb("#ffffff")
@@ -26,17 +26,17 @@
 #let dimmed     = rgb("#777777")
 #let rule-major = 0.8pt + rgb("#777777")   // between the two lane groups
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let sz  = 14pt
 #let gap = 0pt
 
-// ── Layout functions ──────────────────────────────────────────────────────
+// -- Layout functions ------------------------------------------------------
 // VGPR index: position within the lane's 8-element output vector
 #let vgpr(i) = calc.rem(i, 8)
 // Lane group: 0 → rose (rows 0–7), 1 → grey (rows 8–15)
 #let lane-grp(i) = calc.floor(i / 8)
 
-// ── Single cell ───────────────────────────────────────────────────────────
+// -- Single cell -----------------------------------------------------------
 #let d-cell(i, j) = {
   let g  = vgpr(i)
   let bg = if lane-grp(i) == 0 { rose-light } else { grey }
@@ -50,7 +50,7 @@
   )
 }
 
-// ── Data grid (16 rows × 16 cols) ─────────────────────────────────────────
+// -- Data grid (16 rows × 16 cols) -----------------------------------------
 #let data-grid = grid(
   columns: (sz,) * 16,
   rows:    (sz,) * 16,
@@ -59,7 +59,7 @@
   ..range(16).map(i => range(16).map(j => d-cell(i, j))).flatten()
 )
 
-// ── Column header (j = 0 … 15) ───────────────────────────────────────────
+// -- Column header (j = 0 … 15) -------------------------------------------
 #let col-header = grid(
   columns: (sz,) * 16,
   column-gutter: gap,
@@ -68,7 +68,7 @@
   )
 )
 
-// ── Left margin: one label per 8-row band ─────────────────────────────────
+// -- Left margin: one label per 8-row band ---------------------------------
 #let margin-w = 80pt
 #let margin-grid = grid(
   rows: (sz,) * 16,
@@ -109,7 +109,7 @@
   })
 )
 
-// ── Caption ───────────────────────────────────────────────────────────────
+// -- Caption ---------------------------------------------------------------
 #let caption-text = [
   #set text(size: 6pt, fill: dimmed)
   Accumulator for all 16×16 SWMMAC intrinsics on RDNA4. \
@@ -117,12 +117,12 @@
   Formulas: lane = ⌊_i_/8⌋ · 16 + _j_ ;  VGPR = _i_ mod 8.
 ]
 
-// ── Title ─────────────────────────────────────────────────────────────────
+// -- Title -----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
-  16×16 SWMMAC accumulator layout — wave32
+  16×16 SWMMAC accumulator layout - wave32
 ]
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(
   top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(

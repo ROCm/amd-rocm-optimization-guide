@@ -32,7 +32,7 @@ Lane operations
 
 Within a wavefront, lanes execute the same instruction simultaneously, but each holds
 its own register values. Many algorithms require lanes to exchange or replicate
-those values — to share a computed result, apply a cyclic shift, or reorganize
+those values - to share a computed result, apply a cyclic shift, or reorganize
 data before the next computation step. The builtins in this topic cover the
 distinct ways of expressing that communication: reading from a named lane,
 moving data in a cyclic pattern, applying a compile-time-fixed permutation, and
@@ -42,8 +42,8 @@ choosing the right one affects both correctness and performance.
 Broadcasting from a specific lane with ``readlane``
 ---------------------------------------------------
 
-When a single lane holds a value that every other lane needs — a wavefront-wide
-maximum, a shared configuration parameter, a count computed by one thread —
+When a single lane holds a value that every other lane needs - a wavefront-wide
+maximum, a shared configuration parameter, a count computed by one thread -
 the most direct way to share it is ``__builtin_amdgcn_readlane``. Unlike a
 shuffle, which requires every lane to participate with a relative offset,
 ``readlane`` reads from one named lane regardless of who is calling, making it
@@ -140,7 +140,7 @@ Lane swap using ``ds_swizzle``
 ------------------------------
 
 While ``readlane`` and rotation address individual lanes or shift the whole
-wavefront by one, some algorithms need a fixed, symmetric rearrangement of groups —
+wavefront by one, some algorithms need a fixed, symmetric rearrangement of groups -
 for example, swapping pairs of lanes, or exchanging two halves of a tile (a
 fixed-size contiguous sub-group of lanes within a wavefront).
 ``__builtin_amdgcn_ds_swizzle`` is designed exactly for this: the permutation
@@ -180,8 +180,8 @@ Wavefront reductions
 ====================
 
 A wavefront reduction combines a value held by each lane into a single scalar
-result. This pattern appears constantly in GPU kernels — summing partial
-products, finding a maximum across a tile, counting active threads — and the
+result. This pattern appears constantly in GPU kernels - summing partial
+products, finding a maximum across a tile, counting active threads - and the
 efficiency of the reduction matters because it often sits in the critical path
 of a kernel. The three implementations below all express the same butterfly
 pattern, where lanes exchange values with increasingly distant partners until
@@ -263,7 +263,7 @@ the reduction steps yourself. ``__builtin_amdgcn_wave_reduce_add_u32``
 encapsulates all of that: you supply the value and a strategy hint, and the
 builtin handles the reduction without you needing to implement or maintain the
 underlying pattern. This represents the most hardware-specific end of the
-spectrum — the implementation details are handled by the compiler and runtime
+spectrum - the implementation details are handled by the compiler and runtime
 rather than by your code. Note that the wave reduce builtins currently cover
 integer and bitwise operations; for float workloads, the DPP path above remains the recommended
 approach.
@@ -287,7 +287,7 @@ Wavefront voting
 Lane operations move data between lanes, and reductions aggregate it. Wavefront
 voting answers a different question: which lanes satisfy a condition, and what
 can the wavefront do with that information collectively? The ``ballot`` builtin
-captures the answer as a bitmask — one bit per lane — which can then be
+captures the answer as a bitmask - one bit per lane - which can then be
 inspected, counted, or used to coordinate writes. The ``mbcnt`` builtin
 builds on this by counting the number of lanes before the current one that have their bit
 set, giving each qualifying lane a unique sequential index. Together, ballot and

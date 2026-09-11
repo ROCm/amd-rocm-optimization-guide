@@ -251,7 +251,7 @@ struct SingleBufferTilePolicyD
 // [Sphinx mfma cdna2 policy start]
 struct MfmaCdna2F64Policy
 {
-    // ── ComputePolicy constants ──────────────────────────────────────────────
+    // -- ComputePolicy constants ----------------------------------------------
     // One wavefront owns a 16×16 output tile.
     // All 64 lanes hold unique output elements (4 elements per lane).
     static constexpr int thread_tile_m   = 16;
@@ -267,7 +267,7 @@ struct MfmaCdna2F64Policy
     using elem_a = double;
     using elem_b = double;
 
-    // ── Accumulator ──────────────────────────────────────────────────────────
+    // -- Accumulator ----------------------------------------------------------
     // v4double holds 4 FP64 accVGPR pairs per lane.
     // accVGPR pair k = floor(i/4), physical regs v[2k+1:2k].
     using v4double = double [[clang::ext_vector_type(4)]];
@@ -282,7 +282,7 @@ struct MfmaCdna2F64Policy
         acc.regs = v4double{};
     }
 
-    // ── thread_tile_offset ───────────────────────────────────────────────────
+    // -- thread_tile_offset ---------------------------------------------------
     // The entire 16×16 tile belongs to one wavefront.  Multiple wavefronts
     // in a block cover different 16×16 sub-tiles.
     //
@@ -305,7 +305,7 @@ struct MfmaCdna2F64Policy
         *thread_col = wid_x * 16;
     }
 
-    // ── Fragment loads ────────────────────────────────────────────────────────
+    // -- Fragment loads --------------------------------------------------------
     // load_a: each lane reads one double from LDS.
     //
     // v_mfma_f64_16x16x4f64 (cbsz=0, abid=0, blgp=0) interprets the 64
@@ -345,7 +345,7 @@ struct MfmaCdna2F64Policy
         frag[0] = tile_b_T_ptr[col * k_tile_size + k_off];
     }
 
-    // ── mma ───────────────────────────────────────────────────────────────────
+    // -- mma -------------------------------------------------------------------
     // Issue one v_mfma_f64_16x16x4f64 instruction.
     // All modifier parameters must be 0 for this instruction.
     // cbsz=0, abid=0: standard 64-lane A-operand, no broadcast.
@@ -361,7 +361,7 @@ struct MfmaCdna2F64Policy
 #endif
     }
 
-    // ── store_c ───────────────────────────────────────────────────────────────
+    // -- store_c ---------------------------------------------------------------
     // Scatter the 4 accVGPR pair values to their global-memory positions.
     //
     // Inverse layout (lane L, accVGPR pair index k in [0,3]):

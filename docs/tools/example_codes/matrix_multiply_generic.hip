@@ -43,7 +43,7 @@
 // ---------------------
 // A compile-time dispatch block maps device ISA strings to concrete policies.
 // MFMA (CDNA) and WMMA (RDNA3/4) policies are left as forward-declaration
-// stubs — they will be filled in by architecture-specific follow-up PRs.
+// stubs - they will be filled in by architecture-specific follow-up PRs.
 // For all other targets, ScalarFMAPolicy (portable scalar FP32 outer-product)
 // is selected automatically.
 // ---------------------------------------------------------------------------
@@ -404,7 +404,7 @@ struct SingleBufferTilePolicy
                                     int tid, int num_threads)
     {
         // For single-buffer we load the *current* tile (t_next is actually t
-        // from the caller's perspective — see kernel loop).
+        // from the caller's perspective - see kernel loop).
         // Rename for clarity: t_next here is the index we want to load.
         const int t = t_next;
         cooperative_load_tile_a(&smem.tile_a[0][0], A, block_row_start,
@@ -467,7 +467,7 @@ struct SoftwareDoubleBufferTilePolicy
     }
 
     // Prefetch tile t_next into the background buffer (1 - current) while
-    // the current buffer is in use for compute.  No sync here — the sync that
+    // the current buffer is in use for compute.  No sync here - the sync that
     // ends the previous compute phase (release) also covers this load because
     // the background buffer is not touched until two iterations later.
     __device__ static void prefetch(SharedStorage& smem,
@@ -679,7 +679,7 @@ struct ScalarFMAPolicy
 //                                     int32_t aux);
 //
 //   src:    global-address-space pointer (address space 1).  Mapped to
-//           VADDR — each lane can hold a different address.
+//           VADDR - each lane can hold a different address.
 //   dst:    LDS-address-space pointer (address space 3).  Mapped to M0
 //           by the compiler.  Must be wave-uniform.  The hardware adds
 //           lane_id * element_size implicitly.

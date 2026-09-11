@@ -4,11 +4,11 @@
 //         of a temporary buffer (no atomics needed).
 // Pass 2: A reduction kernel sums across all block slices for each bin.
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 14pt, fill: rgb("#262626"))
 #set text(font: "New Computer Modern", fill: rgb("#ffffff"), size: 9pt)
 
-// ── Palette (matches reduction / matrix-multiply diagrams) ───────────────
+// -- Palette (matches reduction / matrix-multiply diagrams) ---------------
 #let bg-dark   = rgb("#262626")
 #let accent    = rgb("#c23555")
 #let grey      = rgb("#5e5b61")
@@ -18,12 +18,12 @@
 #let white     = rgb("#ffffff")
 #let dimmed    = rgb("#9e9e9e")
 
-// ── Geometry ──────────────────────────────────────────────────────────────
+// -- Geometry --------------------------------------------------------------
 #let cell-w = 48pt
 #let cell-h = 22pt
 #let label-w = 70pt
 
-// Block row colors — cycle through palette shades
+// Block row colors - cycle through palette shades
 #let block-colors = (dark-red, mauve, grey, dark-grey)
 
 #let data-cell(body, bg: grey) = {
@@ -42,11 +42,11 @@
   )
 }
 
-// ── Parameters ────────────────────────────────────────────────────────────
+// -- Parameters ------------------------------------------------------------
 #let num-blocks = 4
 #let num-bins = 5
 
-// ── Pass 1: Partial histogram buffer layout ──────────────────────────────
+// -- Pass 1: Partial histogram buffer layout ------------------------------
 #align(center,
   stack(dir: ttb, spacing: 14pt,
     text(weight: "bold", size: 11pt, fill: white)[Pass 1: Each block stores its histogram (plain writes, no atomics)],
@@ -83,13 +83,13 @@
       partial_histogram\[blockIdx.x × num_bins + bin\]
     ],
 
-    // ── Arrow ──────────────────────────────────────────────────────────
+    // -- Arrow ----------------------------------------------------------
     v(4pt),
     text(size: 16pt, fill: dimmed)[↓],
     text(size: 8pt, fill: dimmed, weight: "bold")[kernel launch boundary],
     v(4pt),
 
-    // ── Pass 2: Reduction across block slices ────────────────────────
+    // -- Pass 2: Reduction across block slices ------------------------
     text(weight: "bold", size: 11pt, fill: white)[Pass 2: Sum across all block slices per bin],
 
     // Show the reduction for each bin

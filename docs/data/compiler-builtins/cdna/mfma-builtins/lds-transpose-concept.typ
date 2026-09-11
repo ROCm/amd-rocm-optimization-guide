@@ -6,18 +6,18 @@
 // Both panels are coloured by N-index so matching elements share a colour,
 // making the column→lane correspondence easy to follow visually.
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let teal-light = rgb("#cceef5")
 #let grey       = rgb("#bfbfbf")
 #let white      = rgb("#ffffff")
 #let ink        = rgb("#1e1e1e")
 #let dimmed     = rgb("#777777")
 
-// ── Parameters ────────────────────────────────────────────────────────────
+// -- Parameters ------------------------------------------------------------
 #let K       = 4
 #let N       = 8
 #let cw      = 22pt
@@ -27,10 +27,10 @@
 #let lm-vgpr = 28pt   // row-label margin for the VGPR panel
 #let arrow-w = 70pt
 
-// ── Colour by N-index ─────────────────────────────────────────────────────
+// -- Colour by N-index -----------------------------------------------------
 #let n-bg(n) = if calc.rem(n, 2) == 0 { teal-light } else { grey }
 
-// ── LDS panel ─────────────────────────────────────────────────────────────
+// -- LDS panel -------------------------------------------------------------
 #let lds-cell(k, n) = rect(
   width: cw, height: ch, fill: n-bg(n),
   stroke: 0.4pt + ink,
@@ -65,8 +65,8 @@
   ..range(K).map(k => range(N).map(n => lds-cell(k, n))).flatten()
 )
 
-// ── VGPR panel ────────────────────────────────────────────────────────────
-// lane n holds B[0,n] through B[K-1,n] — one complete column of B
+// -- VGPR panel ------------------------------------------------------------
+// lane n holds B[0,n] through B[K-1,n] - one complete column of B
 #let vgpr-cell(k, n) = rect(
   width: cw, height: ch, fill: n-bg(n),
   stroke: 0.4pt + ink,
@@ -101,7 +101,7 @@
   ..range(K).map(k => range(N).map(n => vgpr-cell(k, n))).flatten()
 )
 
-// ── Arrow ─────────────────────────────────────────────────────────────────
+// -- Arrow -----------------------------------------------------------------
 #let panel-h = K * ch
 #let the-arrow = box(width: arrow-w, height: panel-h,
   align(center + horizon,
@@ -112,7 +112,7 @@
   )
 )
 
-// ── Panel headers ─────────────────────────────────────────────────────────
+// -- Panel headers ---------------------------------------------------------
 #let lds-header  = align(center,
   text(size: 6pt, weight: "bold", fill: dimmed)[LDS (shared)]
 )
@@ -120,22 +120,22 @@
   text(size: 6pt, weight: "bold", fill: dimmed)[Per-lane VGPRs (private)]
 )
 
-// ── Title ─────────────────────────────────────────────────────────────────
+// -- Title -----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
   LDS transpose: row-major B into per-lane VGPRs
 ]
 
-// ── Caption ───────────────────────────────────────────────────────────────
+// -- Caption ---------------------------------------------------------------
 #let caption-text = text(size: 6pt, fill: dimmed)[
   B is stored row-major in LDS (left). After ds_read_tr, lane n holds \
   B[0,n] through B[K-1,n] in its VGPRs: one complete column of B (right). \
   Colours identify each N-column. Example: K = 4, N = 8.
 ]
 
-// ── Column widths (reused across three rows) ───────────────────────────────
+// -- Column widths (reused across three rows) -------------------------------
 #let cols = (lm-lds, N * cw, arrow-w, lm-vgpr, N * cw)
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(dir: ttb, spacing: 4pt,
     title,

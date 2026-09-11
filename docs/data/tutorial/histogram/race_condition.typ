@@ -3,11 +3,11 @@
 // Two threads read the same bin value before either writes back.
 // The second write overwrites the first, losing one increment.
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 12pt, fill: rgb("#262626"))
 #set text(font: "New Computer Modern", fill: rgb("#ffffff"), size: 9pt)
 
-// ── Palette (matches reduction / matrix-multiply diagrams) ───────────────
+// -- Palette (matches reduction / matrix-multiply diagrams) ---------------
 #let bg-dark    = rgb("#262626")
 #let accent     = rgb("#c23555")
 #let grey       = rgb("#5e5b61")
@@ -16,7 +16,7 @@
 #let white      = rgb("#ffffff")
 #let dimmed     = rgb("#9e9e9e")
 
-// ── Geometry ──────────────────────────────────────────────────────────────
+// -- Geometry --------------------------------------------------------------
 #let col-w = 140pt
 #let row-h = 28pt
 #let time-w = 28pt
@@ -48,7 +48,7 @@
   )
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────
+// -- Layout ----------------------------------------------------------------
 #grid(
   columns: (time-w, col-w, 8pt, col-w, 12pt, mem-w),
   rows: (row-h,) * 6,

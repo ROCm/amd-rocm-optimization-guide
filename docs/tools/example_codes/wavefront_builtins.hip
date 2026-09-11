@@ -320,7 +320,7 @@ __global__ void rotate_warp_shfl(const int *input, int *output, int n)
 // [Sphinx ds swizzle start]
 // ds_swizzle mask layout: bits [14:10]=and_mask, [9:5]=or_mask, [4:0]=xor_mask.
 // Source lane = (lane & and_mask) | or_mask ^ xor_mask.
-// 0x101F: and_mask=0x1F, xor_mask=0x04 — swaps neighboring groups of 4.
+// 0x101F: and_mask=0x1F, xor_mask=0x04 - swaps neighboring groups of 4.
 constexpr int swizzle_swap_groups4 = 0x101F;
 __global__ void swizzle_swap_groups(const int *input, int *output, int n)
 {
@@ -694,7 +694,7 @@ int main()
         {
             for (int w = 0; w < numwarps && passed; ++w)
             {
-                // Same CPU simulation as rotate_warp — the two kernels produce
+                // Same CPU simulation as rotate_warp - the two kernels produce
                 // identical results and can be verified against the same reference.
                 std::vector<int> lane_val(warpsizehost);
                 for (int l = 0; l < warpsizehost; ++l)

@@ -8,11 +8,11 @@
 // FP8 and BF8:        K = 0..63  (64 total)
 // INT8, FP16, BF16:   K = 0..15  (16 total)
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// -- Page ------------------------------------------------------------------
 #set page(width: auto, height: auto, margin: 0pt)
 #set text(font: "New Computer Modern", fill: rgb("#1e1e1e"), size: 7pt)
 
-// ── Palette ───────────────────────────────────────────────────────────────
+// -- Palette ---------------------------------------------------------------
 #let call1  = rgb("#cceef5")   // first call  -- light teal
 #let call2  = rgb("#bfbfbf")   // second call -- grey
 #let none-c = rgb("#f4f4f4")   // inactive (beyond K range)
@@ -20,12 +20,12 @@
 #let ink    = rgb("#1e1e1e")
 #let dimmed = rgb("#777777")
 
-// ── Cell geometry ─────────────────────────────────────────────────────────
+// -- Cell geometry ---------------------------------------------------------
 #let cell-w = 8pt
 #let cell-h = 12pt
 #let gap    = 0pt
 
-// ── Helper: classify a K position ─────────────────────────────────────────
+// -- Helper: classify a K position -----------------------------------------
 #let k-color(k, k-max, c1-ranges, c2-ranges) = {
   if k >= k-max {
     none-c
@@ -38,7 +38,7 @@
   }
 }
 
-// ── One 64-cell K strip ────────────────────────────────────────────────────
+// -- One 64-cell K strip ----------------------------------------------------
 #let k-strip(k-max, c1-ranges, c2-ranges) = grid(
   columns: (cell-w,) * 64,
   column-gutter: gap,
@@ -49,7 +49,7 @@
   })
 )
 
-// ── Row label (right-aligned, fixed width) ─────────────────────────────────
+// -- Row label (right-aligned, fixed width) ---------------------------------
 #let lw = 115pt
 #let row-label(name) = rect(
   width: lw, height: cell-h, fill: white, stroke: none,
@@ -58,7 +58,7 @@
   )
 )
 
-// ── K-axis tick labels (every 8 positions) ────────────────────────────────
+// -- K-axis tick labels (every 8 positions) --------------------------------
 #let k-axis = grid(
   columns: (cell-w,) * 64,
   column-gutter: gap,
@@ -73,7 +73,7 @@
   )
 )
 
-// ── Intrinsic strips ──────────────────────────────────────────────────────
+// -- Intrinsic strips ------------------------------------------------------
 #let fp4 = k-strip(64,
   ((0, 15), (32, 47)),
   ((16, 31), (48, 63)),
@@ -99,7 +99,7 @@
   ((4, 7), (12, 15)),
 )
 
-// ── One labelled row ──────────────────────────────────────────────────────
+// -- One labelled row ------------------------------------------------------
 #let data-row(label, strip) = grid(
   columns: (lw, auto),
   column-gutter: gap,
@@ -107,7 +107,7 @@
   strip,
 )
 
-// ── Legend ────────────────────────────────────────────────────────────────
+// -- Legend ----------------------------------------------------------------
 #let swatch(col, label) = grid(
   columns: (10pt, 3pt, auto),
   column-gutter: 0pt,
@@ -123,12 +123,12 @@
   swatch(call2, [Call 2]),
 )
 
-// ── Title ─────────────────────────────────────────────────────────────────
+// -- Title -----------------------------------------------------------------
 #let title = text(size: 8pt, weight: "bold")[
   K-position split -- call 1 vs. call 2
 ]
 
-// ── Caption ───────────────────────────────────────────────────────────────
+// -- Caption ---------------------------------------------------------------
 #let caption-text = text(size: 6pt, fill: dimmed)[
   Teal cells are covered by the first call; grey cells by the second. \
   White cells indicate K positions beyond the intrinsic's total K depth. \
@@ -137,7 +137,7 @@
   INT8, FP16, and BF16 use K = 0--15 (16 total).
 ]
 
-// ── Final layout ──────────────────────────────────────────────────────────
+// -- Final layout ----------------------------------------------------------
 #pad(top: 14pt, bottom: 14pt, left: 10pt, right: 14pt,
   stack(dir: ttb, spacing: 3pt,
     title,

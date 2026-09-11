@@ -1,4 +1,4 @@
-// SMFMAC 16×16×32 — C/D (output/input) accumulator register layout
+// SMFMAC 16×16×32 - C/D (output/input) accumulator register layout
 //
 //   rows = i (0..15), cols = j (0..15)
 //   VGPR = i mod 4 → v0..v3
