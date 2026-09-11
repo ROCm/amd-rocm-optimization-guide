@@ -252,12 +252,17 @@ The 8 FP16 elements per lane are distributed across VGPRs:
      - K {12, 13}
      - K {14, 15}
 
+.. _rdna4-dense-wmma-builtins-example:
+
 Using WMMA builtins as a compute policy
 =========================================
 
 :ref:`mfma-compute-policy` explains the ``ComputePolicy`` pattern used to
-separate the multiply-accumulate logic from the rest of a kernel.  Two policy
-variants are provided for RDNA4.
+separate the multiply-accumulate logic from the rest of a kernel.  A
+baseline policy is provided for RDNA4; a second, hardware-transpose policy
+that loads B via :doc:`a transpose-load builtin <rdna4-wmma-transpose-builtins>`
+instead of a scalar loop is also defined in the same example file and
+covered on that page.
 
 The complete source file is available for download:
 
@@ -291,28 +296,14 @@ coordinates using the RDNA4 lane-group-split layout.
    :start-after: [Sphinx wmma rdna4 policy start]
    :end-before: [Sphinx wmma rdna4 policy end]
 
-Hardware transpose policy
--------------------------
-
-``WmmaRdna4F16TrPolicy`` replaces the scalar B transpose with a hardware-
-accelerated ``GLOBAL_LOAD_TR_B128`` instruction
-(``__builtin_amdgcn_global_load_tr_b128_v8f16``).  This intrinsic loads 128
-bits per lane from global memory and transposes the data into LDS in a single
-operation, avoiding the per-element scalar transpose loop.
-
-The compute path (``load_a``, ``load_b``, ``mma``, ``store_c``) is identical
-to the baseline -- only the tile policy's ``prefetch()`` stage changes.
-
-.. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
-   :language: cpp
-   :start-after: [Sphinx wmma rdna4 tr policy start]
-   :end-before: [Sphinx wmma rdna4 tr policy end]
-
 .. rubric:: Instantiating the kernel
 
-With either policy, plug it into the generic kernel alongside any
-``TilePolicy`` whose ``block_tile_m`` and ``block_tile_n`` are multiples
-of 16 and whose ``k_tile_size`` is a multiple of ``k_step = 16``.
+Plug this policy into the generic kernel alongside any ``TilePolicy`` whose
+``block_tile_m`` and ``block_tile_n`` are multiples of 16 and whose
+``k_tile_size`` is a multiple of ``k_step = 16``.  The launch code below
+also instantiates ``WmmaTilePolicyTrB``, the hardware-transpose tile policy
+explained on :doc:`rdna4-wmma-transpose-builtins`, and runs both back to
+back for comparison.
 
 .. literalinclude:: ../../tools/example_codes/matrix_multiply_rdna4_wmma.hip
    :language: cpp

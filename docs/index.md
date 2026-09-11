@@ -61,6 +61,7 @@ and multi-GPU programming.
     * {doc}`./compiler-builtins/rdna/rdna3-dense-wmma-builtins`
     * {doc}`./compiler-builtins/rdna/rdna4-dense-wmma-builtins`
   * {doc}`./compiler-builtins/rdna/rdna4-sparse-wmma-builtins`
+  * {doc}`./compiler-builtins/rdna/rdna4-wmma-transpose-builtins`
 
 Known issues are listed and can be reported on the [AMD ROCm Optimization Guide GitHub repository](https://github.com/ROCm/amd-rocm-optimization-guide/issues).
 

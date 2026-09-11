@@ -24,3 +24,5 @@ density -- dense or sparse -- and then by RDNA generation.
 * Sparse WMMA builtins
 
   * :doc:`RDNA4 sparse WMMA builtins <rdna4-sparse-wmma-builtins>`
+
+* :doc:`RDNA4 WMMA transpose load builtins <rdna4-wmma-transpose-builtins>`
