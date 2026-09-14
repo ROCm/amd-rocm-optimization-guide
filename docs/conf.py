@@ -66,6 +66,7 @@ html_theme_options = {
         "Community": "https://github.com/ROCm/ROCm/discussions",
         "Blogs": "https://rocm.blogs.amd.com/",
         "ROCm™ Docs": "https://rocm.docs.amd.com",
+        "ROCm handbook": "https://rocm-handbook.amd.com/en/latest/index.html",
         "Support": "https://github.com/ROCm/ROCm/issues/new/choose",
     },
     "link_main_doc": False,
