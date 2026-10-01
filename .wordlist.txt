@@ -1255,6 +1255,7 @@ tqdm
 tracebacks
 tradeoffs
 TransferBench
+TrB
 TrPolicy
 transfering
 TrapStatus
@@ -1357,6 +1358,7 @@ WikiText
 WinGDB
 WMMA
 wmma
+WmmaRdna
 Wojna
 workgroup
 Workgroups
