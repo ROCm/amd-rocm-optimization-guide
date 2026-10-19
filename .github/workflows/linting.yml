@@ -19,4 +19,4 @@ jobs:
     name: Documentation
     permissions:
       contents: read
-    uses: ROCm/rocm-docs-core/.github/workflows/linting.yml@17417d0101a0406787e585a07863056f3b142a78 # develop
+    uses: ROCm/rocm-docs-core/.github/workflows/linting.yml@d0f2823b98311f11f13de50d56c39261cc748f3d # develop
